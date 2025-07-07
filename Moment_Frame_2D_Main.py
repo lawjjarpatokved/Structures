@@ -85,11 +85,11 @@ class WF_section:
 class Moment_Frame_2D:
 
 
-    def __init__(self,width_of_bay,storey_height, no_of_elements_column, no_of_elements_beam):
+    def __init__(self,width_of_bay,storey_height, no_of_elements_column, no_of_elements_beam, beam_section,column_section,**kwargs):
 
         self.bay_width=[0]+width_of_bay
         self.storey_height = [0] + storey_height
-        print(self.bay_width)
+        # print(self.bay_width)
         # Assigning values to instance variables
         self.no_of_bays = len(self.bay_width)-1
         self.no_of_stories = len(self.storey_height)-1
@@ -101,9 +101,21 @@ class Moment_Frame_2D:
         self.node_to_node_height_column=self.node_to_node_height_column[1:]
         self.node_to_node_length_beam=[bay_width/self.no_of_elements_beam for bay_width in self.bay_width]
         self.node_to_node_length_beam=self.node_to_node_length_beam[1:]
-        print(self.node_to_node_height_column)
-        print(self.node_to_node_length_beam)
+        self.beam_section=beam_section
+        self.column_section=column_section   
         self.Main_Nodes=[]
+        self.make_beam_section_detail_uniform()
+        self.make_column_section_detail_uniform()
+
+        self.kwargs=kwargs
+
+        defaults={'nip':4,
+                  'Inelastic_analysis':True,
+                  'Second_order_effects':True}
+        
+        for key,value in defaults.items():
+            setattr(self,key,kwargs.get(key,value))
+        
 
         # Input validation
         if not (0<= self.no_of_bays < 10):
@@ -207,8 +219,86 @@ class Moment_Frame_2D:
 
         self.all_nodes=self.Main_Nodes+self.column_intermediate_nodes+self.beam_intermediate_nodes
 
+
+    @staticmethod
+    def nth_digit(num, n):
+        """
+        Returns the nth digit (from left, 1-based index) of a number.
+        For example, nth_digit(1234, 2) returns 2.
+        """
+        num_str = str(abs(num))  # Make sure it's positive and convert to string
+        if n <= 0 or n > len(num_str):
+            raise ValueError(f"n = {n} is out of bounds for number {num}")
+        return int(num_str[n - 1])
+
+    @staticmethod
+    def find_bay_and_storey_for_beams(beam_connectivity):
+        """
+        Given beam connectivity as [tag, first_node, second_node],
+        returns (bay, storey) based on encoded node number format.
+        Assumes node number format encodes bay and storey as digits,
+        e.g., node 203 means bay=2, storey=3.
+        """
+        first_node = beam_connectivity[0]
+        bay = Moment_Frame_2D.nth_digit(first_node, 1)
+        storey = Moment_Frame_2D.nth_digit(first_node, 3)
+        return bay, storey
+        
+    @staticmethod
+    def find_axis_and_storey_for_columns(column_connectivity):
+        """
+        Given beam connectivity as [tag, first_node, second_node],
+        returns (bay, storey) based on encoded node number format.
+        Assumes node number format encodes bay and storey as digits,
+        e.g., node 203 means bay=2, storey=3.
+        """
+        first_node = column_connectivity[0]
+        axis = Moment_Frame_2D.nth_digit(first_node, 1)
+        storey = Moment_Frame_2D.nth_digit(first_node, 3)
+        return axis, storey
+    
+
+    def make_beam_section_detail_uniform(self):
+        self.beam_case = list(self.beam_section.keys())[0]
+        nested_dict = self.beam_section[self.beam_case]
+
+        self.no_of_beam_sections = len(nested_dict)
+
+        # Assign unique tags to unique section names
+        unique_sections = sorted(set(nested_dict.values()))
+        self.beam_section_tags = {section: idx + 1 for idx, section in enumerate(unique_sections)}
+
+        # Update the nested dictionary to include the tag
+        updated_nested_dict = {
+            key: (value, self.beam_section_tags[value]) for key, value in nested_dict.items()
+        }
+
+        # Update the main beam_section
+        self.beam_section[self.beam_case] = updated_nested_dict
+
+
+    def make_column_section_detail_uniform(self):
+        self.column_case = list(self.column_section.keys())[0]
+        nested_dict = self.column_section[self.column_case]
+
+        self.no_of_column_sections = len(nested_dict)
+
+        # Assign unique tags to unique section names
+        unique_sections = sorted(set(nested_dict.values()))
+        self.column_section_tags = {section: idx + 1+self.no_of_beam_sections for idx, section in enumerate(unique_sections)}
+
+        # Update the nested dictionary to include the tag
+        updated_nested_dict = {
+            key: (value, self.column_section_tags[value]) for key, value in nested_dict.items()
+        }
+
+        # Update the main beam_section
+        self.column_section[self.column_case] = updated_nested_dict
+
+
+
     def build_ops_model(self):
-        nip = 7
+        # nip = 7
         ops.wipe()
         
         ops.model('basic','-ndm',2,'-ndf',3)
@@ -220,10 +310,12 @@ class Moment_Frame_2D:
         for base_nodes in self.NODES_TO_FIX:
             ops.fix(base_nodes[0],1,1,1)
 
+        # opsv.plot_model()
+
         Reinf_steel={'Rebar_steel_tag':3,'fy':415*Mpa,'Es':200000*Mpa,'b':0.002,'R0':15,'cR1':0.925,'cR2':0.15}
         ops.uniaxialMaterial("Steel02",Reinf_steel['Rebar_steel_tag'],Reinf_steel['fy'],Reinf_steel['Es'],
                             Reinf_steel['b'],Reinf_steel['R0'],Reinf_steel['cR1'],Reinf_steel['cR2'])
-        colSecTag= 1
+
         # # d=13.8*inch
         # d=section.wide_flange_database['W14X48']['d']*inch
         # # tw=0.34*inch
@@ -241,20 +333,94 @@ class Moment_Frame_2D:
         # alphaY=(d*tw)/A
 
         # ops.section('Elastic',colSecTag,E,A,I1,G,alphaY)
-        W14x48=WF_section('W14X48')
-        #  sec_tag, mat_tag, nf_dw, nf_tw, nf_bf, nf_tf,section_name,plot=True
-        W14x48.W_Fiber_section_minor_axis(colSecTag,Reinf_steel['Rebar_steel_tag'], *[4, 2, 4, 2],'Steel_Section',plot=True)
-
-        colTransTag = 1
-        ops.geomTransf("PDelta", colTransTag)
+        col_and_beam_TransTag = 1
         beam_integration_tag=1
-        ops.beamIntegration("Lobatto",beam_integration_tag , colSecTag, nip)
+        column_integration_tag=2
+
+        for beam_section_name,beam_section_tag in self.beam_section_tags.items():
+            beam=WF_section(beam_section_name)
+                                            
+            beam.W_Fiber_section_minor_axis(beam_section_tag,               #  sec_tag
+                                            Reinf_steel['Rebar_steel_tag'], # mat_tag
+                                            *[4, 2, 4, 2],                  #  nf_dw, nf_tw, nf_bf, nf_tf
+                                            'Steel_Section',                # section_name
+                                             plot=True)                     # plot=True
+            
+            ops.beamIntegration("Lobatto",beam_section_tag , beam_section_tag, self.nip)
+
+
+        for column_section_name,column_section_tag in self.column_section_tags.items():
+            column=WF_section(column_section_name)
+                                            
+            column.W_Fiber_section_minor_axis(column_section_tag,               #  sec_tag
+                                            Reinf_steel['Rebar_steel_tag'], # mat_tag
+                                            *[4, 2, 4, 2],                  #  nf_dw, nf_tw, nf_bf, nf_tf
+                                            'Steel_Section',                # section_name
+                                             plot=True)                     # plot=True
+            
+            ops.beamIntegration("Lobatto",column_section_tag , column_section_tag, self.nip)
+
+
+        ########### check whether Second order effects need to be included or not ############
+        if self.Second_order_effects:    
+            ops.geomTransf("PDelta", col_and_beam_TransTag)
+
+        else:
+            ops.geomTransf("Linear", col_and_beam_TransTag)
+ 
+
 
         for column_ij_node in self.column_connectivity:
-            ops.element('forceBeamColumn',column_ij_node[0],*column_ij_node[1:],colTransTag,beam_integration_tag)
+            axis, storey = Moment_Frame_2D.find_axis_and_storey_for_columns(column_ij_node[1:])
+            
+            if self.column_case == 'common_and_exceptions':
+                key = f'({axis},{storey})'
+                if key in self.column_section[self.column_case]:
+                    print(f"node {column_ij_node[1]} and {column_ij_node[2]} are in axis {axis} and storey {storey}, which is an exception.")
+                    section_tag = self.column_section[self.column_case][key][1]
+                else:
+                    print(f"node {column_ij_node[1]} and {column_ij_node[2]} are not in axis {axis} and storey {storey}, which is common.")
+                    section_tag = self.column_section[self.column_case]['common'][1]
+
+            elif self.column_case == 'same_for_storey':
+                key = str(storey)
+                if key in self.column_section[self.column_case]:
+                    section_tag = self.column_section[self.column_case][key][1]
+                else:
+                    raise KeyError(f"No column section defined for storey {storey}")
+
+            else:
+                raise ValueError(f"Unsupported column_case: {self.column_case}. Possible issues: lowercase, spelling error.")
+
+            ops.element('forceBeamColumn', column_ij_node[0], *column_ij_node[1:], col_and_beam_TransTag, section_tag)
+
 
         for beam_ij_node in self.beam_connectivity:
-            ops.element('forceBeamColumn',beam_ij_node[0],*beam_ij_node[1:],colTransTag,beam_integration_tag)
+            bay, storey = Moment_Frame_2D.find_bay_and_storey_for_beams(beam_ij_node[1:])
+            
+            if self.beam_case == 'common_and_exceptions':
+                key = f'({bay},{storey})'
+                if key in self.beam_section[self.beam_case]:
+                    print(f"node {beam_ij_node[1]} and {beam_ij_node[2]} are in bay {bay} and storey {storey}, which is an exception.")
+                    section_tag = self.beam_section[self.beam_case][key][1]
+                else:
+                    print(f"node {beam_ij_node[1]} and {beam_ij_node[2]} are not in bay {bay} and storey {storey}, which is common.")
+                    section_tag = self.beam_section[self.beam_case]['common'][1]
+
+            elif self.beam_case == 'same_for_storey':
+                key = str(storey)
+                if key in self.beam_section[self.beam_case]:
+                    section_tag = self.beam_section[self.beam_case][key][1]
+                else:
+                    raise KeyError(f"No beam section defined for storey {storey}")
+
+            else:
+                raise ValueError(f"Unsupported beam_case: {self.beam_case}, Possible Errors: Lower case, spelling")
+
+            ops.element('forceBeamColumn', beam_ij_node[0], *beam_ij_node[1:], col_and_beam_TransTag, section_tag)
+
+        opsv.plot_model()
+
 
     def plot_model(self):
         plot_undeformed_2d()
@@ -267,8 +433,8 @@ class Moment_Frame_2D:
   
 #width_of_bay,storey_height, no_of_elements_column, no_of_elements_beam
 # Frame=Moment_Frame_2D(3,3,1,3.5,3,4)
-Frame=Moment_Frame_2D([3,2,3,6],[3,3.5,3,5],3,4)
-Frame.generate_Nodes_and_Element_Connectivity()
+# Frame=Moment_Frame_2D([3,2,3,6],[3,3.5,3,5],3,4)
+# Frame.generate_Nodes_and_Element_Connectivity()
 # print(Frame.Main_Nodes)
 # print(Frame.NODES_TO_FIX)
 # print(Frame.column_intermediate_nodes)
@@ -277,7 +443,7 @@ Frame.generate_Nodes_and_Element_Connectivity()
 # print(Frame.beam_connectivity)
 # print(Frame.all_nodes)
 
-Frame.build_ops_model()
-Frame.plot_model()
-Frame.display_node_coords()
+# Frame.build_ops_model()
+# Frame.plot_model()
+# Frame.display_node_coords()
     
