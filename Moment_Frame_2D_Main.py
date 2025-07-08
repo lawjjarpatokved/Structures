@@ -254,7 +254,10 @@ class Moment_Frame_2D:
         """
         first_node = column_connectivity[0]
         axis = Moment_Frame_2D.nth_digit(first_node, 1)
-        storey = Moment_Frame_2D.nth_digit(first_node, 3)
+        storey = Moment_Frame_2D.nth_digit(first_node, 3) + 1  
+        ''' 1 is added because my assumption is that column in storey
+          1 means the column that support the 1st storey slab
+        '''
         return axis, storey
     
 
@@ -370,54 +373,77 @@ class Moment_Frame_2D:
  
 
 
-        for column_ij_node in self.column_connectivity:
+        # ----- Columns -----
+        for i, column_ij_node in enumerate(self.column_connectivity):
             axis, storey = Moment_Frame_2D.find_axis_and_storey_for_columns(column_ij_node[1:])
-            
+
             if self.column_case == 'common_and_exceptions':
                 key = f'({axis},{storey})'
                 if key in self.column_section[self.column_case]:
-                    print(f"node {column_ij_node[1]} and {column_ij_node[2]} are in axis {axis} and storey {storey}, which is an exception.")
-                    section_tag = self.column_section[self.column_case][key][1]
+                    # print(f"node {column_ij_node[1]} and {column_ij_node[2]} are in axis {axis} and storey {storey}, which is an exception.")
+                    section_name = self.column_section[self.column_case][key][0]
+                    section_tag  = self.column_section[self.column_case][key][1]
                 else:
-                    print(f"node {column_ij_node[1]} and {column_ij_node[2]} are not in axis {axis} and storey {storey}, which is common.")
-                    section_tag = self.column_section[self.column_case]['common'][1]
+                    # print(f"node {column_ij_node[1]} and {column_ij_node[2]} are not in axis {axis} and storey {storey}, which is common.")
+                    section_name = self.column_section[self.column_case]['common'][0]
+                    section_tag  = self.column_section[self.column_case]['common'][1]
 
             elif self.column_case == 'same_for_storey':
                 key = str(storey)
                 if key in self.column_section[self.column_case]:
-                    section_tag = self.column_section[self.column_case][key][1]
+                    section_name = self.column_section[self.column_case][key][0]
+                    section_tag  = self.column_section[self.column_case][key][1]
                 else:
                     raise KeyError(f"No column section defined for storey {storey}")
 
             else:
                 raise ValueError(f"Unsupported column_case: {self.column_case}. Possible issues: lowercase, spelling error.")
 
-            ops.element('forceBeamColumn', column_ij_node[0], *column_ij_node[1:], col_and_beam_TransTag, section_tag)
+            # Create column element
+            eleTag = column_ij_node[0]
+            ops.element('forceBeamColumn', eleTag, *column_ij_node[1:], col_and_beam_TransTag, section_tag)
+
+            # Append section name to column entry
+            self.column_connectivity[i] = column_ij_node + [section_name]
 
 
-        for beam_ij_node in self.beam_connectivity:
+        # ----- Beams -----
+        for i, beam_ij_node in enumerate(self.beam_connectivity):
             bay, storey = Moment_Frame_2D.find_bay_and_storey_for_beams(beam_ij_node[1:])
-            
+
             if self.beam_case == 'common_and_exceptions':
                 key = f'({bay},{storey})'
                 if key in self.beam_section[self.beam_case]:
-                    print(f"node {beam_ij_node[1]} and {beam_ij_node[2]} are in bay {bay} and storey {storey}, which is an exception.")
-                    section_tag = self.beam_section[self.beam_case][key][1]
+                    # print(f"node {beam_ij_node[1]} and {beam_ij_node[2]} are in bay {bay} and storey {storey}, which is an exception.")
+                    section_name = self.beam_section[self.beam_case][key][0]
+                    section_tag  = self.beam_section[self.beam_case][key][1]
                 else:
-                    print(f"node {beam_ij_node[1]} and {beam_ij_node[2]} are not in bay {bay} and storey {storey}, which is common.")
-                    section_tag = self.beam_section[self.beam_case]['common'][1]
+                    # print(f"node {beam_ij_node[1]} and {beam_ij_node[2]} are not in bay {bay} and storey {storey}, which is common.")
+                    section_name = self.beam_section[self.beam_case]['common'][0]
+                    section_tag  = self.beam_section[self.beam_case]['common'][1]
 
             elif self.beam_case == 'same_for_storey':
                 key = str(storey)
                 if key in self.beam_section[self.beam_case]:
-                    section_tag = self.beam_section[self.beam_case][key][1]
+                    section_name = self.beam_section[self.beam_case][key][0]
+                    section_tag  = self.beam_section[self.beam_case][key][1]
                 else:
                     raise KeyError(f"No beam section defined for storey {storey}")
 
             else:
                 raise ValueError(f"Unsupported beam_case: {self.beam_case}, Possible Errors: Lower case, spelling")
 
-            ops.element('forceBeamColumn', beam_ij_node[0], *beam_ij_node[1:], col_and_beam_TransTag, section_tag)
+            # Create beam element
+            eleTag = beam_ij_node[0]
+            ops.element('forceBeamColumn', eleTag, *beam_ij_node[1:], col_and_beam_TransTag, section_tag)
+
+            # Append section name to beam entry
+            self.beam_connectivity[i] = beam_ij_node + [section_name]
+
+
+
+        #### This part of code adds the self weight of all beams and columns, also any additional dead or live load 
+
 
         opsv.plot_model()
 
