@@ -19,6 +19,10 @@ Mpa= 10**3* KN/m**2; Gpa= 10**6* KN/m**2
 sec=1
 tonne=1*KN*(sec**2)/m; kg=0.001*tonne
 #################################################
+density_of_steel=7850*kg/(m**3)
+g=9.81*m/(sec**2)
+E=200000*Mpa
+G=77221*Mpa
 
 
 class WF_section:
@@ -85,14 +89,16 @@ class WF_section:
 class Moment_Frame_2D:
 
 
-    def __init__(self,width_of_bay,storey_height, no_of_elements_column, no_of_elements_beam, beam_section,column_section,**kwargs):
+    def __init__(self,width_of_bay,storey_height,
+                no_of_elements_column, no_of_elements_beam,
+                 beam_section,column_section,load_combination_multipliers,
+                 **kwargs):
 
         self.bay_width=[0]+width_of_bay
         self.storey_height = [0] + storey_height
-        # print(self.bay_width)
         # Assigning values to instance variables
-        self.no_of_bays = len(self.bay_width)-1
-        self.no_of_stories = len(self.storey_height)-1
+        self.no_of_bays = len(self.bay_width)-1            ######### number of bays
+        self.no_of_stories = len(self.storey_height)-1     ######### number of stories
         self.no_of_elements_column = no_of_elements_column
         self.no_of_elements_beam = no_of_elements_beam
         self.no_of_nodes_column=self.no_of_elements_column-1
@@ -104,18 +110,31 @@ class Moment_Frame_2D:
         self.beam_section=beam_section
         self.column_section=column_section   
         self.Main_Nodes=[]
+        self.D_multiplier=load_combination_multipliers[0]      ### Dead Load multiplier
+        self.L_multiplier=load_combination_multipliers[1]      ### Live Load multiplier
+        self.L_r_multiplier=load_combination_multipliers[2]    ### Roof Live Load multiplier
+        self.W_multiplier=load_combination_multipliers[3]      ### Wind Load multiplier
         self.make_beam_section_detail_uniform()
         self.make_column_section_detail_uniform()
 
         self.kwargs=kwargs
 
-        defaults={'nip':4,
+        defaults={'support':'All_Fixed',
+                  'nip':4,
+                  'D_floor_intensity':0,
+                  'D_roof_intensity':0,
+                  'L_floor_intensity':0,
+                  'L_roof_intensity':0,
                   'Inelastic_analysis':True,
                   'Second_order_effects':True}
         
         for key,value in defaults.items():
             setattr(self,key,kwargs.get(key,value))
         
+        if self.support=='All_Fixed':
+            self.support_condition=['F']*(self.no_of_bays+1)
+        else:
+            self.support_condition=list(self.support)
 
         # Input validation
         if not (0<= self.no_of_bays < 10):
@@ -129,6 +148,49 @@ class Moment_Frame_2D:
 
         if not(1<=self.no_of_elements_beam < 9):
             raise ValueError("Number of elements in beams must be from 1 to 9.")
+        
+        if len(self.support_condition)!= self.no_of_bays+1:
+            raise ValueError(f"The number of arguments given for supports {self.support} should be equal to the number of columns, {(self.no_of_bays)+1}. ")
+        
+    @staticmethod
+    def nth_digit(num, n):
+        """
+        Returns the nth digit (from left, 1-based index) of a number.
+        For example, nth_digit(1234, 2) returns 2.
+        """
+        num_str = str(abs(num))  # Make sure it's positive and convert to string
+        if n <= 0 or n > len(num_str):
+            raise ValueError(f"n = {n} is out of bounds for number {num}")
+        return int(num_str[n - 1])
+
+    @staticmethod
+    def find_bay_and_storey_for_beams(beam_connectivity):
+        """
+        Given beam connectivity as [tag, first_node, second_node],
+        returns (bay, storey) based on encoded node number format.
+        Assumes node number format encodes bay and storey as digits,
+        e.g., node 203 means bay=2, storey=3.
+        """
+        first_node = beam_connectivity[0]
+        bay = Moment_Frame_2D.nth_digit(first_node, 1)
+        storey = Moment_Frame_2D.nth_digit(first_node, 3)
+        return bay, storey
+        
+    @staticmethod
+    def find_axis_and_storey_for_columns(column_connectivity):
+        """
+        Given beam connectivity as [tag, first_node, second_node],
+        returns (bay, storey) based on encoded node number format.
+        Assumes node number format encodes bay and storey as digits,
+        e.g., node 203 means bay=2, storey=3.
+        """
+        first_node = column_connectivity[0]
+        axis = Moment_Frame_2D.nth_digit(first_node, 1)
+        storey = Moment_Frame_2D.nth_digit(first_node, 3) + 1  
+        ''' 1 is added because my assumption is that column in storey
+          1 means the column that support the 1st storey slab
+        '''
+        return axis, storey
 
 
     def generate_Nodes_and_Element_Connectivity(self):
@@ -215,50 +277,12 @@ class Moment_Frame_2D:
             for i in range(len(temp_beam_connectivity)-1):
                 self.beam_connectivity.append([element_tag,temp_beam_connectivity[i],temp_beam_connectivity[i+1]])
                 element_tag+=1
+       
 
 
         self.all_nodes=self.Main_Nodes+self.column_intermediate_nodes+self.beam_intermediate_nodes
 
 
-    @staticmethod
-    def nth_digit(num, n):
-        """
-        Returns the nth digit (from left, 1-based index) of a number.
-        For example, nth_digit(1234, 2) returns 2.
-        """
-        num_str = str(abs(num))  # Make sure it's positive and convert to string
-        if n <= 0 or n > len(num_str):
-            raise ValueError(f"n = {n} is out of bounds for number {num}")
-        return int(num_str[n - 1])
-
-    @staticmethod
-    def find_bay_and_storey_for_beams(beam_connectivity):
-        """
-        Given beam connectivity as [tag, first_node, second_node],
-        returns (bay, storey) based on encoded node number format.
-        Assumes node number format encodes bay and storey as digits,
-        e.g., node 203 means bay=2, storey=3.
-        """
-        first_node = beam_connectivity[0]
-        bay = Moment_Frame_2D.nth_digit(first_node, 1)
-        storey = Moment_Frame_2D.nth_digit(first_node, 3)
-        return bay, storey
-        
-    @staticmethod
-    def find_axis_and_storey_for_columns(column_connectivity):
-        """
-        Given beam connectivity as [tag, first_node, second_node],
-        returns (bay, storey) based on encoded node number format.
-        Assumes node number format encodes bay and storey as digits,
-        e.g., node 203 means bay=2, storey=3.
-        """
-        first_node = column_connectivity[0]
-        axis = Moment_Frame_2D.nth_digit(first_node, 1)
-        storey = Moment_Frame_2D.nth_digit(first_node, 3) + 1  
-        ''' 1 is added because my assumption is that column in storey
-          1 means the column that support the 1st storey slab
-        '''
-        return axis, storey
     
 
     def make_beam_section_detail_uniform(self):
@@ -301,7 +325,6 @@ class Moment_Frame_2D:
 
 
     def build_ops_model(self):
-        # nip = 7
         ops.wipe()
         
         ops.model('basic','-ndm',2,'-ndf',3)
@@ -310,58 +333,77 @@ class Moment_Frame_2D:
             ops.node(single_node[0],single_node[1],single_node[2])
     
 
-        for base_nodes in self.NODES_TO_FIX:
-            ops.fix(base_nodes[0],1,1,1)
 
-        # opsv.plot_model()
+        for base_nodes, support_condition in zip(self.NODES_TO_FIX, self.support_condition):
+            node_tag = base_nodes[0]
+            if support_condition.upper() == 'F':       # Fixed: UX, UY, RZ all fixed
+                ops.fix(node_tag, 1, 1, 1)
+            elif support_condition.upper() == 'P':     # Pinned: UX and UY fixed, RZ free
+                ops.fix(node_tag, 1, 1, 0)
+            else:                                      # Wrong condition
+                raise ValueError(f"Unsupported support condition{support_condition}.Expected 'F' or 'P'.")
+
 
         Reinf_steel={'Rebar_steel_tag':3,'fy':415*Mpa,'Es':200000*Mpa,'b':0.002,'R0':15,'cR1':0.925,'cR2':0.15}
         ops.uniaxialMaterial("Steel02",Reinf_steel['Rebar_steel_tag'],Reinf_steel['fy'],Reinf_steel['Es'],
                             Reinf_steel['b'],Reinf_steel['R0'],Reinf_steel['cR1'],Reinf_steel['cR2'])
+        
 
-        # # d=13.8*inch
-        # d=section.wide_flange_database['W14X48']['d']*inch
-        # # tw=0.34*inch
-        # tw=section.wide_flange_database['W14X48']['tw']*inch
-        # bf=section.wide_flange_database['W14X48']['bf']*inch
-        # tf=section.wide_flange_database['W14X48']['tf']*inch
-        # # A=14.1*inch*inch
-        # A=section.wide_flange_database['W14X48']['A']*(inch**2)
-        # # I=484*inch*inch*inch*inch
-        # I1=section.wide_flange_database['W14X48']['Ix']*(inch**4)
-        # I2=section.wide_flange_database['W14X48']['Iy']*(inch**4)
-        # E=200000*Mpa
 
-        # G=77221*Mpa
-        # alphaY=(d*tw)/A
-
-        # ops.section('Elastic',colSecTag,E,A,I1,G,alphaY)
         col_and_beam_TransTag = 1
         beam_integration_tag=1
         column_integration_tag=2
 
-        for beam_section_name,beam_section_tag in self.beam_section_tags.items():
-            beam=WF_section(beam_section_name)
-                                            
-            beam.W_Fiber_section_minor_axis(beam_section_tag,               #  sec_tag
-                                            Reinf_steel['Rebar_steel_tag'], # mat_tag
-                                            *[4, 2, 4, 2],                  #  nf_dw, nf_tw, nf_bf, nf_tf
-                                            'Steel_Section',                # section_name
-                                             plot=True)                     # plot=True
-            
-            ops.beamIntegration("Lobatto",beam_section_tag , beam_section_tag, self.nip)
+
+        if not self.Inelastic_analysis:
+            for beam_section_name,beam_section_tag in self.beam_section_tags.items():
+                beam=WF_section(beam_section_name)
+                A=beam.A
+                I=beam.I1 ### This is for major axis bending, for minor axis use beam.I2
+                d=beam.d
+                tw=beam.tw
+                alphaY=(d*tw)/A
+                ops.section('Elastic',beam_section_tag,E,A,I,G,alphaY)
+                ops.beamIntegration("Lobatto",beam_section_tag , beam_section_tag, self.nip)
+
+            for column_section_name, column_section_tag in self.column_section_tags.items():
+                column = WF_section(column_section_name)
+                A = column.A
+                I = column.I1  ### This is for major axis bending, for minor axis use column.I2
+                d = column.d
+                tw = column.tw
+                alphaY = (d * tw) / A
+                ops.section('Elastic', column_section_tag, E, A, I, G, alphaY)
+                ops.beamIntegration("Lobatto",column_section_tag , column_section_tag, self.nip)
 
 
-        for column_section_name,column_section_tag in self.column_section_tags.items():
-            column=WF_section(column_section_name)
-                                            
-            column.W_Fiber_section_minor_axis(column_section_tag,               #  sec_tag
-                                            Reinf_steel['Rebar_steel_tag'], # mat_tag
-                                            *[4, 2, 4, 2],                  #  nf_dw, nf_tw, nf_bf, nf_tf
-                                            'Steel_Section',                # section_name
-                                             plot=True)                     # plot=True
-            
-            ops.beamIntegration("Lobatto",column_section_tag , column_section_tag, self.nip)
+        elif self.Inelastic_analysis:
+
+            for beam_section_name,beam_section_tag in self.beam_section_tags.items():
+                beam=WF_section(beam_section_name)
+                                                
+                beam.W_Fiber_section_minor_axis(beam_section_tag,               #  sec_tag
+                                                Reinf_steel['Rebar_steel_tag'], # mat_tag
+                                                *[4, 2, 4, 2],                  #  nf_dw, nf_tw, nf_bf, nf_tf
+                                                'Steel_Section',                # section_name
+                                                plot=True)                      # plot=True
+                
+                ops.beamIntegration("Lobatto",beam_section_tag , beam_section_tag, self.nip)
+
+
+            for column_section_name,column_section_tag in self.column_section_tags.items():
+                column=WF_section(column_section_name)
+                                                
+                column.W_Fiber_section_minor_axis(column_section_tag,           #  sec_tag
+                                                Reinf_steel['Rebar_steel_tag'], # mat_tag
+                                                *[4, 2, 4, 2],                  #  nf_dw, nf_tw, nf_bf, nf_tf
+                                                'Steel_Section',                # section_name
+                                                plot=True)                      # plot=True
+                
+                ops.beamIntegration("Lobatto",column_section_tag , column_section_tag, self.nip)
+
+        else:
+            raise ValueError('Please give correct input for Inelastic_analysis')
 
 
         ########### check whether Second order effects need to be included or not ############
@@ -440,12 +482,46 @@ class Moment_Frame_2D:
             # Append section name to beam entry
             self.beam_connectivity[i] = beam_ij_node + [section_name]
 
-
+        self.roof_beams=[]
+        for beams in self.beam_connectivity:
+            if Moment_Frame_2D.nth_digit(beams[1],3)==self.no_of_stories:
+                self.roof_beams.append(beams)
 
         #### This part of code adds the self weight of all beams and columns, also any additional dead or live load 
+        load_timeseries_counter=1
+        load_pattern_counter=1
+        ops.timeSeries('Linear',load_timeseries_counter)
+        ops.pattern('Plain',load_pattern_counter,load_timeseries_counter)
+        load_timeseries_counter+=1
+        load_pattern_counter+=1
+
+        for columns in self.column_connectivity:
+            fiber_section=WF_section(columns[3])
+            Area=fiber_section.A
+            ops.eleLoad('-ele',columns[0],'-type','-beamUniform',0,-Area*density_of_steel*g)
+
+
+        for beams in self.beam_connectivity:
+            fiber_section=WF_section(beams[3])
+            Area=fiber_section.A
+            # ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-Area*density_of_steel*g,0)
+            if beams not in self.roof_beams:
+                ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-self.D_multiplier*self.D_floor_intensity,0) 
+                ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-self.L_multiplier*self.L_floor_intensity,0)
+            else:
+                ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-self.D_multiplier*self.D_roof_intensity,0)
+                ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-self.L_r_multiplier*self.L_roof_intensity,0)
+
+            
+
+        
 
 
         opsv.plot_model()
+        opsv.plot_load(nep=2)
+
+    # def apply_dead_and_live_loads(self):
+
 
 
     def plot_model(self):
@@ -455,21 +531,4 @@ class Moment_Frame_2D:
         get_node_coords_and_disp()
 
 
-
-  
-#width_of_bay,storey_height, no_of_elements_column, no_of_elements_beam
-# Frame=Moment_Frame_2D(3,3,1,3.5,3,4)
-# Frame=Moment_Frame_2D([3,2,3,6],[3,3.5,3,5],3,4)
-# Frame.generate_Nodes_and_Element_Connectivity()
-# print(Frame.Main_Nodes)
-# print(Frame.NODES_TO_FIX)
-# print(Frame.column_intermediate_nodes)
-# print(Frame.column_connectivity)
-# print(Frame.beam_intermediate_nodes)
-# print(Frame.beam_connectivity)
-# print(Frame.all_nodes)
-
-# Frame.build_ops_model()
-# Frame.plot_model()
-# Frame.display_node_coords()
     
