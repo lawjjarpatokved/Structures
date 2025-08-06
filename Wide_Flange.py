@@ -1,4 +1,5 @@
 import libdenavit.section.database.aisc as section
+import libdenavit.section.wide_flange as database
 from libdenavit.section.geometric_shape import *
 from libdenavit.OpenSees.get_fiber_data import *
 from math import pi, ceil
@@ -30,26 +31,33 @@ class I_shape(GeometricShape):
         self._Iy=Iy
 
         self.num_regions = 10   # Number of regions for the discretization of residual stress
-        self.L = float('nan')  # Beam length (span)
-        self.TW = float('nan')  # Tributary width
-        self.gamma = 0.0
-
-        self.zi = 0.0
-        self.zj = 0.0
-        self.c = 0.0           # Camber
-
-        self.wD = 0.0           # Dead load (force per unit length)
-
-        self.material_type = 'Steel01'
         self.num_elements = 20
         self.num_fiber = 20
         self.num_steps = 100
 
-        self.nsteps_vol = 30
-        self.max_volume = float('nan')
-        self.vol_tol = float('nan')
-        self.percent_drop = 0.05
 
+    @classmethod
+    def from_database(cls, section_name):
+        db = database.WideFlangeDB(section_name)
+        return cls(
+            d=db.d,
+            tw=db.tw,
+            bf=db.bf,
+            tf=db.tf,
+            A=db.A,
+            Ix=db.Ix,
+            Zx=db.Zx,
+            Sx=db.Sx,
+            rx=db.rx,
+            Iy=db.Iy,
+            Zy=db.Zy,
+            Sy=db.Sy,
+            ry=db.ry,
+            J=db.J,
+            Cw=db.Cw,
+            rts=db.rts,
+            ho=db.ho
+        )
 
     @property
     def A(self):
@@ -76,6 +84,18 @@ class I_shape(GeometricShape):
         self._Ix = x
 
     @property
+    def Zx(self):
+        return ValueError("Formula not set")
+    
+    @property
+    def Sx(self):
+        return ValueError("Formula not set")
+
+    @property
+    def rx(self):
+        return ValueError("Formula not set")
+    
+    @property
     def Iy(self):
         if self._Iy is not None:
             return self._Iy
@@ -89,32 +109,68 @@ class I_shape(GeometricShape):
         self._Iy = x
 
     @property
+    def Zy(self):
+        return ValueError("Formula not set")
+    
+    @property
+    def Sy(self):
+        return ValueError("Formula not set")
+    
+    @property
+    def ry(self):
+        return ValueError("Formula not set")
+    
+    @property
+    def J(self):
+        return ValueError("Formula not set")
+    
+    @property
+    def Cw(self):
+        return ValueError("Formula not set")   
+
+    @property
+    def rts(self):
+        return ValueError("Formula not set")
+    
+    @property
+    def ho(self):
+        return ValueError("Formula not set")    
+
+    @property
+    def h_over_tw (self):
+        return ValueError("Formula not set")
+    
+    @property
+    def bf_over_2tf (self):
+        return ValueError("Formula not set")
+       
+    @property
     def dw(self):
         return self.d-2*self.tf
     
-    def Iz(self):
-        Iz = (1.0/12)*self.bf*self.d**3 - (1.0/12) * \
-            (self.bf-self.tw)*self.dw()**3
-        return Iz
+    # def Iz(self):
+    #     Iz = (1.0/12)*self.bf*self.d**3 - (1.0/12) * \
+    #         (self.bf-self.tw)*self.dw()**3
+    #     return Iz
 
-    def Sz(self):
-        Sz = self.Iz()/(self.d/2)
-        return Sz
+    # def Sz(self):
+    #     Sz = self.Iz()/(self.d/2)
+    #     return Sz
 
-    def Zz(self):
-        Zz = 2*((self.tf*self.bf)*(self.d/2-self.tf/2) +
-                (self.dw()/2*self.tw)*(self.dw()/4))
-        return Zz
+    # def Zz(self):
+    #     Zz = 2*((self.tf*self.bf)*(self.d/2-self.tf/2) +
+    #             (self.dw()/2*self.tw)*(self.dw()/4))
+    #     return Zz
 
-    def Mp(self):
-        return self.Fy*self.Zz()
+    # def Mp(self):
+    #     return self.Fy*self.Zz()
 
-    def C(self):
-        return (self.gamma*self.TW*self.L**4)/(pi**4*self.E*self.Iz())
+    # def C(self):
+    #     return (self.gamma*self.TW*self.L**4)/(pi**4*self.E*self.Iz())
     
 
-    def W_Fiber_section_major_axis(self, sec_tag, material, section_name, Residual_Stress):
-        self.sec_tag=sec_tag
+    def build_ops_fiber_section(self,section_id,material,Residual_Stress,axis='x'):
+        self.section_id=section_id
         self.Residual_Stress = Residual_Stress
 
         if self.Residual_Stress:
@@ -122,101 +178,99 @@ class I_shape(GeometricShape):
         else:
             self.frc = 0
 
-        Nfw = ceil(self.dw * (self.num_fiber / self.d))
-        Nff = ceil(self.tf * (self.num_fiber / self.d))
 
-        if not self.Residual_Stress:
-            ops.section('Fiber', sec_tag)
+        if axis=='x':
+            Nfw = ceil(self.dw * (self.num_fiber / self.d))
+            Nff = ceil(self.tf * (self.num_fiber / self.d))
 
-            ops.uniaxialMaterial('Steel01', material.mat_tag, material.Fy, material.E, material.b)
+            if not self.Residual_Stress:
+                ops.section('Fiber', section_id)
 
-            # Web patch
-            ops.patch('rect', material.mat_tag, Nfw, 1, -self.dw / 2, -self.tw / 2, self.dw / 2, self.tw / 2)
-            # Flange patches
-            ops.patch('rect', material.mat_tag, Nff, 1, self.dw / 2, -self.bf / 2, self.d / 2, self.bf / 2)
-            ops.patch('rect', material.mat_tag, Nff, 1, -self.d / 2, -self.bf / 2, -self.dw / 2, self.bf / 2)
+                ops.uniaxialMaterial('Steel01', material.mat_tag, material.Fy, material.E, material.b)
+
+                # Web patch
+                ops.patch('rect', material.mat_tag, Nfw, 1, -self.dw / 2, -self.tw / 2, self.dw / 2, self.tw / 2)
+                # Flange patches
+                ops.patch('rect', material.mat_tag, Nff, 1, self.dw / 2, -self.bf / 2, self.d / 2, self.bf / 2)
+                ops.patch('rect', material.mat_tag, Nff, 1, -self.d / 2, -self.bf / 2, -self.dw / 2, self.bf / 2)
 
 
+            else:
+                ops.section('Fiber', section_id)
+                
+
+                frt = -self.frc * (self.bf * self.tf) / (self.bf * self.tf + self.tw * self.dw)
+
+                ops.uniaxialMaterial('Steel01', material.mat_tag + 1, material.Fy, material.E, material.b)
+                ops.uniaxialMaterial('InitStressMaterial', material.mat_tag, material.mat_tag + 1, frt)
+
+                ops.patch('rect', material.mat_tag, Nfw, 1, -self.dw / 2, -self.tw / 2, self.dw / 2, self.tw / 2)
+
+                region_width = self.bf / self.num_regions
+
+                for i in range(self.num_regions):
+                    fri = self.frc + ((i + 0.5) / self.num_regions) * (frt - self.frc)
+                    matTagi = material.mat_tag + 2 * (i + 1)
+
+                    ops.uniaxialMaterial('Steel01', matTagi + 1, material.Fy, material.E, material.b)
+                    ops.uniaxialMaterial('InitStressMaterial', matTagi, matTagi + 1, fri)
+
+                    # Top flange
+                    ops.patch('rect', matTagi, Nff, 1, self.dw / 2, -region_width / 2, self.d / 2, region_width / 2)
+                    # Bottom flange
+                    ops.patch('rect', matTagi, Nff, 1, -self.d / 2, -region_width / 2, -self.dw / 2, region_width / 2)
+
+        
+        elif axis=='y':
+            Nfw = ceil(self.tw * (self.num_fiber / self.bf))
+            Nff = ceil(self.bf * (self.num_fiber / self.bf))
+
+            if not self.Residual_Stress:
+                ops.section('Fiber', section_id)
+                ops.uniaxialMaterial('Steel01', material.mat_tag, material.Fy, material.E, material.b)
+
+                # Web patch
+                ops.patch('rect', material.mat_tag, Nfw, 1, -self.tw/2, -self.dw/2, self.tw/2, self.dw/2)
+
+                # Flange patches
+                ops.patch('rect', material.mat_tag, Nff, 1, -self.bf/2, -self.d/2, self.bf/2, -self.dw/2)
+                ops.patch('rect', material.mat_tag, Nff, 1, -self.bf/2, self.dw/2, self.bf/2, self.d/2)
+
+
+            else:
+                ops.section('Fiber', section_id)
+
+                frt = -self.frc * (self.bf * self.tf) / (self.bf * self.tf + self.tw * self.dw)
+                ops.uniaxialMaterial('Steel01', material.mat_tag + 1, material.Fy, material.E, material.b)
+                ops.uniaxialMaterial('InitStressMaterial', material.mat_tag, material.mat_tag + 1, frt)
+
+                # Web patch
+                ops.patch('rect', material.mat_tag, Nfw, 1, -self.tw/2, -self.dw/2, self.tw/2, self.dw/2)
+
+                region_width = self.bf / self.num_regions
+                Nff = ceil(region_width * (self.num_fiber / self.bf))
+
+                for i in range(self.num_regions):
+                    fri = self.frc + ((i + 0.5) / self.num_regions) * (frt - self.frc)
+                    matTagi = material.mat_tag + 2 * (i + 1)
+
+                    ops.uniaxialMaterial('Steel01', matTagi + 1, material.Fy, material.E, material.b)
+                    ops.uniaxialMaterial('InitStressMaterial', matTagi, matTagi + 1, fri)
+
+                    # Top flange segment
+                    ops.patch('rect', matTagi, Nff, 1, -region_width / 2, self.dw/2, region_width / 2, self.d/2)
+                    # Bottom flange segment
+                    ops.patch('rect', matTagi, Nff, 1, -region_width / 2, -self.d/2, region_width / 2, -self.dw/2)
+
+        
         else:
-            ops.section('Fiber', sec_tag)
-            
-
-            frt = -self.frc * (self.bf * self.tf) / (self.bf * self.tf + self.tw * self.dw)
-
-            ops.uniaxialMaterial('Steel01', material.mat_tag + 1, material.Fy, material.E, material.b)
-            ops.uniaxialMaterial('InitStressMaterial', material.mat_tag, material.mat_tag + 1, frt)
-
-            ops.patch('rect', material.mat_tag, Nfw, 1, -self.dw / 2, -self.tw / 2, self.dw / 2, self.tw / 2)
-
-            region_width = self.bf / self.num_regions
-
-            for i in range(self.num_regions):
-                fri = self.frc + ((i + 0.5) / self.num_regions) * (frt - self.frc)
-                matTagi = material.mat_tag + 2 * (i + 1)
-
-                ops.uniaxialMaterial('Steel01', matTagi + 1, material.Fy, material.E, material.b)
-                ops.uniaxialMaterial('InitStressMaterial', matTagi, matTagi + 1, fri)
-
-                # Top flange
-                ops.patch('rect', matTagi, Nff, 1, self.dw / 2, -region_width / 2, self.d / 2, region_width / 2)
-                # Bottom flange
-                ops.patch('rect', matTagi, Nff, 1, -self.d / 2, -region_width / 2, -self.dw / 2, region_width / 2)
+            raise ValueError("Please give valid axis, 'x' or 'y'.")
 
 
 
-    def W_Fiber_section_minor_axis(self, sec_tag, material, section_name, Residual_Stress, plot=True):
-        self.sec_tag=sec_tag
-        self.Residual_Stress = Residual_Stress
 
-        if self.Residual_Stress:
-            self.frc = -0.3 * material.Fy
-        else:
-            self.frc = 0
-
-        Nfw = ceil(self.tw * (self.num_fiber / self.bf))
-        Nff = ceil(self.bf * (self.num_fiber / self.bf))
-
-        if not self.Residual_Stress:
-            ops.section('Fiber', sec_tag)
-            ops.uniaxialMaterial('Steel01', material.mat_tag, material.Fy, material.E, material.b)
-
-            # Web patch
-            ops.patch('rect', material.mat_tag, Nfw, 1, -self.tw/2, -self.dw/2, self.tw/2, self.dw/2)
-
-            # Flange patches
-            ops.patch('rect', material.mat_tag, Nff, 1, -self.bf/2, -self.d/2, self.bf/2, -self.dw/2)
-            ops.patch('rect', material.mat_tag, Nff, 1, -self.bf/2, self.dw/2, self.bf/2, self.d/2)
-
-
-        else:
-            ops.section('Fiber', sec_tag)
-
-            frt = -self.frc * (self.bf * self.tf) / (self.bf * self.tf + self.tw * self.dw)
-            ops.uniaxialMaterial('Steel01', material.mat_tag + 1, material.Fy, material.E, material.b)
-            ops.uniaxialMaterial('InitStressMaterial', material.mat_tag, material.mat_tag + 1, frt)
-
-            # Web patch
-            ops.patch('rect', material.mat_tag, Nfw, 1, -self.tw/2, -self.dw/2, self.tw/2, self.dw/2)
-
-            region_width = self.bf / self.num_regions
-            Nff = ceil(region_width * (self.num_fiber / self.bf))
-
-            for i in range(self.num_regions):
-                fri = self.frc + ((i + 0.5) / self.num_regions) * (frt - self.frc)
-                matTagi = material.mat_tag + 2 * (i + 1)
-
-                ops.uniaxialMaterial('Steel01', matTagi + 1, material.Fy, material.E, material.b)
-                ops.uniaxialMaterial('InitStressMaterial', matTagi, matTagi + 1, fri)
-
-                # Top flange segment
-                ops.patch('rect', matTagi, Nff, 1, -region_width / 2, self.dw/2, region_width / 2, self.d/2)
-                # Bottom flange segment
-                ops.patch('rect', matTagi, Nff, 1, -region_width / 2, -self.d/2, region_width / 2, -self.dw/2)
-
-
-
-    def plot_fiber_section(sec_tag):
-        get_fiber_data(section_tag=sec_tag,plot_fibers=True)
+    def plot_fiber_section(section_id):
+        get_fiber_data(section_tag=section_id,plot_fibers=True)
 
 
         
