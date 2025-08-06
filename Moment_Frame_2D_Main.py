@@ -5,6 +5,7 @@ import openseespy.opensees as ops
 import os
 import opsvis as opsv
 from libdenavit.OpenSees.plotting import *
+from libdenavit.OpenSees.get_fiber_data import *
 from Units import *
 from math import pi, ceil
 from Wide_Flange import *
@@ -25,6 +26,7 @@ class Steel_Material:
         self.G=G
         self.Hk=Hk
         self.density=density
+        self.b=Hk / (E + Hk)
 
 class Moment_Frame_2D:
 
@@ -74,7 +76,8 @@ class Moment_Frame_2D:
                   'Residual_Stress':True,
                   'stiffness_reduction':1,
                   'geometric_imperfection_ratio':1/500,
-                  'wind_load_dirn':'right'}
+                  'wind_load_dirn':'right',
+                  'plot_sections':False}
         
         for key,value in defaults.items():
             setattr(self,key,kwargs.get(key,value))
@@ -420,7 +423,8 @@ class Moment_Frame_2D:
 
         if not self.Inelastic_analysis:
             for beam_section_name,beam_section_tag in self.beam_section_tags.items():
-                beam=I_shape(beam_section_name,Steel.E,Steel.Fy,Steel.Hk)
+                beam_=WF_Database(beam_section_name)
+                beam=I_shape(beam_.d,beam_.tw,beam_.bf,beam_.bf,A=beam_.A,Ix=beam_.Ix,Iy=beam_.Iy)
                 A=beam.A
                 I=beam.Ix  
                 d=beam.d
@@ -430,59 +434,55 @@ class Moment_Frame_2D:
                 ops.section('Elastic',beam_section_tag,Steel.E*self.stiffness_reduction,A,I,Steel.G,alphaY)
                 ops.beamIntegration("Lobatto",beam_section_tag , beam_section_tag, self.nip)
 
-            for column_section_name, (column_section_tag,axis) in self.column_section_tags.items():
-                column = I_shape(column_section_name,Steel.E,Steel.Fy,Steel.Hk)
+            for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():
+                column_ = WF_Database(column_section_name)  # Fetch geometry
+                column = I_shape(column_.d, column_.tw, column_.bf, column_.tf,
+                                A=column_.A, Ix=column_.Ix, Iy=column_.Iy)  # Use the I_shape class
+
                 A = column.A
-                I = column.Ix if axis=='x' else column.Iy  ### This is for major axis bending, for minor axis use column.I2
+                I = column.Ix if axis == 'x' else column.Iy
                 d = column.d
                 tw = column.tw
                 alphaY = (d * tw) / A
-                # print(column_section_name, A, I*2402509.61)
-                ops.section('Elastic', column_section_tag, Steel.E*self.stiffness_reduction, A, I, Steel.G, alphaY)
-                ops.beamIntegration("Lobatto",column_section_tag , column_section_tag, self.nip)
+
+                ops.section('Elastic', column_section_tag, Steel.E * self.stiffness_reduction, A, I, Steel.G, alphaY)
+                ops.beamIntegration("Lobatto", column_section_tag, column_section_tag, self.nip)
 
 
         elif self.Inelastic_analysis:
 
-            for beam_section_name,beam_section_tag in self.beam_section_tags.items():
-                beam=I_shape(beam_section_name,Steel.E,Steel.Fy,Steel.Hk)
-                                                
-                beam.W_Fiber_section_major_axis(beam_section_tag,               #  sec_tag
-                                                Steel.mat_tag,                  # mat_tag
-                                                beam_section_name,                # section_name
-                                                Residual_Stress=self.Residual_Stress,
-                                                plot=False)                      # plot=True
-                Steel.mat_tag+=2*beam.num_regions+2                             ##### This is done so that the material tags do not overlap while calling the function in loop.
+            for beam_section_name, beam_section_tag in self.beam_section_tags.items():
+                beam_data = WF_Database(beam_section_name)
+                beam = I_shape(beam_data.d, beam_data.tw, beam_data.bf, beam_data.tf,
+                            A=beam_data.A, Ix=beam_data.Ix, Iy=beam_data.Iy)
                 
-                ops.beamIntegration("Lobatto",beam_section_tag , beam_section_tag, self.nip)
+                beam.build_ops_fiber_section(beam_section_tag,        # sec_tag
+                                                Steel,           # material       # section_name
+                                                Residual_Stress=self.Residual_Stress,
+                                                axis='x')
+    
+                
+                Steel.mat_tag += 2 * beam.num_regions + 2  # Avoid material tag overlap
+                ops.beamIntegration("Lobatto", beam_section_tag, beam_section_tag, self.nip)
 
+            for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():
+                column_data = WF_Database(column_section_name)
+                column = I_shape(column_data.d, column_data.tw, column_data.bf, column_data.tf,
+                                A=column_data.A, Ix=column_data.Ix, Iy=column_data.Iy)
 
-            for column_section_name,(column_section_tag,axis) in self.column_section_tags.items():
-                column=I_shape(column_section_name,Steel.E,Steel.Fy,Steel.Hk)
-
-                if axis=='x':
-                                                
-                    column.W_Fiber_section_major_axis(column_section_tag,           #  sec_tag
-                                                    Steel.mat_tag,                  # mat_tag
-                                                    beam_section_name,                # section_name
+                if axis == 'x':
+                    column.build_ops_fiber_section(column_section_tag,
+                                                    Steel,
                                                     Residual_Stress=self.Residual_Stress,
-                                                    plot=False)                      # plot=True
-                    Steel.mat_tag+=2*column.num_regions+2                           ##### This is done so that the material tags do not overlap while calling the function in loop.
-                    
-                    ops.beamIntegration("Lobatto",column_section_tag , column_section_tag, self.nip)
-
-
-
+                                                    axis='x')
                 else:
-                    column.W_Fiber_section_minor_axis(column_section_tag,           #  sec_tag
-                                                    Steel.mat_tag,                  # mat_tag
-                                                    beam_section_name,                # section_name
+                    column.build_ops_fiber_section(column_section_tag,
+                                                    Steel,
                                                     Residual_Stress=self.Residual_Stress,
-                                                    plot=False)                      # plot=True
-                    Steel.mat_tag+=2*column.num_regions+2                           ##### This is done so that the material tags do not overlap while calling the function in loop.
-                    
-                    ops.beamIntegration("Lobatto",column_section_tag , column_section_tag, self.nip)
+                                                    axis='y')
 
+                Steel.mat_tag += 2 * column.num_regions + 2
+                ops.beamIntegration("Lobatto", column_section_tag, column_section_tag, self.nip)
         else:
             raise ValueError('Please give correct input for Inelastic_analysis')
 
@@ -604,7 +604,7 @@ class Moment_Frame_2D:
         #         ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-self.L_r_multiplier*self.L_roof_intensity,0)
 
 
-
+########## Dead and Live Load #########################################
         for bay in range(1, self.no_of_bays + 1):
             loaded_nodes_floor = self.bay_i_internal_floor_nodes(i=bay)
             # print(loaded_nodes_floor)
@@ -677,9 +677,18 @@ class Moment_Frame_2D:
 
 
         opsv.plot_model()
-        opsv.plot_load()
+        # opsv.plot_load()
 
-    def run_gravity_analysis(self,steps = 10):
+    def plot_all_fiber_section_in_the_model(self):
+        for sec_tag in self.beam_section_tags.values():
+            I_shape.plot_fiber_section(section_id=sec_tag)
+
+        for sec_tag,_ in self.column_section_tags.values():
+            I_shape.plot_fiber_section(section_id=sec_tag)
+
+
+
+    def run_gravity_analysis(self,steps = 10,plot_defo=False):
             
         """
         Runs gravity analysis.
@@ -744,8 +753,15 @@ class Moment_Frame_2D:
 
         print(f"\nTotal Reactions: Rx = {total_rx:.4f}, Ry = {total_ry:.4f}, Mz = {total_Mz:.4f}")
 
+
+        forces=ops.eleResponse(1,'globalForce')
+        print("Forces",forces)
         print("Gravity analysis Done!")
-        opsv.plot_defo()
+        if plot_defo==True:
+            opsv.plot_defo()
+        else:
+            pass
+
 
 
     def reset_analysis():

@@ -1,29 +1,37 @@
 from Moment_Frame_2D_Main import *
 from Ziemian_database import Frame
 from Ziemian_database import Frame_data
+from libdenavit.OpenSees.get_fiber_data import *
+
 Frame_number=13
 dict=Frame[str(Frame_number)]
-Frame=Frame_data(dict)
-
-geometric_imperfection_ratio=1/500
-if geometric_imperfection_ratio>0:
+Frame_details=Frame_data(dict)
+Frame_details.geometric_imperfection_ratio=1/500
+if Frame_details.geometric_imperfection_ratio>0:
     wind_load_dirn='right'
 else:
     wind_load_dirn='left'
 
 
-Frame=Moment_Frame_2D(Frame.bay_width,Frame.story_height,Frame.column_no_of_ele,Frame.beam_no_of_ele,
-                      beam_section=Frame.beam_section,
-                      column_section=Frame.column_section,support=Frame.support,
-                      D_floor_intensity=Frame.D_floor_intensity,D_roof_intensity=Frame.D_roof_intensity,
-                      L_floor_intensity=Frame.L_floor_intensity,L_roof_intensity=Frame.L_roof_intensity,
-                      Wind_load_floor=Frame.Wind_load_floor,Wind_load_roof=Frame.Wind_load_roof,
-                      Wall_load=Frame.Wall_load,
-                      load_combination_multipliers=Frame.load_comb_multipliers,Frame_id=Frame.Frame_id,
-                      Residual_Stress=True,Inelastic_analysis=False,Second_order_effects=False,
-                      stiffness_reduction=0.8,nip=10,
-                      wind_load_dirn=wind_load_dirn
-                      )
+Frame=Moment_Frame_2D(Frame_details.bay_width, Frame_details.story_height, Frame_details.column_no_of_ele, Frame_details.beam_no_of_ele,
+                beam_section=Frame_details.beam_section,
+                column_section=Frame_details.column_section,
+                support=Frame_details.support,
+                D_floor_intensity=Frame_details.D_floor_intensity,
+                D_roof_intensity=Frame_details.D_roof_intensity,
+                L_floor_intensity=Frame_details.L_floor_intensity,
+                L_roof_intensity=Frame_details.L_roof_intensity,
+                Wind_load_floor=Frame_details.Wind_load_floor,
+                Wind_load_roof=Frame_details.Wind_load_roof,
+                Wall_load=Frame_details.Wall_load,
+                load_combination_multipliers=Frame_details.load_comb_multipliers,
+                Frame_id=Frame_details.Frame_id,
+                Residual_Stress=True,
+                Inelastic_analysis=True,
+                Second_order_effects=False,
+                stiffness_reduction=0.8,
+                nip=4,
+                wind_load_dirn=wind_load_dirn)
 
 Frame.generate_Nodes_and_Element_Connectivity()
 # print(Frame.Main_Nodes)
@@ -32,13 +40,13 @@ Frame.generate_Nodes_and_Element_Connectivity()
 # print(Frame.column_connectivity)
 # print(Frame.beam_intermediate_nodes)
 # print(Frame.beam_connectivity)
-# print(Frame.beam_section_tags)
-# print(Frame.beam_section)
+print(Frame.beam_section_tags)
+print(Frame.beam_section)
 # print(Frame.beam_case)
 # print(Frame.no_of_beam_sections)
 # print(Frame.nip)
-# print(Frame.column_section_tags)
-# print(Frame.column_section)
+print(Frame.column_section_tags)
+print(Frame.column_section)
 # print(Frame.column_case)
 # print(Frame.no_of_column_sections)
 # print(Frame.all_nodes)
@@ -52,13 +60,25 @@ Frame.generate_Nodes_and_Element_Connectivity()
 
 
 # Frame.plot_model()
-Frame.create_distorted_nodes_and_element_connectivity(geometric_imperfection_ratio=geometric_imperfection_ratio)
+Frame.create_distorted_nodes_and_element_connectivity(Frame_details.geometric_imperfection_ratio)
 # print(Frame.Main_Nodes)
 Frame.build_ops_model()
+
 # Frame.plot_model()
 # print(Frame.roof_beams)
 # print(Frame.column_connectivity)
-Frame.run_gravity_analysis(steps=1000)
+Frame.run_gravity_analysis(steps=1000,plot_defo=True)
+# x,y,A,m=get_fiber_data(str(1),plot_fibers=True)
+# print(x)
+# print(y)
+# print(A)
+# print(m)
+# m_int = list(map(int,m))
+# plt.scatter(x,y,A,m_int)
+# plt.gca().axis('equal')
+# plt.show()
+
+# Frame.plot_all_fiber_section_in_the_model()
 # print(Frame.beam_connectivity)
-Frame.plot_model()
+# Frame.plot_model()
 # Frame.display_node_coords()
