@@ -15,14 +15,14 @@ density_of_steel=7850*kg/(m**3)
 g=9.81*m/(sec**2)
 E=29000*ksi
 G=77221*Mpa
-Fy=36*ksi
+fy=36*ksi
 Hk = 0.001*E           # Kinematic hardening modulus
 
 class Steel_Material:
-    def __init__(self,mat_tag,E,Fy,G,Hk,density):
+    def __init__(self,mat_tag,E,fy,G,Hk,density):
         self.mat_tag=mat_tag
         self.E=E
-        self.Fy=Fy
+        self.fy=fy
         self.G=G
         self.Hk=Hk
         self.density=density
@@ -259,8 +259,35 @@ class Moment_Frame_2D:
         
         self.all_nodes=self.Main_Nodes+self.column_intermediate_nodes+self.beam_intermediate_nodes
 
+###################### The code below is written so as to change the order of elements for direct comparison with Ziemian results
+        self.sorted_column_connectivity= sorted(
+                        self.column_connectivity,key=lambda col: tuple(reversed(Moment_Frame_2D.find_axis_and_storey_for_columns(col[1:])))
+                        )
+        
+        self.column_member_list = []
+        group_size=self.no_of_elements_column
+        for i in range(0, len(self.sorted_column_connectivity), group_size):
+            group = self.sorted_column_connectivity[i:i+group_size]
+            if len(group) == group_size:
+                member_tag = (i // group_size) + 1
+                member_element_tags = [e[0] for e in group]
+                self.column_member_list.append([member_tag] + member_element_tags)
 
 
+        self.sorted_beam_connectivity=sorted(self.beam_connectivity,key=lambda b: Moment_Frame_2D.find_bay_and_storey_for_beams(b[1:])[1])
+
+        self.beam_member_list = []
+        group_size = self.no_of_elements_beam  
+
+        for i in range(0, len(self.sorted_beam_connectivity), group_size):
+            group = self.sorted_beam_connectivity[i:i+group_size]
+            if len(group) == group_size:
+                member_tag = len(self.column_member_list) + (i // group_size) + 1  # Continues from last column member
+                member_element_tags = [e[0] for e in group]
+                self.beam_member_list.append([member_tag] + member_element_tags)
+
+        self.sorted_element_connectivity=self.sorted_column_connectivity+self.sorted_beam_connectivity
+        self.member_list=self.column_member_list+self.beam_member_list
 
     def bay_i_internal_floor_nodes(self, i):
         '''This function returns the node tags of all the floor nodes that lie in ith bay  '''
@@ -306,11 +333,9 @@ class Moment_Frame_2D:
         ''' This function returns the point loads to be applied to all the internal floor nodes of ith bay'''
         return [((-self.D_multiplier*self.D_floor_intensity)+(-self.L_multiplier*self.L_floor_intensity))*(self.bay_width[i]/self.no_of_elements_beam)]
     
-
     def bay_i_roof_load(self, i):
         return [((-self.D_multiplier*self.D_roof_intensity)+(-self.L_r_multiplier*self.L_roof_intensity))*(self.bay_width[i]/self.no_of_elements_beam)]
         
-
     def axis_i_floor_load(self, i):
         if i == 1:
             return [self.bay_i_floor_load(i)[0] * 0.5]
@@ -327,14 +352,10 @@ class Moment_Frame_2D:
         else:
             return [(self.bay_i_roof_load(i - 1)[0] + self.bay_i_roof_load(i)[0]) * 0.5]
 
-
-
     def create_distorted_nodes_and_element_connectivity(self,geometric_imperfection_ratio=None):
         ratio = geometric_imperfection_ratio if geometric_imperfection_ratio is not None else self.geometric_imperfection_ratio
         for i in range(len(self.all_nodes)):
                 self.all_nodes[i][1] = self.all_nodes[i][1] +ratio * self.all_nodes[i][2]
-
-        
 
     def make_beam_section_detail_uniform(self):
         self.beam_case = list(self.beam_section.keys())[0]
@@ -353,7 +374,6 @@ class Moment_Frame_2D:
 
         # Update the main beam_section
         self.beam_section[self.beam_case] = updated_nested_dict
-
 
     def make_column_section_detail_uniform(self):
         self.column_case = list(self.column_section.keys())[0]
@@ -411,8 +431,7 @@ class Moment_Frame_2D:
         # Reinf_steel={'Rebar_steel_tag':1,'fy':Fy,'Es':E,'b':0.002,'R0':15,'cR1':0.925,'cR2':0.15}
         # ops.uniaxialMaterial("Steel02",Reinf_steel['Rebar_steel_tag'],Reinf_steel['fy'],Reinf_steel['Es'],
         #                     Reinf_steel['b'],Reinf_steel['R0'],Reinf_steel['cR1'],Reinf_steel['cR2'])
-        Steel=Steel_Material(1,E=E,Fy=Fy,G=G,Hk=Hk,density=density_of_steel)
-        Steel.b = Steel.Hk/(Steel.E+Steel.Hk)
+        Steel=Steel_Material(1,E=E,fy=fy,G=G,Hk=Hk,density=density_of_steel)
         # ops.uniaxialMaterial('Steel01', Steel.mat_tag, Steel.Fy, Steel.E, Steel.b)
         
 
@@ -424,19 +443,20 @@ class Moment_Frame_2D:
         if not self.Inelastic_analysis:
             for beam_section_name,beam_section_tag in self.beam_section_tags.items():
                 beam_=WF_Database(beam_section_name)
-                beam=I_shape(beam_.d,beam_.tw,beam_.bf,beam_.bf,A=beam_.A,Ix=beam_.Ix,Iy=beam_.Iy)
+                beam=I_shape(beam_.d,beam_.tw,beam_.bf,beam_.bf,fy=Steel.fy,E=Steel.E,Hk=Steel.Hk,A=beam_.A,Ix=beam_.Ix,Iy=beam_.Iy)
                 A=beam.A
                 I=beam.Ix  
                 d=beam.d
                 tw=beam.tw
                 alphaY=(d*tw)/A
                 # print(beam_section_name, A, I*2402509.61)
-                ops.section('Elastic',beam_section_tag,Steel.E*self.stiffness_reduction,A,I,Steel.G,alphaY)
+                ops.section('Elastic',beam_section_tag,beam.E*self.stiffness_reduction,A,I,Steel.G,alphaY)
                 ops.beamIntegration("Lobatto",beam_section_tag , beam_section_tag, self.nip)
 
             for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():
                 column_ = WF_Database(column_section_name)  # Fetch geometry
                 column = I_shape(column_.d, column_.tw, column_.bf, column_.tf,
+                                fy=Steel.fy,E=Steel.E,Hk=Steel.Hk,
                                 A=column_.A, Ix=column_.Ix, Iy=column_.Iy)  # Use the I_shape class
 
                 A = column.A
@@ -445,21 +465,31 @@ class Moment_Frame_2D:
                 tw = column.tw
                 alphaY = (d * tw) / A
 
-                ops.section('Elastic', column_section_tag, Steel.E * self.stiffness_reduction, A, I, Steel.G, alphaY)
+                ops.section('Elastic', column_section_tag, column.E * self.stiffness_reduction, A, I, Steel.G, alphaY)
                 ops.beamIntegration("Lobatto", column_section_tag, column_section_tag, self.nip)
 
 
         elif self.Inelastic_analysis:
+            if self.Residual_Stress:
+                frc=-0.3*Steel.fy
+            else:
+                frc=0
 
             for beam_section_name, beam_section_tag in self.beam_section_tags.items():
                 beam_data = WF_Database(beam_section_name)
                 beam = I_shape(beam_data.d, beam_data.tw, beam_data.bf, beam_data.tf,
+                               fy=Steel.fy,E=Steel.E,Hk=Steel.Hk,
                             A=beam_data.A, Ix=beam_data.Ix, Iy=beam_data.Iy)
                 
+                # beam= I_shape.from_database(beam_section_name,fy=Steel.fy,E=Steel.E,Hk=Steel.Hk)
+                
                 beam.build_ops_fiber_section(beam_section_tag,        # sec_tag
-                                                Steel,           # material       # section_name
-                                                Residual_Stress=self.Residual_Stress,
-                                                axis='x')
+                                                Steel.mat_tag,           # material       # section_name
+                                                mat_type='Steel01',
+                                                nfy=20,nfx=20,
+                                                frc=frc,
+                                                axis='x'
+                                                )
     
                 
                 Steel.mat_tag += 2 * beam.num_regions + 2  # Avoid material tag overlap
@@ -468,18 +498,23 @@ class Moment_Frame_2D:
             for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():
                 column_data = WF_Database(column_section_name)
                 column = I_shape(column_data.d, column_data.tw, column_data.bf, column_data.tf,
+                               fy=Steel.fy,E=Steel.E,Hk=Steel.Hk,
                                 A=column_data.A, Ix=column_data.Ix, Iy=column_data.Iy)
 
                 if axis == 'x':
                     column.build_ops_fiber_section(column_section_tag,
-                                                    Steel,
-                                                    Residual_Stress=self.Residual_Stress,
-                                                    axis='x')
+                                                Steel.mat_tag,           # material       # section_name
+                                                mat_type='Steel01',
+                                                nfy=20,nfx=20,
+                                                frc=frc,
+                                                axis='x')
                 else:
                     column.build_ops_fiber_section(column_section_tag,
-                                                    Steel,
-                                                    Residual_Stress=self.Residual_Stress,
-                                                    axis='y')
+                                                Steel.mat_tag,           # material       # section_name
+                                                mat_type='Steel01',
+                                                nfy=20,nfx=20,
+                                                frc=frc,
+                                                axis='y')
 
                 Steel.mat_tag += 2 * column.num_regions + 2
                 ops.beamIntegration("Lobatto", column_section_tag, column_section_tag, self.nip)
@@ -754,13 +789,50 @@ class Moment_Frame_2D:
         print(f"\nTotal Reactions: Rx = {total_rx:.4f}, Ry = {total_ry:.4f}, Mz = {total_Mz:.4f}")
 
 
-        forces=ops.eleResponse(1,'globalForce')
+        forces=ops.eleResponse(9,'localForce')
         print("Forces",forces)
         print("Gravity analysis Done!")
         if plot_defo==True:
             opsv.plot_defo()
         else:
             pass
+
+    def save_moments_by_member(self, filename='max_member_moments.csv'):
+        os.makedirs(self.Frame_id, exist_ok=True)
+        full_path = os.path.join(self.Frame_id, filename)
+
+        conversion_factor = 8.85074579  # kN·m to kip·in
+        member_moment_data = []
+
+        for member in self.member_list:
+            member_tag = member[0]
+            element_tags = member[1:]
+
+            max_moment = 0.0
+
+            for eleTag in element_tags:
+                try:
+                    forces = ops.eleResponse(eleTag, 'localForce')
+                    Mz_i_kNm = forces[2]
+                    Mz_j_kNm = forces[5]
+
+                    # Convert to kip-in
+                    Mz_i = Mz_i_kNm * conversion_factor
+                    Mz_j = Mz_j_kNm * conversion_factor
+
+                    max_moment = max(max_moment, abs(Mz_i), abs(Mz_j))
+
+                except Exception as e:
+                    print(f"Error in element {eleTag} of member {member_tag}: {e}")
+
+            member_moment_data.append({
+                'Member': member_tag,
+                'Max_Abs_Moment (kip-in)': max_moment
+            })
+
+        df = pd.DataFrame(member_moment_data)
+        df.to_csv(full_path, index=False)
+        print(f"Saved member-level max moments (kip-in) to: {full_path}")
 
 
 
