@@ -205,7 +205,10 @@ class I_shape(GeometricShape):
         else:
             raise ValueError("dw formula not set")
 
-    
+    @property
+    def p0(self):
+        # Nominal axial yield strength (short steel section)
+        return self.fy * self.A
     
 
     def build_ops_fiber_section(self, section_id, start_material_id, mat_type, nfy, nfx, frc, GJ=1.0e6,axis=None):
@@ -491,7 +494,26 @@ class I_shape(GeometricShape):
             raise ValueError("Please give valid axis, 'x' or 'y' or set it to None to use a 3d fiber section")
 
 
+    def maximum_compression_strain(self, axial_strain, curvatureX=0, curvatureY=0):
+       
+        extreme_strain = axial_strain - self.d/2 * abs(curvatureX) \
+                            - self.bf/2 * abs(curvatureY)
+        return extreme_strain
 
+
+    def maximum_tensile_strain(self, axial_strain, curvatureX=0.0, curvatureY=0.0):
+        bf = self.bf
+        d  = self.d
+        xh = bf / 2.0
+        yh = d  / 2.0
+
+        # strains at four extreme flange corners
+        s1 = axial_strain - (+yh)*curvatureX - (+xh)*curvatureY  # top-right
+        s2 = axial_strain - (+yh)*curvatureX - (-xh)*curvatureY  # top-left
+        s3 = axial_strain - (-yh)*curvatureX - (+xh)*curvatureY  # bottom-right
+        s4 = axial_strain - (-yh)*curvatureX - (-xh)*curvatureY  # bottom-left
+
+        return max(s1, s2, s3, s4)
 
     def plot_fiber_section(section_id):
         get_fiber_data(section_tag=section_id,plot_fibers=True,keep_json=False)
