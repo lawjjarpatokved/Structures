@@ -5,6 +5,8 @@ from libdenavit.OpenSees.get_fiber_data import *
 from math import pi, ceil
 import openseespy.opensees as ops
 from Units import *
+import matplotlib.pyplot as plt
+import opsvis as opsv
 
 class WF_Database:
     def __init__(self,Section_name,unit=inch):
@@ -17,6 +19,29 @@ class WF_Database:
         self.A=section.wide_flange_database[self.section]['A']*(unit**2)
         self.Ix=section.wide_flange_database[self.section]['Ix']*(unit**4)
         self.Iy=section.wide_flange_database[self.section]['Iy']*(unit**4)
+
+class wf_Database:
+        def __init__(self,Section_name,unit=inch):
+        
+            db = database.WideFlangeDB(Section_name)
+            self.d   = db.d   * unit
+            self.tw  = db.tw  * unit
+            self.bf  = db.bf  * unit
+            self.tf  = db.tf  * unit
+            self.A   = db.A   * unit**2
+            self.Ix  = db.Ix  * unit**4
+            self.Zx  = db.Zx  * unit**3
+            self.Sx  = db.Sx  * unit**3
+            self.rx  = db.rx  * unit
+            self.Iy  = db.Iy  * unit**4
+            self.Zy  = db.Zy  * unit**3
+            self.Sy  = db.Sy  * unit**3
+            self.ry  = db.ry  * unit
+            self.J   = db.J   * unit**4
+            self.Cw  = db.Cw  * unit**6
+            self.rts = db.rts * unit
+            self.ho  = db.ho  * unit
+
 
 class I_shape(GeometricShape):
         
@@ -248,7 +273,23 @@ class I_shape(GeometricShape):
                 ops.patch('rect', start_material_id, Nff, 1, self.dw / 2, -self.bf / 2, self.d / 2, self.bf / 2)
                 ops.patch('rect', start_material_id, Nff, 1, -self.d / 2, -self.bf / 2, -self.dw / 2, self.bf / 2)
 
+                # fib_sec = [
 
+                #         ['section', 'Fiber', start_material_id, '-GJ', 1.0e4],
+
+                #         ["patch","rect", start_material_id, Nfw,1,-self.dw/2, -self.tw/2, self.dw/2, self.tw/2],
+                #         ["patch","rect",start_material_id, Nff,1,self.dw/2, -self.bf/2,self.d/2, self.bf/2],
+                #         ["patch","rect", start_material_id, Nff,1,-self.d/2, -self.bf/2, -self.dw/2, self.bf/2]
+
+                #         ]
+                
+                # matcolor = [ 'gold']*10000
+                # opsv.plot_fiber_section(fib_sec, matcolor=matcolor)
+                # plt.axis('equal')
+                # plt.title('section_name')
+                # plt.show()
+            
+            
             else:
                 ops.section('Fiber', section_id, '-GJ', GJ)
                 
@@ -379,7 +420,7 @@ class I_shape(GeometricShape):
                             'ElasticPP', start_material_idi, self.E, self.fy/self.E, -self.fy/self.E, fri/self.E)
                     elif mat_type == 'Steel01':
                         ops.uniaxialMaterial(
-                            'Steel01', start_material_idi+1, self.y, self.E, self.b)
+                            'Steel01', start_material_idi+1, self.fy, self.E, self.b)
                         ops.uniaxialMaterial(
                             'InitStressMaterial', start_material_idi, start_material_idi+1, fri)
                     elif mat_type == 'Hardening':
@@ -398,7 +439,7 @@ class I_shape(GeometricShape):
 
         elif axis is None:
 
-            raise ValueError(' The code has not been tested yet for the case when axis is not set to "x" or "y"')
+            # raise ValueError(' The code has not been tested yet for the case when axis is not set to "x" or "y"')
 
             Nfw_x = ceil(self.tw * (nfx / self.bf))
             Nff_x = ceil(self.bf * (nfx / self.bf))
@@ -429,7 +470,21 @@ class I_shape(GeometricShape):
                 # Flange patches
                 ops.patch('rect', start_material_id, Nff_y, Nff_x, self.dw / 2, -self.bf / 2, self.d / 2, self.bf / 2)
                 ops.patch('rect', start_material_id, Nff_y, Nff_x, -self.d / 2, -self.bf / 2, -self.dw / 2, self.bf / 2)
+                # fib_sec = [
 
+                #         ['section', 'Fiber', section_id, '-GJ', 1.0e4],
+
+                #         ["patch","rect",start_material_id, Nfw_y, Nfw_x, -self.dw / 2, -self.tw / 2, self.dw / 2, self.tw / 2],
+                #         ["patch","rect",start_material_id, Nff_y, Nff_x, self.dw / 2, -self.bf / 2, self.d / 2, self.bf / 2],
+                #         ["patch","rect", start_material_id, Nff_y, Nff_x, -self.d / 2, -self.bf / 2, -self.dw / 2, self.bf / 2]
+
+                #         ]
+                
+                # matcolor = [ 'gold']*1000000
+                # opsv.plot_fiber_section(fib_sec,matcolor=matcolor)
+                # plt.axis('equal')
+                # plt.title('section_name')
+                # plt.show()
 
             else:
 
@@ -472,7 +527,7 @@ class I_shape(GeometricShape):
                             'ElasticPP', start_material_idi, self.E, self.fy/self.E, -self.fy/self.E, fri/self.E)
                     elif mat_type == 'Steel01':
                         ops.uniaxialMaterial(
-                            'Steel01', start_material_idi+1, self.y, self.E, self.b)
+                            'Steel01', start_material_idi+1, self.fy, self.E, self.b)
                         ops.uniaxialMaterial(
                             'InitStressMaterial', start_material_idi, start_material_idi+1, fri)
                     elif mat_type == 'Hardening':
@@ -516,5 +571,5 @@ class I_shape(GeometricShape):
         return max(s1, s2, s3, s4)
 
     def plot_fiber_section(section_id):
-        get_fiber_data(section_tag=section_id,plot_fibers=True,keep_json=False)
+        get_fiber_data(section_tag=section_id,plot_fibers=True,keep_json=True)
      
