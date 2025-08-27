@@ -9,7 +9,7 @@ from libdenavit.OpenSees.get_fiber_data import *
 from libdenavit.cross_section_2d import *
 from Units import *
 from math import pi, ceil
-from libdenavit.section.Wide_Flange_v1 import *
+from libdenavit.section.wide_flange import *
 from Moment_Frame_2D_Main import Steel_Material
 
 

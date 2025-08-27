@@ -8,7 +8,7 @@ from libdenavit.OpenSees.plotting import *
 from libdenavit.OpenSees.get_fiber_data import *
 from Units import *
 from math import pi, ceil
-from libdenavit.section.Wide_Flange_v1 import *
+from libdenavit.section.wide_flange import *
 
 #################################################
 density_of_steel=7850*kg/(m**3)
