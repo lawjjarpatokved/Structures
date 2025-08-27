@@ -1,14 +1,9 @@
-import numpy as np
 import math as math
-import pandas as pd
 import openseespy.opensees as ops
-import os
-import opsvis as opsv
 from libdenavit.OpenSees.plotting import *
 from libdenavit.OpenSees.get_fiber_data import *
 from libdenavit.cross_section_2d import *
 from Units import *
-from math import pi, ceil
 from libdenavit.section.wide_flange import *
 from Moment_Frame_2D_Main import Steel_Material
 
@@ -46,7 +41,6 @@ def Moment_curvature_analysis(P_value, residual_stress, axis):
         }
     )
     return results
-
 
 def axial_load_comparison(P_values=(0, 500, 1000, 1500, 2000), residual_stress=True, axis='x'):
     plt.figure()

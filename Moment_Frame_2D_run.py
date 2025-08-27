@@ -3,7 +3,7 @@ from Ziemian_database import Frame
 from Ziemian_database import Frame_data
 from libdenavit.OpenSees.get_fiber_data import *
 
-Frame_number='UP36H'
+Frame_number=13
 dict=Frame[str(Frame_number)]
 Frame_details=Frame_data(dict)
 Frame_details.geometric_imperfection_ratio=+1/500
@@ -60,13 +60,14 @@ print(Frame.beam_connectivity)
 
 
 # Frame.plot_model()
-# Frame.create_distorted_nodes_and_element_connectivity(Frame_details.geometric_imperfection_ratio)
+Frame.create_distorted_nodes_and_element_connectivity(Frame_details.geometric_imperfection_ratio)
 # print(Frame.Main_Nodes)
 Frame.build_ops_model()
  
 # Frame.plot_model()
 # print(Frame.roof_beams)
 # print(Frame.column_connectivity)
+Frame.add_dead_live_wind_wall_loads()
 Frame.run_gravity_analysis(steps=1000,plot_defo=True)
 Frame.save_moments_by_member()
 # x,y,A,m=get_fiber_data(str(1),plot_fibers=True)

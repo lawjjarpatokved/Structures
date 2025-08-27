@@ -613,6 +613,8 @@ class Moment_Frame_2D:
 
 ###########################################################################################################################
 ###########################################################################################################################
+       
+    def add_dead_live_wind_wall_loads(self):   
         #### This part of code adds the self weight of all beams and columns, also any additional dead or live load 
         load_timeseries_counter=1
         load_pattern_counter=1
