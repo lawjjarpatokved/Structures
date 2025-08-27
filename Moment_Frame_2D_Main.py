@@ -8,14 +8,14 @@ from libdenavit.OpenSees.plotting import *
 from libdenavit.OpenSees.get_fiber_data import *
 from Units import *
 from math import pi, ceil
-from Wide_Flange import *
+from libdenavit.section.Wide_Flange_v1 import *
 
 #################################################
 density_of_steel=7850*kg/(m**3)
 g=9.81*m/(sec**2)
 E=29000*ksi
 G=77221*Mpa
-fy=36*ksi
+fy=36*ksi*0.9
 Hk = 0.001*E           # Kinematic hardening modulus
 
 class Steel_Material:

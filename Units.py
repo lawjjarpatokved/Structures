@@ -10,4 +10,39 @@ lbm = 0.45359237 * kg      # 1 lbm = 0.45359237 kg
 psi = lb / inch**2
 ksi = kip / inch**2
 
+import libdenavit.section.database.aisc as section
+import libdenavit.section.wide_flange as database
+class WF_Database:
+    def __init__(self,Section_name,unit=inch):
 
+        self.section=Section_name
+        self.d=section.wide_flange_database[self.section]['d']*unit
+        self.tw=section.wide_flange_database[self.section]['tw']*unit
+        self.bf=section.wide_flange_database[self.section]['bf']*unit
+        self.tf=section.wide_flange_database[self.section]['tf']*unit
+        self.A=section.wide_flange_database[self.section]['A']*(unit**2)
+        self.Ix=section.wide_flange_database[self.section]['Ix']*(unit**4)
+        self.Iy=section.wide_flange_database[self.section]['Iy']*(unit**4)
+
+class wf_Database:
+        def __init__(self,Section_name,unit=inch):
+        
+            db = database.WideFlangeDB(Section_name)
+            self.d   = db.d   * unit
+            self.tw  = db.tw  * unit
+            self.bf  = db.bf  * unit
+            self.tf  = db.tf  * unit
+            self.A   = db.A   * unit**2
+            self.Ix  = db.Ix  * unit**4
+            self.Zx  = db.Zx  * unit**3
+            self.Sx  = db.Sx  * unit**3
+            self.rx  = db.rx  * unit
+            self.Iy  = db.Iy  * unit**4
+            self.Zy  = db.Zy  * unit**3
+            self.Sy  = db.Sy  * unit**3
+            self.ry  = db.ry  * unit
+            self.J   = db.J   * unit**4
+            self.Cw  = db.Cw  * unit**6
+            self.rts = db.rts * unit
+            self.ho  = db.ho  * unit
+########################################################################################################################
