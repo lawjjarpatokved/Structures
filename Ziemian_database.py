@@ -28,16 +28,16 @@ Frame={
          {
             'common_and_exceptions': 
             {
-                'common': ('W8X15', 'x'),
-                '(2,1)': ('W14X132', 'x'),
+                'common': ('W8X15', 'y'),
+                '(2,1)': ('W14X132', 'y'),
                 '(3,1)': ('W14X120', 'y'),
-                '(1,2)': ('W8X13', 'x'),
+                '(1,2)': ('W8X13', 'y'),
                 '(2,2)': ('W14X120', 'y'),
-                '(3,2)': ('W14X109', 'x'),
+                '(3,2)': ('W14X109', 'y'),
             }
         },
         'support': 'ppp',
-        'load_comb_multipliers': [1.2, 1.6, 0.5, 0],
+        'load_comb_multipliers': [0.1,0.1,0.1, 0],
         'D_floor_intensity': 3.623 * kip / ft,
         'D_roof_intensity': 2.785 * kip / ft,
         'L_floor_intensity': 3.623 * kip / ft,

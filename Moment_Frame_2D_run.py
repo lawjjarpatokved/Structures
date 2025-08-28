@@ -3,7 +3,7 @@ from Ziemian_database import Frame
 from Ziemian_database import Frame_data
 from libdenavit.OpenSees.get_fiber_data import *
 
-Frame_number=13
+Frame_number=0
 dict=Frame[str(Frame_number)]
 Frame_details=Frame_data(dict)
 Frame_details.geometric_imperfection_ratio=+1/500
@@ -26,7 +26,7 @@ Frame=Moment_Frame_2D(Frame_details.bay_width, Frame_details.story_height, Frame
                 Wall_load=Frame_details.Wall_load,
                 load_combination_multipliers=Frame_details.load_comb_multipliers,
                 Frame_id=Frame_details.Frame_id,
-                Residual_Stress=True,
+                Residual_Stress=False,
                 Inelastic_analysis=True,
                 Second_order_effects=True,
                 stiffness_reduction=1,
@@ -37,9 +37,9 @@ Frame.generate_Nodes_and_Element_Connectivity()
 # print(Frame.Main_Nodes)
 # print(Frame.NODES_TO_FIX)
 # print(Frame.column_intermediate_nodes)
-print(Frame.column_connectivity)
+# print(Frame.column_connectivity)
 # print(Frame.beam_intermediate_nodes)
-print(Frame.beam_connectivity)
+# print(Frame.beam_connectivity)
 # print(Frame.beam_section_tags)
 # print(Frame.beam_section)
 # print(Frame.beam_case)
@@ -60,27 +60,19 @@ print(Frame.beam_connectivity)
 
 
 # Frame.plot_model()
-Frame.create_distorted_nodes_and_element_connectivity(Frame_details.geometric_imperfection_ratio)
+# Frame.create_distorted_nodes_and_element_connectivity(Frame_details.geometric_imperfection_ratio)
 # print(Frame.Main_Nodes)
 Frame.build_ops_model()
  
 # Frame.plot_model()
 # print(Frame.roof_beams)
 # print(Frame.column_connectivity)
-Frame.add_dead_live_wind_wall_loads()
-Frame.run_gravity_analysis(steps=1000,plot_defo=True)
-Frame.save_moments_by_member()
-# x,y,A,m=get_fiber_data(str(1),plot_fibers=True)
-# print(x)
-# print(y)
-# print(A)
-# print(m)
-# m_int = list(map(int,m))
-# plt.scatter(x,y,A,m_int)
-# plt.gca().axis('equal')
-# plt.show()
+Frame.add_dead_live_wind_wall_loads(load_scale=1)
+Frame.run_load_controlled_analysis(steps=1000,plot_defo=True)
+# Frame.run_displacement_controlled_analysis(plot_defo=True)
+# Frame.save_moments_by_member()
 
-# Frame.plot_all_fiber_section_in_the_model()
+Frame.plot_all_fiber_section_in_the_model()
 # print(Frame.beam_connectivity)
 # print(Frame.sorted_element_connectivity)
 # print(Frame.member_list)

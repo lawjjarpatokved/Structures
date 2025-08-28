@@ -614,118 +614,105 @@ class Moment_Frame_2D:
 ###########################################################################################################################
 ###########################################################################################################################
        
-    def add_dead_live_wind_wall_loads(self):   
-        #### This part of code adds the self weight of all beams and columns, also any additional dead or live load 
-        load_timeseries_counter=1
-        load_pattern_counter=1
-        ops.timeSeries('Linear',load_timeseries_counter)
-        ops.pattern('Plain',load_pattern_counter,load_timeseries_counter)
-        load_timeseries_counter+=1
-        load_pattern_counter+=1
 
+    def add_dead_live_wind_wall_loads(self, load_scale=1.0):   
+        """
+        Adds dead, live, wind, and wall loads to the model, scaled by a user-defined load_scale factor.
+        
+        Parameters:
+            load_scale (float): Scaling factor for all loads. Use 1.0 for full load, <1.0 for partial.
+            This is helpful when performing load controlled or displacement controlled analysis. While 
+            performing displacement controlled analysis, it is better to apply small portion of the load
+            so that the load factors are positive throughout the analysis.
+        """
+        load_timeseries_counter = 1
+        load_pattern_counter = 1
+
+        ops.timeSeries('Linear', load_timeseries_counter)
+        ops.pattern('Plain', load_pattern_counter, load_timeseries_counter)
+
+        load_timeseries_counter += 1
+        load_pattern_counter += 1
+
+        # # Self-weight of columns
         # for columns in self.column_connectivity:
-        #     fiber_section=I_shape(columns[3],Steel.E,Steel.Fy,Steel.Hk)
-        #     Area=fiber_section.A
-        #     ops.eleLoad('-ele',columns[0],'-type','-beamUniform',0,-Area*density_of_steel*g)
+        #     fiber_section = I_shape(columns[3], Steel.E, Steel.Fy, Steel.Hk)
+        #     Area = fiber_section.A
+        #     ops.eleLoad('-ele', columns[0], '-type', '-beamUniform', 0, -load_scale * Area * density_of_steel * g)
 
-
+        # # Self-weight and distributed loads on beams
         # for beams in self.beam_connectivity:
-        #     fiber_section=I_shape(beams[3],Steel.E,Steel.Fy,Steel.Hk)
-        #     Area=fiber_section.A
-        #     ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-Area*density_of_steel*g,0)
+        #     fiber_section = I_shape(beams[3], Steel.E, Steel.Fy, Steel.Hk)
+        #     Area = fiber_section.A
+        #     ops.eleLoad('-ele', beams[0], '-type', '-beamUniform', -load_scale * Area * density_of_steel * g, 0)
+
         #     if beams not in self.roof_beams:
-        #         ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-self.D_multiplier*self.D_floor_intensity,0) 
-        #         ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-self.L_multiplier*self.L_floor_intensity,0)
+        #         ops.eleLoad('-ele', beams[0], '-type', '-beamUniform', -load_scale * self.D_multiplier * self.D_floor_intensity, 0)
+        #         ops.eleLoad('-ele', beams[0], '-type', '-beamUniform', -load_scale * self.L_multiplier * self.L_floor_intensity, 0)
         #     else:
-        #         ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-self.D_multiplier*self.D_roof_intensity,0)
-        #         ops.eleLoad('-ele',beams[0],'-type','-beamUniform',-self.L_r_multiplier*self.L_roof_intensity,0)
+        #         ops.eleLoad('-ele', beams[0], '-type', '-beamUniform', -load_scale * self.D_multiplier * self.D_roof_intensity, 0)
+        #         ops.eleLoad('-ele', beams[0], '-type', '-beamUniform', -load_scale * self.L_r_multiplier * self.L_roof_intensity, 0)
 
-
-########## Dead and Live Load #########################################
+        # Node-based Dead and Live Loads 
         for bay in range(1, self.no_of_bays + 1):
             loaded_nodes_floor = self.bay_i_internal_floor_nodes(i=bay)
-            # print(loaded_nodes_floor)
             load_value_floor = self.bay_i_floor_load(i=bay)
-            # print(load_value_floor)
             for node in loaded_nodes_floor:
-                ops.load(node, 0.0, load_value_floor[0], 0.0)
-
-
+                ops.load(node, 0.0, load_scale * load_value_floor[0], 0.0)
 
             loaded_nodes_roof = self.bay_i_internal_roof_nodes(bay)
             load_value_roof = self.bay_i_roof_load(bay)
             for node in loaded_nodes_roof:
-                ops.load(node, 0.0, load_value_roof[0], 0.0)
-
+                ops.load(node, 0.0, load_scale * load_value_roof[0], 0.0)
 
         for axis in range(1, self.no_of_bays + 2):
             loaded_nodes_floor = self.axis_i_floor_nodes(axis)
             load_value_floor = self.axis_i_floor_load(axis)
             for node in loaded_nodes_floor:
-                ops.load(node, 0.0, load_value_floor[0], 0.0)
+                ops.load(node, 0.0, load_scale * load_value_floor[0], 0.0)
 
             loaded_nodes_roof = self.axis_i_roof_nodes(axis)
             load_value_roof = self.axis_i_roof_load(axis)
             for node in loaded_nodes_roof:
-                ops.load(node, 0.0, load_value_roof[0], 0.0)
+                ops.load(node, 0.0, load_scale * load_value_roof[0], 0.0)
 
-
-
-########## Wind or Lateral Load #########################################
-        if self.wind_load_dirn.lower()=='right':
+        # Wind or Lateral Load
+        if self.wind_load_dirn.lower() == 'right':
             for node in self.axis_i_floor_nodes(1):
-                    # print(node,self.Wind_load_floor*self.W_multiplier)
-                    ops.load(node, self.Wind_load_floor*self.W_multiplier, 0, 0.0)
-
-        elif self.wind_load_dirn.lower()=='left':
-            for node in self.axis_i_floor_nodes(self.no_of_bays+1):
-
-                    ops.load(node, -self.Wind_load_floor*self.W_multiplier, 0, 0.0)
-
-
-        if self.wind_load_dirn.lower()=='right':
+                ops.load(node, load_scale * self.Wind_load_floor * self.W_multiplier, 0, 0.0)
             for node in self.axis_i_roof_nodes(1):
-                    # print(node,self.Wind_load_roof*self.W_multiplier)
-                    ops.load(node, self.Wind_load_roof*self.W_multiplier, 0, 0.0)
+                ops.load(node, load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
 
-        elif self.wind_load_dirn.lower()=='left':
-            for node in self.axis_i_roof_nodes(self.no_of_bays+1):
+        elif self.wind_load_dirn.lower() == 'left':
+            for node in self.axis_i_floor_nodes(self.no_of_bays + 1):
+                ops.load(node, -load_scale * self.Wind_load_floor * self.W_multiplier, 0, 0.0)
+            for node in self.axis_i_roof_nodes(self.no_of_bays + 1):
+                ops.load(node, -load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
 
-                    ops.load(node, -self.Wind_load_roof*self.W_multiplier, 0, 0.0)
-
-############# Wall Load ############################################
+        # Wall Load
         for node in self.axis_i_floor_nodes(1):
-            wall_load=self.Wall_load*self.D_multiplier
-            ops.load(node,0,-wall_load,0)
+            wall_load = self.Wall_load * self.D_multiplier
+            ops.load(node, 0, -load_scale * wall_load, 0)
 
-        for node in self.axis_i_floor_nodes(self.no_of_bays+1):
-            wall_load=self.Wall_load*self.D_multiplier
-            ops.load(node,0,-wall_load,0)
+        for node in self.axis_i_floor_nodes(self.no_of_bays + 1):
+            wall_load = self.Wall_load * self.D_multiplier
+            ops.load(node, 0, -load_scale * wall_load, 0)
 
         for node in self.axis_i_roof_nodes(1):
-            wall_load=self.Wall_load*self.D_multiplier
-            ops.load(node,0,-wall_load/2,0)
+            wall_load = self.Wall_load * self.D_multiplier
+            ops.load(node, 0, -load_scale * wall_load / 2, 0)
 
-        for node in self.axis_i_roof_nodes(self.no_of_bays+1):
-            wall_load=self.Wall_load*self.D_multiplier
-            ops.load(node,0,-wall_load/2,0)
-
-
+        for node in self.axis_i_roof_nodes(self.no_of_bays + 1):
+            wall_load = self.Wall_load * self.D_multiplier
+            ops.load(node, 0, -load_scale * wall_load / 2, 0)
 
 
         opsv.plot_model()
         # opsv.plot_load()
 
-    def plot_all_fiber_section_in_the_model(self):
-        for sec_tag in self.beam_section_tags.values():
-            I_shape.plot_fiber_section(section_id=sec_tag)
 
-        for sec_tag,_ in self.column_section_tags.values():
-            I_shape.plot_fiber_section(section_id=sec_tag)
+    def run_load_controlled_analysis(self,steps = 10,plot_defo=False):
 
-
-
-    def run_gravity_analysis(self,steps = 10,plot_defo=False):
             
         """
         Runs gravity analysis.
@@ -799,6 +786,112 @@ class Moment_Frame_2D:
         else:
             pass
 
+
+    def run_displacement_controlled_analysis(self, target_disp=5, steps=2000, plot_defo=False):
+        """
+        Runs displacement-controlled analysis and plots load ratio (λ) vs. displacement and vertical reaction.
+
+        Parameters:
+            target_disp (float): Target horizontal displacement at control node 
+            steps (int): Number of steps to reach target
+            plot_defo (bool): Whether to plot deformed shape at end
+        """
+
+        ops.initialize()
+
+        # Create output folder
+        os.makedirs(self.Frame_id, exist_ok=True)
+
+        # Control node
+        control_node = self.axis_i_roof_nodes(1)[0]   
+        control_dof = 1  # horizontal displacement
+
+        dU = target_disp / steps
+
+        # Analysis setup
+        ops.constraints('Plain')
+        ops.numberer('RCM')
+        ops.system('ProfileSPD')
+        ops.test('NormDispIncr', 1.0e-6, 100, 0, 2)
+        ops.algorithm('Newton')
+        ops.integrator('DisplacementControl', control_node, control_dof, dU)
+        ops.analysis('Static')
+
+        # Step-by-step analysis
+        disp_hist = []
+        load_ratio_hist = []
+        total_ry_hist = []  
+
+        for step in range(steps):
+            ok = ops.analyze(1)
+            if ok != 0:
+                print(f"Step {step}: Analysis failed.")
+                break
+
+            u = ops.nodeDisp(control_node, control_dof)
+            lam = ops.getTime()
+
+            ops.reactions()
+            total_ry = sum(ops.nodeReaction(n[0])[1] for n in self.NODES_TO_FIX)  # Total vertical support reaction
+
+            disp_hist.append(u)
+            load_ratio_hist.append(lam)
+            total_ry_hist.append(total_ry) 
+
+            if abs(u) >= abs(target_disp):
+                break
+
+        print("Reactions at base nodes:")
+        total_rx = 0.0
+        total_ry = 0.0
+        total_Mz = 0.0
+
+        for base_node in [n[0] for n in self.NODES_TO_FIX]:
+            ops.reactions()
+            rxn = ops.nodeReaction(base_node)
+            rx, ry, rz = rxn[0], rxn[1], rxn[2]
+            total_rx += rx
+            total_ry += ry
+            total_Mz += rz
+            print(f"Node {base_node}: Rx = {rx:.4f}, Ry = {ry:.4f}, Mz = {rz:.4f}")
+
+        print(f"\nTotal Reactions: Rx = {total_rx:.4f}, Ry = {total_ry:.4f}, Mz = {total_Mz:.4f}")
+
+        # Optional: plot deformed shape
+        if plot_defo:
+            try:
+                import opsvis
+                opsvis.plot_defo()
+            except:
+                print("opsvis not available for deformation plotting.")
+
+        # --- Plot λ vs displacement (load ratio curve)
+        plt.figure()
+        plt.plot(disp_hist, load_ratio_hist, marker='o')
+        plt.xlabel('Horizontal Displacement at Control Node ')
+        plt.ylabel('Load Ratio λ')
+        plt.title('Load Ratio vs. Horizontal Displacement')
+        plt.grid(True)
+        plt.savefig(self.Frame_id + '/load_ratio_vs_disp.png')
+        plt.show()
+
+        # Plot λ vs Total Vertical Reaction Ry
+        plt.figure()
+        plt.plot(total_ry_hist, load_ratio_hist, marker='x', color='darkgreen')  
+        plt.xlabel('Total Vertical Reaction Ry (kip)')  
+        plt.ylabel('Load Ratio λ')                     
+        plt.title('Load Ratio vs. Vertical Reaction')
+        plt.grid(True)
+        plt.savefig(self.Frame_id + '/lambda_vs_reaction.png')
+        plt.show()
+
+
+        # Report peak λ
+        if load_ratio_hist:
+            i_peak = max(range(len(load_ratio_hist)), key=lambda i: load_ratio_hist[i])
+            print(f"🔺 Max load ratio λ = {load_ratio_hist[i_peak]:.3f} at displacement = {disp_hist[i_peak]:.3f} in")
+
+
     def save_moments_by_member(self, filename='max_member_moments.csv'):
         os.makedirs(self.Frame_id, exist_ok=True)
         full_path = os.path.join(self.Frame_id, filename)
@@ -836,7 +929,12 @@ class Moment_Frame_2D:
         df.to_csv(full_path, index=False)
         print(f"Saved member-level max moments (kip-in) to: {full_path}")
 
+    def plot_all_fiber_section_in_the_model(self):
+        for sec_tag in self.beam_section_tags.values():
+            I_shape.plot_fiber_section(section_id=sec_tag)
 
+        for sec_tag,_ in self.column_section_tags.values():
+            I_shape.plot_fiber_section(section_id=sec_tag)
 
     def reset_analysis():
         """

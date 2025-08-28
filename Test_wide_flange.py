@@ -88,9 +88,9 @@ def residual_stress_comparison():
 
     for P in P_values:
         for rs in rs_flags:
-            results = Moment_curvature_analysis(P_value=P, residual_stress=rs, axis='x')
+            results = Moment_curvature_analysis(P_value=P, residual_stress=rs, axis='y')
             label = f"P={results.applied_axial_load[-1]:.0f}, RS={'Yes' if rs else 'No'}"
-            plt.plot(results.curvatureX, results.maximum_abs_moment, label=label, **styles[rs])
+            plt.plot(results.curvatureY, results.maximum_abs_moment, label=label, **styles[rs])
 
     # reference lines
     # plt.axhline(y=Mp, linestyle='--', linewidth=1.2, label=f"M_p = {Mp:.3g}")
@@ -104,26 +104,37 @@ def residual_stress_comparison():
     plt.legend()
     plt.show()
 
-def comparison_of_major_and_minor_axes(P=0, residual_stress=False, axes=('x','y')):
+def comparison_of_major_and_minor_axes(P=0, axes=('x', 'y')):
     plt.figure()
-    for ax in axes:
-        res = Moment_curvature_analysis(P_value=P, residual_stress=residual_stress, axis=ax)
-        curv = res.curvatureX if ax == 'x' else res.curvatureY
-        plt.plot(curv, res.maximum_abs_moment, label=f"P={res.applied_axial_load[-1]:.0f}, axis={ax}")
+    for rs in [False, True]:  # Loop over residual stress states
+        rs_label = "with RS" if rs else "without RS"
+        linestyle = '-' if not rs else '--'  # solid for no RS, dashed for with RS
 
-        Mp_axis = Steel.fy * (beam_data.Zx if ax == 'x' else beam_data.Zy)
-        EI_axis = Steel.E * (beam_data.Ix if ax == 'x' else beam_data.Iy)
-        plt.axhline(y=Mp_axis, linestyle='--', linewidth=1.2, label=f"M_p,{ax} = {Mp_axis:.3g}")
-        kappa_end = Mp_axis / EI_axis
-        plt.plot([0, kappa_end], [0, Mp_axis], linestyle=':', linewidth=1.2, label=f"slope EI_{ax} = {EI_axis:.3g}")
+        for ax in axes:
+            res = Moment_curvature_analysis(P_value=P, residual_stress=rs, axis=ax)
+            curv = res.curvatureX if ax == 'x' else res.curvatureY
 
-    rs_text = "with RS" if residual_stress else "without RS"
+            plt.plot(curv, res.maximum_abs_moment,
+                     linestyle=linestyle,
+                     label=f"{ax}-axis ({rs_label})")
+
+            # Elastic-plastic line
+            Mp_axis = Steel.fy * (beam_data.Zx if ax == 'x' else beam_data.Zy)
+            EI_axis = Steel.E * (beam_data.Ix if ax == 'x' else beam_data.Iy)
+            kappa_end = Mp_axis / EI_axis
+            if not rs:  # Only plot the slope line once (for uncluttered view)
+                plt.axhline(y=Mp_axis, linestyle=':', linewidth=1.2,
+                            label=f"M_p,{ax} = {Mp_axis:.3g}")
+                plt.plot([0, kappa_end], [0, Mp_axis], linestyle=':', linewidth=1.2,
+                         label=f"slope EI_{ax} = {EI_axis:.3g}")
+
     plt.xlabel("Curvature κ")
     plt.ylabel("Moment M")
-    plt.title(f"Moment–Curvature (axes={list(axes)}, {rs_text}, P={P})")
+    plt.title(f"Moment–Curvature Comparison (P = {P})")
     plt.grid(True)
     plt.legend()
     plt.show()
+
 
 def comparison_of_2d_and_3d_section(P=0, residual_stress=False, axes=('x','y',None)):
     plt.figure()
