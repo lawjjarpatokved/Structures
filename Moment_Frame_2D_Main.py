@@ -787,7 +787,7 @@ class Moment_Frame_2D:
             pass
 
 
-    def run_displacement_controlled_analysis(self, target_disp=5, steps=2000, plot_defo=False):
+    def run_displacement_controlled_analysis(self, target_disp=10, steps=20000, plot_defo=False):
         """
         Runs displacement-controlled analysis and plots load ratio (λ) vs. displacement and vertical reaction.
 
@@ -889,7 +889,7 @@ class Moment_Frame_2D:
         # Report peak λ
         if load_ratio_hist:
             i_peak = max(range(len(load_ratio_hist)), key=lambda i: load_ratio_hist[i])
-            print(f"🔺 Max load ratio λ = {load_ratio_hist[i_peak]:.3f} at displacement = {disp_hist[i_peak]:.3f} in")
+            print(f" Max load ratio λ = {load_ratio_hist[i_peak]:.3f} at displacement = {disp_hist[i_peak]:.3f} ")
 
 
     def save_moments_by_member(self, filename='max_member_moments.csv'):

@@ -209,7 +209,7 @@ Frame={
             }
         },
         'support': 'ppp',
-        'load_comb_multipliers': [1.5, 0, 0, 0],
+        'load_comb_multipliers': [1.4, 0, 0, 0],
         'D_floor_intensity': 7.5 * kip / ft,
         'D_roof_intensity': 3.5 * kip / ft,
         'L_floor_intensity': 0 * kip / ft,
@@ -248,9 +248,48 @@ Frame={
             }
         },
         'support': 'ppp',
-        'load_comb_multipliers': [1.2, 0, 0, 1.3],
+        'load_comb_multipliers': [1.4, 0, 0, 0],
         'D_floor_intensity': 7.5 * kip / ft,
         'D_roof_intensity': 3.5 * kip / ft,
+        'L_floor_intensity': 0 * kip / ft,
+        'L_roof_intensity': 0 * kip / ft,
+        'Wind_load_floor': 6.56*kip,
+        'Wind_load_roof': 2.81*kip,
+        'Wall_load':0,
+        'geometric_imperfection_ratio': 1 / 500
+         },
+
+
+        'SP36L': {
+        'Frame_id':'Ziemian_SP36L',
+        'bay_width': [34 * ft, 34 * ft],
+        'story_height': [20 * ft, 15 * ft],
+        'column_no_of_ele': 2,
+        'beam_no_of_ele': 4,
+        'beam_section':
+          {
+            'common_and_exceptions': 
+            {
+                'common': 'W24X55',
+                '(1,2)': 'W16X31',
+                '(2,2)': 'W16X31',
+             }
+         },
+        'column_section':
+         {
+            'common_and_exceptions': 
+            {
+                'common': ('W14X61', 'x'),
+                '(2,1)': ('W14X132', 'x'),
+                '(1,2)': ('W12X14', 'x'),
+                '(2,2)': ('W14X22', 'x'),
+                '(3,2)': ('W12X14', 'x'),
+            }
+        },
+        'support': 'ppp',
+        'load_comb_multipliers': [1.4, 0, 0, 0],
+        'D_floor_intensity': 2.25 * kip / ft,
+        'D_roof_intensity': 1.125 * kip / ft,
         'L_floor_intensity': 0 * kip / ft,
         'L_roof_intensity': 0 * kip / ft,
         'Wind_load_floor': 6.56*kip,
