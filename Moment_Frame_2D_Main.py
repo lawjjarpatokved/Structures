@@ -15,14 +15,14 @@ density_of_steel=7850*kg/(m**3)
 g=9.81*m/(sec**2)
 E=29000*ksi
 G=77221*Mpa
-fy=36*ksi*0.9
+Fy=36*ksi*0.9
 Hk = 0.001*E           # Kinematic hardening modulus
 
 class Steel_Material:
-    def __init__(self,mat_tag,E,fy,G,Hk,density):
+    def __init__(self,mat_tag,E,Fy,G,Hk,density):
         self.mat_tag=mat_tag
         self.E=E
-        self.fy=fy
+        self.Fy=Fy
         self.G=G
         self.Hk=Hk
         self.density=density
@@ -30,6 +30,7 @@ class Steel_Material:
 
 class Moment_Frame_2D:
 
+    print_ops_status=True
 
     def __init__(self,width_of_bay,storey_height,
                 no_of_elements_column, no_of_elements_beam,
@@ -59,7 +60,8 @@ class Moment_Frame_2D:
         self.Frame_id=Frame_id
         self.make_beam_section_detail_uniform()
         self.make_column_section_detail_uniform()
-
+        self.load_timeseries_counter = 1
+        self.load_pattern_counter = 1
         self.kwargs=kwargs
 
         defaults={'support':'All_Fixed',
@@ -150,23 +152,36 @@ class Moment_Frame_2D:
     
     @staticmethod
     def generate_clean_csv_file_from_messy_out_files(path):
-        # Read file (whitespace-delimited)
-        df = pd.read_csv(path, sep=r'\s+', header=None)
+        # Read the file with all columns as string to avoid parsing errors
+        df_raw = pd.read_csv(path, sep=r'\s+', header=None, dtype=str, engine='python')
 
-        # Select the last row, transpose, and convert to inches
-        df = (df.iloc[-1] / 0.0254).to_frame()
+        # Drop any empty rows
+        df_raw.dropna(how='all', inplace=True)
 
-        # Reset index and rename column for clarity
-        df.reset_index(drop=True, inplace=True)
-        df.columns = ['Value_in_inches']
+        # Convert to numeric with errors coerced to NaN
+        df = df_raw.apply(pd.to_numeric, errors='coerce')
 
-        # Build output path in the same folder
+        # Drop rows with any NaN (non-numeric values)
+        df.dropna(inplace=True)
+
+        if df.empty:
+            print(f" No valid numeric data found in: {path}")
+            return
+
+        # Select the last row and convert to inches
+        df_clean = (df.iloc[-1] / 0.0254).to_frame()
+
+        # Reset index and label the column
+        df_clean.reset_index(drop=True, inplace=True)
+        df_clean.columns = ['Value_in_inches']
+
+        # Save as clean CSV
         folder = os.path.dirname(path)
         base_name = os.path.splitext(os.path.basename(path))[0]
         output_path = os.path.join(folder, base_name + '_clean.csv')
+        df_clean.to_csv(output_path, index=False)
 
-        # Save as clean CSV
-        df.to_csv(output_path, index=False)
+        print(f" Saved clean displacement to: {output_path}")
 
 
     def generate_Nodes_and_Element_Connectivity(self):
@@ -416,7 +431,7 @@ class Moment_Frame_2D:
         for single_node in self.all_nodes:
             ops.node(single_node[0],single_node[1],single_node[2])
     
-
+        # ops.printModel()
 
         for base_nodes, support_condition in zip(self.NODES_TO_FIX, self.support_condition):
             node_tag = base_nodes[0]
@@ -428,10 +443,10 @@ class Moment_Frame_2D:
                 raise ValueError(f"Unsupported support condition{support_condition}.Expected 'F' or 'P'.")
 
 
-        # Reinf_steel={'Rebar_steel_tag':1,'fy':Fy,'Es':E,'b':0.002,'R0':15,'cR1':0.925,'cR2':0.15}
-        # ops.uniaxialMaterial("Steel02",Reinf_steel['Rebar_steel_tag'],Reinf_steel['fy'],Reinf_steel['Es'],
+        # Reinf_steel={'Rebar_steel_tag':1,'Fy':Fy,'Es':E,'b':0.002,'R0':15,'cR1':0.925,'cR2':0.15}
+        # ops.uniaxialMaterial("Steel02",Reinf_steel['Rebar_steel_tag'],Reinf_steel['Fy'],Reinf_steel['Es'],
         #                     Reinf_steel['b'],Reinf_steel['R0'],Reinf_steel['cR1'],Reinf_steel['cR2'])
-        Steel=Steel_Material(1,E=E,fy=fy,G=G,Hk=Hk,density=density_of_steel)
+        Steel=Steel_Material(1,E=E,Fy=Fy,G=G,Hk=Hk,density=density_of_steel)
         # ops.uniaxialMaterial('Steel01', Steel.mat_tag, Steel.Fy, Steel.E, Steel.b)
         
 
@@ -443,7 +458,7 @@ class Moment_Frame_2D:
         if not self.Inelastic_analysis:
             for beam_section_name,beam_section_tag in self.beam_section_tags.items():
                 beam_=WF_Database(beam_section_name)
-                beam=I_shape(beam_.d,beam_.tw,beam_.bf,beam_.bf,fy=Steel.fy,E=Steel.E,Hk=Steel.Hk,A=beam_.A,Ix=beam_.Ix,Iy=beam_.Iy)
+                beam=I_shape(beam_.d,beam_.tw,beam_.bf,beam_.bf,Fy=Steel.Fy,E=Steel.E,Hk=Steel.Hk,A=beam_.A,Ix=beam_.Ix,Iy=beam_.Iy)
                 A=beam.A
                 I=beam.Ix  
                 d=beam.d
@@ -456,7 +471,7 @@ class Moment_Frame_2D:
             for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():
                 column_ = WF_Database(column_section_name)  # Fetch geometry
                 column = I_shape(column_.d, column_.tw, column_.bf, column_.tf,
-                                fy=Steel.fy,E=Steel.E,Hk=Steel.Hk,
+                                Fy=Steel.Fy,E=Steel.E,Hk=Steel.Hk,
                                 A=column_.A, Ix=column_.Ix, Iy=column_.Iy)  # Use the I_shape class
 
                 A = column.A
@@ -471,17 +486,17 @@ class Moment_Frame_2D:
 
         elif self.Inelastic_analysis:
             if self.Residual_Stress:
-                frc=-0.3*Steel.fy
+                frc=-0.3*Steel.Fy
             else:
                 frc=0
 
             for beam_section_name, beam_section_tag in self.beam_section_tags.items():
                 beam_data = WF_Database(beam_section_name)
                 beam = I_shape(beam_data.d, beam_data.tw, beam_data.bf, beam_data.tf,
-                               fy=Steel.fy,E=Steel.E,Hk=Steel.Hk,
+                               Fy=Steel.Fy,E=Steel.E,Hk=Steel.Hk,
                             A=beam_data.A, Ix=beam_data.Ix, Iy=beam_data.Iy)
                 
-                # beam= I_shape.from_database(beam_section_name,fy=Steel.fy,E=Steel.E,Hk=Steel.Hk)
+                # beam= I_shape.from_database(beam_section_name,Fy=Steel.Fy,E=Steel.E,Hk=Steel.Hk)
                 
                 beam.build_ops_fiber_section(beam_section_tag,        # sec_tag
                                                 Steel.mat_tag,           # material       # section_name
@@ -498,7 +513,7 @@ class Moment_Frame_2D:
             for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():
                 column_data = WF_Database(column_section_name)
                 column = I_shape(column_data.d, column_data.tw, column_data.bf, column_data.tf,
-                               fy=Steel.fy,E=Steel.E,Hk=Steel.Hk,
+                               Fy=Steel.Fy,E=Steel.E,Hk=Steel.Hk,
                                 A=column_data.A, Ix=column_data.Ix, Iy=column_data.Iy)
 
                 if axis == 'x':
@@ -536,7 +551,9 @@ class Moment_Frame_2D:
 
 
         # ----- Columns -----
+        print("Line554,Column_Connectivity",self.column_connectivity)
         for i, column_ij_node in enumerate(self.column_connectivity):
+            
             axis, storey = Moment_Frame_2D.find_axis_and_storey_for_columns(column_ij_node[1:])
 
             if self.column_case == 'common_and_exceptions':
@@ -563,8 +580,8 @@ class Moment_Frame_2D:
 
             # Create column element
             eleTag = column_ij_node[0]
-            ops.element('forceBeamColumn', eleTag, *column_ij_node[1:], col_and_beam_TransTag, section_tag)
-            # print(f"Defined element {eleTag} between nodes {column_ij_node[1]} and {column_ij_node[2]}")
+            ops.element('forceBeamColumn', eleTag, *column_ij_node[1:3], col_and_beam_TransTag, section_tag)
+
             # Append section name to column entry
             self.column_connectivity[i] = column_ij_node + [section_name]
 
@@ -600,7 +617,7 @@ class Moment_Frame_2D:
 
             # Create beam element
             eleTag = beam_ij_node[0]
-            ops.element('forceBeamColumn', eleTag, *beam_ij_node[1:], col_and_beam_TransTag, section_tag)
+            ops.element('forceBeamColumn', eleTag, *beam_ij_node[1:3], col_and_beam_TransTag, section_tag)
             # print(f"Defined element {eleTag} between nodes {column_ij_node[1]} and {column_ij_node[2]}")
 
             # Append section name to beam entry
@@ -625,14 +642,13 @@ class Moment_Frame_2D:
             performing displacement controlled analysis, it is better to apply small portion of the load
             so that the load factors are positive throughout the analysis.
         """
-        load_timeseries_counter = 1
-        load_pattern_counter = 1
+        # load_timeseries_counter = 1
+        # load_pattern_counter = 1
 
-        ops.timeSeries('Linear', load_timeseries_counter)
-        ops.pattern('Plain', load_pattern_counter, load_timeseries_counter)
+        ops.timeSeries('Linear', self.load_timeseries_counter)
+        ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
 
-        load_timeseries_counter += 1
-        load_pattern_counter += 1
+
 
         # # Self-weight of columns
         # for columns in self.column_connectivity:
@@ -707,11 +723,11 @@ class Moment_Frame_2D:
             ops.load(node, 0, -load_scale * wall_load / 2, 0)
 
 
-        opsv.plot_model()
+        # opsv.plot_model()
         # opsv.plot_load()
 
 
-    def run_load_controlled_analysis(self,steps = 10,plot_defo=False):
+    def run_load_controlled_analysis(self,steps = 10,plot_defo=False,display_reactions=False):
 
             
         """
@@ -723,7 +739,7 @@ class Moment_Frame_2D:
         steps -- total number of analysis steps
 
         """
-        
+
         ops.initialize()
         # Records the response of a number of nodes at every converged step
         self.main_node_tags=[tags[0] for tags in sorted(self.Main_Nodes,key=lambda x:x[2])]
@@ -760,34 +776,44 @@ class Moment_Frame_2D:
         # Performs the analysis
         ops.analyze(steps)    
         Moment_Frame_2D.generate_clean_csv_file_from_messy_out_files(filename)
-        print("Reactions at base nodes:")
 
-        total_rx = 0.0
-        total_ry = 0.0
-        total_Mz = 0.0
+        # === Track horizontal displacement of top node in axis 1 ===
+        '''
+        By tracking the displacement of the top node, the displacement controlled analysis decides whether to 
+        perform the analysis for left or right lateral displacement'''
+        top_node_tag = self.axis_i_roof_nodes(1)[0]  # This returns the tag of top node in the frist axis
+        disp_x = ops.nodeDisp(top_node_tag, 1)       # DOF 1 = horizontal
+        print(f"Horizontal displacement of control node {top_node_tag} = {disp_x:.5f} ")
+              
+        if display_reactions:
+            print("Reactions at base nodes:")
+            total_rx = 0.0
+            total_ry = 0.0
+            total_Mz = 0.0
 
-        for base_node in [n[0] for n in self.NODES_TO_FIX]:  # extract node tags from base node lists
-            ops.reactions()
-            rxn=ops.nodeReaction(base_node)
-            rx, ry, rz = rxn[0], rxn[1], rxn[2]
-            total_rx += rx
-            total_ry += ry
-            total_Mz += rz
-            print(f"Node {base_node}: Rx = {rx:.4f}, Ry = {ry:.4f}, Mz = {rz:.4f}")
+            for base_node in [n[0] for n in self.NODES_TO_FIX]:  # extract node tags from base node lists
+                ops.reactions()
+                rxn=ops.nodeReaction(base_node)
+                rx, ry, rz = rxn[0], rxn[1], rxn[2]
+                total_rx += rx
+                total_ry += ry
+                total_Mz += rz
+                print(f"Node {base_node}: Rx = {rx:.4f}, Ry = {ry:.4f}, Mz = {rz:.4f}")
 
-        print(f"\nTotal Reactions: Rx = {total_rx:.4f}, Ry = {total_ry:.4f}, Mz = {total_Mz:.4f}")
+            print(f"\nTotal Reactions: Rx = {total_rx:.4f}, Ry = {total_ry:.4f}, Mz = {total_Mz:.4f}")
 
 
-        forces=ops.eleResponse(9,'localForce')
-        print("Forces",forces)
+        # forces=ops.eleResponse(9,'localForce')
+        # print("Forces",forces)
         print("Gravity analysis Done!")
         if plot_defo==True:
             opsv.plot_defo()
         else:
             pass
+        
+        return disp_x
 
-
-    def run_displacement_controlled_analysis(self, target_disp=10, steps=20000, plot_defo=False):
+    def run_displacement_controlled_analysis(self, target_disp=10, steps=20000, plot_defo=False,**kwargs):
         """
         Runs displacement-controlled analysis and plots load ratio (λ) vs. displacement and vertical reaction.
 
@@ -796,6 +822,7 @@ class Moment_Frame_2D:
             steps (int): Number of steps to reach target
             plot_defo (bool): Whether to plot deformed shape at end
         """
+        try_smaller_steps = kwargs.get('try_smaller_steps', True)
 
         ops.initialize()
 
@@ -822,11 +849,79 @@ class Moment_Frame_2D:
         load_ratio_hist = []
         total_ry_hist = []  
 
-        for step in range(steps):
+        while True:
             ok = ops.analyze(1)
+            if try_smaller_steps:
+                if ok != 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print(f'Trying the step size of: {dU / 10}')
+                    ops.integrator('DisplacementControl',control_node, control_dof, dU / 10)
+                    ok = ops.analyze(1)
+
+                if ok != 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print(f'Trying the step size of: {dU / 100}')
+                    ops.integrator('DisplacementControl',control_node, control_dof, dU / 100)
+                    ok = ops.analyze(1)
+
+                if ok != 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print(f'Trying the step size of: {dU / 1000}')
+                    ops.integrator('DisplacementControl', control_node, control_dof, dU / 1000)
+                    ok = ops.analyze(1)
+                    if ok == 0:
+                        dU = dU / 10
+                        if Moment_Frame_2D.print_ops_status:
+                            print(f'Changed the step size to: {dU}')
+
+                if ok != 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print(f'Trying the step size of: {dU / 10000}')
+                    ops.integrator('DisplacementControl', control_node, control_dof, dU / 10000)
+                    ok = ops.analyze(1)
+                    if ok == 0:
+                        dU = dU / 10
+                        if Moment_Frame_2D.print_ops_status:
+                            print(f'Changed the step size to: {dU / 10}')
+
             if ok != 0:
-                print(f"Step {step}: Analysis failed.")
+                if Moment_Frame_2D.print_ops_status:
+                    print('Trying ModifiedNewton')
+                ops.algorithm('ModifiedNewton')
+                ok = ops.analyze(1)
+                if ok == 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print('ModifiedNewton worked')
+
+            if ok != 0:
+                if Moment_Frame_2D.print_ops_status:
+                    print('Trying KrylovNewton')
+                ops.algorithm('KrylovNewton')
+                ok = ops.analyze(1)
+                if ok == 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print('KrylovNewton worked')
+
+            if ok != 0:
+                if Moment_Frame_2D.print_ops_status:
+                    print('Trying KrylovNewton and Greater Tolerance')
+                ops.algorithm('KrylovNewton')
+                ops.test('NormUnbalance', 1e-4, 10)
+                ok = ops.analyze(1)
+                if ok == 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print('KrylovNewton worked')
+
+            if ok == 0:
+                # Reset analysis options
+                ops.algorithm('Newton')
+                ops.test('NormUnbalance', 1e-3, 10)
+                ops.integrator('DisplacementControl', control_node, control_dof, dU)
+            else:
+                print('Analysis Failed')
+                # results.exit_message = 'Analysis Failed'
                 break
+
 
             u = ops.nodeDisp(control_node, control_dof)
             lam = ops.getTime()
@@ -883,7 +978,7 @@ class Moment_Frame_2D:
         plt.title('Load Ratio vs. Vertical Reaction')
         plt.grid(True)
         plt.savefig(self.Frame_id + '/lambda_vs_reaction.png')
-        plt.show()
+        # plt.show()
 
 
         # Report peak λ

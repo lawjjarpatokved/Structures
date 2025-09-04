@@ -3,7 +3,7 @@ from Ziemian_database import Frame
 from Ziemian_database import Frame_data
 from libdenavit.OpenSees.get_fiber_data import *
 
-Frame_number='UP36H'
+Frame_number='SP36H'
 dict=Frame[str(Frame_number)]
 Frame_details=Frame_data(dict)
 Frame_details.geometric_imperfection_ratio=+1/500
@@ -37,7 +37,7 @@ Frame.generate_Nodes_and_Element_Connectivity()
 # print(Frame.Main_Nodes)
 # print(Frame.NODES_TO_FIX)
 # print(Frame.column_intermediate_nodes)
-# print(Frame.column_connectivity)
+print("Column_Connectivity",Frame.column_connectivity)
 # print(Frame.beam_intermediate_nodes)
 # print(Frame.beam_connectivity)
 # print(Frame.beam_section_tags)
@@ -60,16 +60,19 @@ Frame.generate_Nodes_and_Element_Connectivity()
 
 
 # Frame.plot_model()
-# Frame.create_distorted_nodes_and_element_connectivity(Frame_details.geometric_imperfection_ratio)
+Frame.create_distorted_nodes_and_element_connectivity(Frame_details.geometric_imperfection_ratio)
+print(Frame.all_nodes)
 # print(Frame.Main_Nodes)
 Frame.build_ops_model()
- 
-# Frame.plot_model()
-# print(Frame.roof_beams)
-# print(Frame.column_connectivity)
-Frame.add_dead_live_wind_wall_loads(load_scale=1)
-# Frame.run_load_controlled_analysis(steps=1000,plot_defo=True)
-Frame.run_displacement_controlled_analysis(plot_defo=True)
+Frame.add_dead_live_wind_wall_loads()
+disp=Frame.run_load_controlled_analysis(steps=100,plot_defo=False)
+
+
+Frame.build_ops_model()
+Frame.add_dead_live_wind_wall_loads()
+target_disp=-10 if disp<0 else 10
+Frame.run_displacement_controlled_analysis(target_disp=target_disp,plot_defo=True)
+
 # Frame.save_moments_by_member()
 
 # Frame.plot_all_fiber_section_in_the_model()
