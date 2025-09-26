@@ -3,7 +3,8 @@ from Ziemian_database import Frame
 from Ziemian_database import Frame_data
 from libdenavit.OpenSees.get_fiber_data import *
 
-Frame_number='SP36H'
+Frame_number=  13         # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
+control_dir='V'  # 'L'  'V'
 dict=Frame[str(Frame_number)]
 Frame_details=Frame_data(dict)
 Frame_details.geometric_imperfection_ratio=+1/500
@@ -26,18 +27,21 @@ Frame=Moment_Frame_2D(Frame_details.bay_width, Frame_details.story_height, Frame
                 Wall_load=Frame_details.Wall_load,
                 load_combination_multipliers=Frame_details.load_comb_multipliers,
                 Frame_id=Frame_details.Frame_id,
-                Residual_Stress=False,
-                Inelastic_analysis=True,
+                Residual_Stress=True,
+                Elastic_analysis=False,
                 Second_order_effects=True,
                 stiffness_reduction=1,
+                strength_reduction=0.9,
                 nip=4,
+                mat_type='Steel01',
                 wind_load_dirn=wind_load_dirn)
 
 Frame.generate_Nodes_and_Element_Connectivity()
 # print(Frame.Main_Nodes)
 # print(Frame.NODES_TO_FIX)
+# print(Frame.column_section)
 # print(Frame.column_intermediate_nodes)
-print("Column_Connectivity",Frame.column_connectivity)
+# print("Column_Connectivity",Frame.column_connectivity)
 # print(Frame.beam_intermediate_nodes)
 # print(Frame.beam_connectivity)
 # print(Frame.beam_section_tags)
@@ -61,17 +65,26 @@ print("Column_Connectivity",Frame.column_connectivity)
 
 # Frame.plot_model()
 Frame.create_distorted_nodes_and_element_connectivity(Frame_details.geometric_imperfection_ratio)
-print(Frame.all_nodes)
+# print(Frame.all_nodes)
 # print(Frame.Main_Nodes)
-Frame.build_ops_model()
-Frame.add_dead_live_wind_wall_loads()
-disp=Frame.run_load_controlled_analysis(steps=100,plot_defo=False)
-
 
 Frame.build_ops_model()
+print(Frame.all_element_connectivity_section_and_bending_axes_detail)
+# print(Frame.W8X15.d)
+# a=input("Hello")
 Frame.add_dead_live_wind_wall_loads()
-target_disp=-10 if disp<0 else 10
-Frame.run_displacement_controlled_analysis(target_disp=target_disp,plot_defo=True)
+# print(Frame.column_connectivity)
+# print(Frame.beam_connectivity)
+# a=input("Hello")
+# disp=Frame.run_load_controlled_analysis(steps=100,plot_defo=False)
+
+
+# Frame.build_ops_model()
+# Frame.add_dead_live_wind_wall_loads()
+# ops.printModel('-JSON', '-file', 'Model_Details')
+# target_disp=-10 if disp<0 else 10
+results=Frame.run_displacement_controlled_analysis(target_disp=5,plot_defo=True,control_dir=control_dir)
+# print(results.load_ratio)
 
 # Frame.save_moments_by_member()
 

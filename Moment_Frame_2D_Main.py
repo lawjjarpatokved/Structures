@@ -9,13 +9,15 @@ from libdenavit.OpenSees.get_fiber_data import *
 from Units import *
 from math import pi, ceil
 from libdenavit.section.wide_flange import *
+from libdenavit.OpenSees import AnalysisResults
+from libdenavit import find_limit_point_in_list, interpolate_list
 
 #################################################
 density_of_steel=7850*kg/(m**3)
 g=9.81*m/(sec**2)
 E=29000*ksi
 G=77221*Mpa
-Fy=36*ksi*0.9
+Fy=36*ksi
 Hk = 0.001*E           # Kinematic hardening modulus
 
 class Steel_Material:
@@ -26,7 +28,7 @@ class Steel_Material:
         self.G=G
         self.Hk=Hk
         self.density=density
-        self.b=Hk / (E + Hk)
+        self.b=Hk / (E + Hk) 
 
 class Moment_Frame_2D:
 
@@ -66,6 +68,10 @@ class Moment_Frame_2D:
 
         defaults={'support':'All_Fixed',
                   'nip':4,
+                  'mat_type':'Steel01',
+                  'nfy':20,
+                  'nfx':20,
+                  'num_regions':10,
                   'D_floor_intensity':0,
                   'D_roof_intensity':0,
                   'L_floor_intensity':0,
@@ -73,10 +79,11 @@ class Moment_Frame_2D:
                   'Wind_load_floor':0,
                   'Wind_load_roof':0,
                   'Wall_load':0,
-                  'Inelastic_analysis':True,
+                  'Elastic_analysis':False,
                   'Second_order_effects':True,
                   'Residual_Stress':True,
                   'stiffness_reduction':1,
+                  'strength_reduction':1,
                   'geometric_imperfection_ratio':1/500,
                   'wind_load_dirn':'right',
                   'plot_sections':False}
@@ -443,99 +450,54 @@ class Moment_Frame_2D:
                 raise ValueError(f"Unsupported support condition{support_condition}.Expected 'F' or 'P'.")
 
 
-        # Reinf_steel={'Rebar_steel_tag':1,'Fy':Fy,'Es':E,'b':0.002,'R0':15,'cR1':0.925,'cR2':0.15}
-        # ops.uniaxialMaterial("Steel02",Reinf_steel['Rebar_steel_tag'],Reinf_steel['Fy'],Reinf_steel['Es'],
-        #                     Reinf_steel['b'],Reinf_steel['R0'],Reinf_steel['cR1'],Reinf_steel['cR2'])
         Steel=Steel_Material(1,E=E,Fy=Fy,G=G,Hk=Hk,density=density_of_steel)
-        # ops.uniaxialMaterial('Steel01', Steel.mat_tag, Steel.Fy, Steel.E, Steel.b)
-        
-
 
         col_and_beam_TransTag = 1
 
-
-
-        if not self.Inelastic_analysis:
-            for beam_section_name,beam_section_tag in self.beam_section_tags.items():
-                beam_=WF_Database(beam_section_name)
-                beam=I_shape(beam_.d,beam_.tw,beam_.bf,beam_.bf,Fy=Steel.Fy,E=Steel.E,Hk=Steel.Hk,A=beam_.A,Ix=beam_.Ix,Iy=beam_.Iy)
-                A=beam.A
-                I=beam.Ix  
-                d=beam.d
-                tw=beam.tw
-                alphaY=(d*tw)/A
-                # print(beam_section_name, A, I*2402509.61)
-                ops.section('Elastic',beam_section_tag,beam.E*self.stiffness_reduction,A,I,Steel.G,alphaY)
-                ops.beamIntegration("Lobatto",beam_section_tag , beam_section_tag, self.nip)
-
-            for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():
-                column_ = WF_Database(column_section_name)  # Fetch geometry
-                column = I_shape(column_.d, column_.tw, column_.bf, column_.tf,
-                                Fy=Steel.Fy,E=Steel.E,Hk=Steel.Hk,
-                                A=column_.A, Ix=column_.Ix, Iy=column_.Iy)  # Use the I_shape class
-
-                A = column.A
-                I = column.Ix if axis == 'x' else column.Iy
-                d = column.d
-                tw = column.tw
-                alphaY = (d * tw) / A
-
-                ops.section('Elastic', column_section_tag, column.E * self.stiffness_reduction, A, I, Steel.G, alphaY)
-                ops.beamIntegration("Lobatto", column_section_tag, column_section_tag, self.nip)
-
-
-        elif self.Inelastic_analysis:
-            if self.Residual_Stress:
-                frc=-0.3*Steel.Fy
-            else:
-                frc=0
-
-            for beam_section_name, beam_section_tag in self.beam_section_tags.items():
-                beam_data = WF_Database(beam_section_name)
-                beam = I_shape(beam_data.d, beam_data.tw, beam_data.bf, beam_data.tf,
-                               Fy=Steel.Fy,E=Steel.E,Hk=Steel.Hk,
-                            A=beam_data.A, Ix=beam_data.Ix, Iy=beam_data.Iy)
-                
-                # beam= I_shape.from_database(beam_section_name,Fy=Steel.Fy,E=Steel.E,Hk=Steel.Hk)
-                
-                beam.build_ops_fiber_section(beam_section_tag,        # sec_tag
-                                                Steel.mat_tag,           # material       # section_name
-                                                mat_type='Steel01',
-                                                nfy=20,nfx=20,
-                                                frc=frc,
-                                                axis='x'
-                                                )
-    
-                
-                Steel.mat_tag += 2 * beam.num_regions + 2  # Avoid material tag overlap
-                ops.beamIntegration("Lobatto", beam_section_tag, beam_section_tag, self.nip)
-
-            for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():
-                column_data = WF_Database(column_section_name)
-                column = I_shape(column_data.d, column_data.tw, column_data.bf, column_data.tf,
-                               Fy=Steel.Fy,E=Steel.E,Hk=Steel.Hk,
-                                A=column_data.A, Ix=column_data.Ix, Iy=column_data.Iy)
-
-                if axis == 'x':
-                    column.build_ops_fiber_section(column_section_tag,
-                                                Steel.mat_tag,           # material       # section_name
-                                                mat_type='Steel01',
-                                                nfy=20,nfx=20,
-                                                frc=frc,
-                                                axis='x')
-                else:
-                    column.build_ops_fiber_section(column_section_tag,
-                                                Steel.mat_tag,           # material       # section_name
-                                                mat_type='Steel01',
-                                                nfy=20,nfx=20,
-                                                frc=frc,
-                                                axis='y')
-
-                Steel.mat_tag += 2 * column.num_regions + 2
-                ops.beamIntegration("Lobatto", column_section_tag, column_section_tag, self.nip)
+        if self.Elastic_analysis:
+            mat_type = 'Elastic'
+            frc = 0
         else:
-            raise ValueError('Please give correct input for Inelastic_analysis')
+            mat_type = self.mat_type
+            frc = -0.3 * Steel.Fy if self.Residual_Stress else 0
 
+        
+        print('LIne 575',mat_type)
+        print('LIne 576',frc)
+
+        # Beams
+        for beam_section_name, beam_section_tag in self.beam_section_tags.items():
+            beam_data = WF_Database(beam_section_name)
+            beam = I_shape(beam_data.d, beam_data.tw, beam_data.bf, beam_data.tf,   # use tf consistently
+                        Fy=Steel.Fy, E=Steel.E,
+                        A=beam_data.A, Ix=beam_data.Ix, Iy=beam_data.Iy)
+            beam.build_ops_fiber_section(beam_section_tag,
+                                        start_material_id=Steel.mat_tag,
+                                        mat_type=mat_type,
+                                        nfy=self.nfy, nfx=self.nfx,
+                                        frc=frc,num_regions=self.num_regions,
+                                        stiffness_reduction=self.stiffness_reduction,strength_reduction=self.strength_reduction,
+                                        axis='x')
+            Steel.mat_tag += 2 * self.num_regions + 2
+            ops.beamIntegration("Lobatto", beam_section_tag, beam_section_tag, self.nip)
+            setattr(self, beam_section_name, beam)
+
+        # Columns
+        for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():
+            column_data = WF_Database(column_section_name)
+            column = I_shape(column_data.d, column_data.tw, column_data.bf, column_data.tf,
+                            Fy=Steel.Fy, E=Steel.E,
+                            A=column_data.A, Ix=column_data.Ix, Iy=column_data.Iy)
+            column.build_ops_fiber_section(column_section_tag,
+                                        start_material_id=Steel.mat_tag,
+                                        mat_type=mat_type,
+                                        nfy=self.nfy, nfx=self.nfx,
+                                        frc=frc,num_regions=self.num_regions,
+                                        stiffness_reduction=self.stiffness_reduction,strength_reduction=self.strength_reduction,
+                                        axis=axis)
+            Steel.mat_tag += 2 * self.num_regions + 2
+            ops.beamIntegration("Lobatto", column_section_tag, column_section_tag, self.nip)
+            setattr(self, column_section_name, column)
 
 
         ########### check whether Second order effects need to be included or not ############
@@ -551,7 +513,6 @@ class Moment_Frame_2D:
 
 
         # ----- Columns -----
-        print("Line554,Column_Connectivity",self.column_connectivity)
         for i, column_ij_node in enumerate(self.column_connectivity):
             
             axis, storey = Moment_Frame_2D.find_axis_and_storey_for_columns(column_ij_node[1:])
@@ -562,16 +523,19 @@ class Moment_Frame_2D:
                     # print(f"node {column_ij_node[1]} and {column_ij_node[2]} are in axis {axis} and storey {storey}, which is an exception.")
                     section_name = self.column_section[self.column_case][key][0]
                     section_tag  = self.column_section[self.column_case][key][1]
+                    bending_axis = self.column_section[self.column_case][key][2]
                 else:
                     # print(f"node {column_ij_node[1]} and {column_ij_node[2]} are not in axis {axis} and storey {storey}, which is common.")
                     section_name = self.column_section[self.column_case]['common'][0]
                     section_tag  = self.column_section[self.column_case]['common'][1]
+                    bending_axis = self.column_section[self.column_case]['common'][2]
 
             elif self.column_case == 'same_for_storey':
                 key = str(storey)
                 if key in self.column_section[self.column_case]:
                     section_name = self.column_section[self.column_case][key][0]
                     section_tag  = self.column_section[self.column_case][key][1]
+                    bending_axis = self.column_section[self.column_case][key][2]
                 else:
                     raise KeyError(f"No column section defined for storey {storey}")
 
@@ -580,10 +544,10 @@ class Moment_Frame_2D:
 
             # Create column element
             eleTag = column_ij_node[0]
-            ops.element('forceBeamColumn', eleTag, *column_ij_node[1:3], col_and_beam_TransTag, section_tag)
+            ops.element('forceBeamColumn', eleTag, *column_ij_node[1:3], col_and_beam_TransTag, section_tag,'-mass', 1)
 
             # Append section name to column entry
-            self.column_connectivity[i] = column_ij_node + [section_name]
+            self.column_connectivity[i] = column_ij_node + [section_name] +[bending_axis]
 
 
 
@@ -617,11 +581,13 @@ class Moment_Frame_2D:
 
             # Create beam element
             eleTag = beam_ij_node[0]
-            ops.element('forceBeamColumn', eleTag, *beam_ij_node[1:3], col_and_beam_TransTag, section_tag)
+            ops.element('forceBeamColumn', eleTag, *beam_ij_node[1:3], col_and_beam_TransTag, section_tag,'-mass', 1)
             # print(f"Defined element {eleTag} between nodes {column_ij_node[1]} and {column_ij_node[2]}")
 
             # Append section name to beam entry
-            self.beam_connectivity[i] = beam_ij_node + [section_name]
+            self.beam_connectivity[i] = beam_ij_node + [section_name] + ['x']   ###'x' is hard coded because the beams are expected to be bending about major axis only (Discussed in meeting with prof.)
+
+        self.all_element_connectivity_section_and_bending_axes_detail=self.column_connectivity+self.beam_connectivity
 
         self.roof_beams=[]
         for beams in self.beam_connectivity:
@@ -630,7 +596,70 @@ class Moment_Frame_2D:
 
 ###########################################################################################################################
 ###########################################################################################################################
-       
+    # def return_fiber_strain_in_an_element(self,ele_tag):
+    #     for i in range(self.nip):
+    #         axial_strain, curvatureX, curvatureY = 0, 0, 0
+    #         resp = ops.eleResponse(ele_tag,
+    #                                'section', i+1,    ##integration point
+    #                                'deformation') 
+    #         print('line 605',resp)
+    #         return resp[1]
+    
+    def return_fiber_strain_in_all_elements(self):
+        maximum_compression_strain=[]
+        maximum_tensile_strain=[]
+        for ele in self.all_element_connectivity_section_and_bending_axes_detail:
+            ele_tag=ele[0]
+            # ele_node_i=ele[1]
+            # ele_node_j=ele[2]
+            ele_section_name=ele[3]        #### str  'W8X15'
+            ele_bending_axis=ele[4]        #### str  'x'
+            section_obj = getattr(self, ele_section_name)   # retrieves the I_shape instance
+            d = section_obj.d
+            bf = section_obj.bf
+
+            compression_strain = []
+            tensile_strain = []
+
+            for i in range(self.nip):
+                axial_strain, curvatureX, curvatureY = 0, 0, 0
+                if ele_bending_axis=='x':
+                    axial_strain, curvatureX = ops.eleResponse(ele_tag,  # element tag
+                                                                'section', i+1,  # select integration point
+                                                                'deformation')  # response type               
+                elif ele_bending_axis=='y':
+                    axial_strain, curvatureY = ops.eleResponse(ele_tag,  # element tag
+                                                                'section', i+1,  # select integration point
+                                                                'deformation')  # response type
+                else:
+                    raise ValueError("The axis is not supported.")
+                
+                compression_strain.append(section_obj.maximum_compression_strain(axial_strain,curvatureX,curvatureY))
+                tensile_strain.append(section_obj.maximum_tensile_strain(axial_strain,curvatureX,curvatureY))
+            # print('Element tag',ele_tag)
+            # print('Section_name',ele_section_name, ele_bending_axis)
+            # print('d',d)
+            # print('bf',bf)
+            # print('Axial_strain',axial_strain)
+            # print('CurvatureX',curvatureX)
+            # print('CurvatureY',curvatureY)
+            # print(compression_strain)   
+            # print(tensile_strain)
+            maximum_compression_strain.append(max(compression_strain,key=lambda x:abs(x)))
+            # print(maximum_compression_strain)
+            maximum_tensile_strain.append(max(tensile_strain,key=lambda x:abs(x)))
+            # print(maximum_tensile_strain)
+        # print('Maximum among all elements')
+        # print("642",maximum_compression_strain)
+        # print('643',maximum_tensile_strain)
+        max_abs_compression_strain= max(abs(c) for c in maximum_compression_strain)
+        max_abs_tensile_strain= max(abs(t) for t in maximum_tensile_strain)
+        # print(max_abs_compression_strain)
+        # print(max_abs_tensile_strain)
+
+        return max(max_abs_compression_strain,max_abs_tensile_strain)
+
+
 
     def add_dead_live_wind_wall_loads(self, load_scale=1.0):   
         """
@@ -822,32 +851,122 @@ class Moment_Frame_2D:
             steps (int): Number of steps to reach target
             plot_defo (bool): Whether to plot deformed shape at end
         """
+        incr_LCA= kwargs.get('incr_LCA', 0.02)          ######### LCA refers to Load Controlled Analysis
+        num_steps_LCA= kwargs.get('num_steps_LCA', 20)            ######### LCA refers to Load Controlled Analysis
+        steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
+        eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
         try_smaller_steps = kwargs.get('try_smaller_steps', True)
+        control_dir=kwargs.get('control_dir','L')  # L for lateral and V for Vertical
+
+        # Initialize analysis results
+        results = AnalysisResults()
+        attributes = ['load_ratio','vertical_reaction','base_shear','control_node_displacement', 'control_node_displacement_absolute',
+                      'lowest_eigenvalue','absolute_maximum_strain']
+        
+        for attr in attributes:
+            setattr(results, attr, [])
+
+
+        # Define function to find limit point
+        def find_limit_point():
+            if Moment_Frame_2D.print_ops_status:
+                print(results.exit_message)
+
+            if 'Analysis Failed' in results.exit_message:
+                ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
+            elif 'Eigenvalue Limit' in results.exit_message:
+                ind, x = find_limit_point_in_list(results.lowest_eigenvalue, eigenvalue_limit)
+            elif 'Extreme Steel Fiber Strain Limit Reached' in results.exit_message:
+                ind, x = find_limit_point_in_list(results.absolute_maximum_strain, steel_strain_limit)
+            else:
+                raise Exception('Unknown limit point')
+            results.maximum_load_ratio_at_limit_point = interpolate_list(results.load_ratio, ind, x)
+            print('Line 884, Max Load Ratio',results.maximum_load_ratio_at_limit_point)
+
+        # region Define recorder
+        def record():
+            time = ops.getTime()
+            results.load_ratio.append(time)
+            ops.reactions()
+            total_vertical_rxn=sum(ops.nodeReaction(n[0])[1] for n in self.NODES_TO_FIX)
+            base_shear=sum(ops.nodeReaction(n[0])[0] for n in self.NODES_TO_FIX)
+            results.vertical_reaction.append(total_vertical_rxn)
+            results.base_shear.append(base_shear)
+            results.lowest_eigenvalue.append(ops.eigen("-genBandArpack", 1)[0])
+            results.absolute_maximum_strain.append(self.return_fiber_strain_in_all_elements())
+            results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
+
+            # print(results.load_ratio[-1])
+            # print(results.lowest_eigenvalue[-1])
+            # print(results.vertical_reaction[-1])
+            # print(results.base_shear[-1])
+            # print(results.absolute_maximum_strain[-1])
+            # print(results.control_node_displacement[-1])
+            # a=input('Hello')
+
+        # endregion
+
+        
+        # Control node for lateral deflection
+        if control_dir=='L':
+            control_direction='lateral'
+            control_node = self.axis_i_roof_nodes(1)[0]   
+            control_dof = 1  # horizontal displacement
+
+        # Control node for vertical deflection of beam node
+        else:
+            control_direction='vertical'
+            control_node = self.bay_i_internal_roof_nodes(1)[0]  
+            control_dof = 2  # vertical displacement
 
         ops.initialize()
 
         # Create output folder
         os.makedirs(self.Frame_id, exist_ok=True)
 
-        # Control node
-        control_node = self.axis_i_roof_nodes(1)[0]   
-        control_dof = 1  # horizontal displacement
-
-        dU = target_disp / steps
-
-        # Analysis setup
         ops.constraints('Plain')
         ops.numberer('RCM')
-        ops.system('ProfileSPD')
-        ops.test('NormDispIncr', 1.0e-6, 100, 0, 2)
+        ops.system('UmfPack')
+        ops.test('NormUnbalance', 1e-3, 10)
         ops.algorithm('Newton')
-        ops.integrator('DisplacementControl', control_node, control_dof, dU)
+        ops.integrator('LoadControl',incr_LCA)
         ops.analysis('Static')
 
-        # Step-by-step analysis
-        disp_hist = []
-        load_ratio_hist = []
-        total_ry_hist = []  
+        record()
+
+        for i in range(num_steps_LCA):
+            if Moment_Frame_2D.print_ops_status:
+                print(f'Running Load Controlled Analysis Step {i}')
+            ok = ops.analyze(1)
+
+
+            if ok != 0:
+                results.exit_message = 'Analysis Failed In Vertical Loading'
+                return results
+
+            record()
+
+        if Moment_Frame_2D.print_ops_status:
+            print(f' Load Controlled Analysis Over. Now Moving to Displacement Controlled Analysis')
+        # print('LIne 968',results.control_node_displacement)
+        # a=input('Hello')
+
+        dU = target_disp / steps
+        if results.control_node_displacement[-1]<0 or control_dof==2:
+            dU=-dU 
+
+        # Analysis setup
+        # ops.constraints('Plain')
+        # ops.numberer('RCM')
+        # ops.system('UmfPack')
+        # ops.test('NormUnbalance', 1e-3, 10)
+        # ops.algorithm('Newton')
+        ops.integrator('DisplacementControl', control_node, control_dof, dU)
+        # ops.analysis('Static')
+
+
+        record()
+
 
         while True:
             ok = ops.analyze(1)
@@ -919,39 +1038,27 @@ class Moment_Frame_2D:
                 ops.integrator('DisplacementControl', control_node, control_dof, dU)
             else:
                 print('Analysis Failed')
-                # results.exit_message = 'Analysis Failed'
+                results.exit_message = 'Analysis Failed'
                 break
 
 
-            u = ops.nodeDisp(control_node, control_dof)
-            lam = ops.getTime()
+            record()
 
-            ops.reactions()
-            total_ry = sum(ops.nodeReaction(n[0])[1] for n in self.NODES_TO_FIX)  # Total vertical support reaction
+            # Check for lowest eigenvalue less than zero
+            if eigenvalue_limit is not None:
+                if results.lowest_eigenvalue[-1] < eigenvalue_limit:
+                    results.exit_message = 'Eigenvalue Limit Reached'
+                    break
 
-            disp_hist.append(u)
-            load_ratio_hist.append(lam)
-            total_ry_hist.append(total_ry) 
+            # Check for strain in extreme steel fiber
+            if steel_strain_limit is not None:
+                # if Moment_Frame_2D.print_ops_status:
+                #     print(f'Checking Steel Tensile Strain')
+                if results.absolute_maximum_strain[-1] > steel_strain_limit:
+                    results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
+                    break
 
-            if abs(u) >= abs(target_disp):
-                break
-
-        print("Reactions at base nodes:")
-        total_rx = 0.0
-        total_ry = 0.0
-        total_Mz = 0.0
-
-        for base_node in [n[0] for n in self.NODES_TO_FIX]:
-            ops.reactions()
-            rxn = ops.nodeReaction(base_node)
-            rx, ry, rz = rxn[0], rxn[1], rxn[2]
-            total_rx += rx
-            total_ry += ry
-            total_Mz += rz
-            print(f"Node {base_node}: Rx = {rx:.4f}, Ry = {ry:.4f}, Mz = {rz:.4f}")
-
-        print(f"\nTotal Reactions: Rx = {total_rx:.4f}, Ry = {total_ry:.4f}, Mz = {total_Mz:.4f}")
-
+        find_limit_point()
         # Optional: plot deformed shape
         if plot_defo:
             try:
@@ -959,32 +1066,60 @@ class Moment_Frame_2D:
                 opsvis.plot_defo()
             except:
                 print("opsvis not available for deformation plotting.")
+        results.control_node_displacement_absolute[:] = [abs(x) if x is not None else None
+                                        for x in results.control_node_displacement]
 
-        # --- Plot λ vs displacement (load ratio curve)
+
+        # --- λ vs displacement
+        self._save_plot(
+            results.control_node_displacement_absolute,
+            results.load_ratio,
+            xlabel='Displacement at Control Node',
+            ylabel='Load Ratio λ',
+            title='Load Ratio vs.  Displacement',
+            filename=f'load_ratio_vs_disp_{control_direction}.png'
+        )
+
+        # --- λ vs max tensile strain
+        self._save_plot(
+            results.absolute_maximum_strain,
+            results.load_ratio,
+            xlabel='Maximum Tensile Strain',
+            ylabel='Load Ratio λ',
+            title='Load Ratio vs. Tensile Strain',
+            filename=f'load_ratio_vs_strain_{control_direction}.png'
+        )
+
+        # --- eigenvalue vs λ  (x = λ, y = lowest eigenvalue)
+        self._save_plot(
+            results.load_ratio,
+            results.lowest_eigenvalue,
+            xlabel='Load Ratio λ',
+            ylabel='Lowest Eigenvalue',
+            title='Eigenvalue vs. Load Ratio',
+            filename=f'load_ratio_vs_eigenvalue_{control_direction}.png'
+)
+        return results
+
+
+    def _save_plot(self,x, y, xlabel, ylabel, title, filename):
+        x = np.asarray(x, dtype=float)
+        y = np.asarray(y, dtype=float)
+        m = np.isfinite(x) & np.isfinite(y)
+        if not np.any(m):
+            print(f"[warn] Nothing to plot for '{title}' (no finite points).")
+            return
         plt.figure()
-        plt.plot(disp_hist, load_ratio_hist, marker='o')
-        plt.xlabel('Horizontal Displacement at Control Node ')
-        plt.ylabel('Load Ratio λ')
-        plt.title('Load Ratio vs. Horizontal Displacement')
-        plt.grid(True)
-        plt.savefig(self.Frame_id + '/load_ratio_vs_disp.png')
+        plt.plot(x[m], y[m], marker='.', linewidth=1)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+        plt.grid(True, which='both', linestyle=':')
+        plt.tight_layout()
+        out_path = os.path.join(self.Frame_id, filename)
+        plt.savefig(out_path, dpi=300, bbox_inches='tight')
         plt.show()
-
-        # Plot λ vs Total Vertical Reaction Ry
-        plt.figure()
-        plt.plot(total_ry_hist, load_ratio_hist, marker='x', color='darkgreen')  
-        plt.xlabel('Total Vertical Reaction Ry (kip)')  
-        plt.ylabel('Load Ratio λ')                     
-        plt.title('Load Ratio vs. Vertical Reaction')
-        plt.grid(True)
-        plt.savefig(self.Frame_id + '/lambda_vs_reaction.png')
-        # plt.show()
-
-
-        # Report peak λ
-        if load_ratio_hist:
-            i_peak = max(range(len(load_ratio_hist)), key=lambda i: load_ratio_hist[i])
-            print(f" Max load ratio λ = {load_ratio_hist[i_peak]:.3f} at displacement = {disp_hist[i_peak]:.3f} ")
+        plt.close()
 
 
     def save_moments_by_member(self, filename='max_member_moments.csv'):
@@ -1026,10 +1161,10 @@ class Moment_Frame_2D:
 
     def plot_all_fiber_section_in_the_model(self):
         for sec_tag in self.beam_section_tags.values():
-            I_shape.plot_fiber_section(section_id=sec_tag)
+            get_fiber_data(f'{sec_tag}',plot_fibers=True)
 
         for sec_tag,_ in self.column_section_tags.values():
-            I_shape.plot_fiber_section(section_id=sec_tag)
+            get_fiber_data(f'{sec_tag}',plot_fibers=True)
 
     def reset_analysis():
         """

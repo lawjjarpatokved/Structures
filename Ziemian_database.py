@@ -12,8 +12,8 @@ Frame={
         'Frame_id':'Test_Frame',
         'bay_width': [20 * ft, 48 * ft],
         'story_height': [20 * ft, 15 * ft],
-        'column_no_of_ele': 4,
-        'beam_no_of_ele': 4,
+        'column_no_of_ele': 1,
+        'beam_no_of_ele': 1,
         'beam_section':
           {
             'common_and_exceptions': 
@@ -28,12 +28,45 @@ Frame={
          {
             'common_and_exceptions': 
             {
-                'common': ('W8X15', 'y'),
+                'common': ('W8X15', 'x'),
                 '(2,1)': ('W14X132', 'y'),
-                '(3,1)': ('W14X120', 'y'),
+                '(3,1)': ('W14X120', 'x'),
                 '(1,2)': ('W8X13', 'y'),
-                '(2,2)': ('W14X120', 'y'),
+                '(2,2)': ('W14X120', 'x'),
                 '(3,2)': ('W14X109', 'y'),
+            }
+        },
+        'support': 'ppp',
+        'load_comb_multipliers': [0.1,0.1,0.1, 0],
+        'D_floor_intensity': 3.623 * kip / ft,
+        'D_roof_intensity': 2.785 * kip / ft,
+        'L_floor_intensity': 3.623 * kip / ft,
+        'L_roof_intensity': 2.785 * kip / ft,
+        'Wind_load_floor': 0,
+        'Wind_load_roof': 0,
+        'Wall_load':0,
+        'geometric_imperfection_ratio': 1 / 500
+         },
+
+        '100': {
+        'Frame_id':'Test_Frame',
+        'bay_width': [20 * ft, 48 * ft],
+        'story_height': [20 * ft, 15 * ft],
+        'column_no_of_ele': 1,
+        'beam_no_of_ele': 2,
+        'beam_section':
+          {
+             'same_for_storey': 
+            {
+                '1': 'W14X30',
+                '2': 'W14X26',
+             }
+         },
+        'column_section':
+         {
+            'same_for_storey': {
+                '1': ('W16X31','x'),
+                '2': ('W16X31','y')
             }
         },
         'support': 'ppp',
@@ -184,8 +217,8 @@ Frame={
         'Frame_id':'Ziemian_UP36H',
         'bay_width': [20 * ft, 48 * ft],
         'story_height': [20 * ft, 15 * ft],
-        'column_no_of_ele': 2,
-        'beam_no_of_ele': 4,
+        'column_no_of_ele': 2,   ## change to 2
+        'beam_no_of_ele': 4,     ## change to 4
         'beam_section':
           {
             'common_and_exceptions': 
@@ -214,8 +247,8 @@ Frame={
         'D_roof_intensity': 3.5 * kip / ft,
         'L_floor_intensity': 0 * kip / ft,
         'L_roof_intensity': 0 * kip / ft,
-        'Wind_load_floor': 0,
-        'Wind_load_roof': 0,
+        'Wind_load_floor': 6.56,
+        'Wind_load_roof': 2.81,
         'Wall_load':0,
         'geometric_imperfection_ratio': 1 / 500
          },
@@ -294,6 +327,48 @@ Frame={
         'L_roof_intensity': 0 * kip / ft,
         'Wind_load_floor': 6.56*kip,
         'Wind_load_roof': 2.81*kip,
+        'Wall_load':0,
+        'geometric_imperfection_ratio': 1 / 500
+         },
+
+
+
+        'UP36L': {
+        'Frame_id':'Ziemian_UP36L',
+        'bay_width': [20 * ft, 48 * ft],
+        'story_height': [20 * ft, 15 * ft],
+        'column_no_of_ele': 2,
+        'beam_no_of_ele': 4,
+        'beam_section':
+          {
+            'common_and_exceptions': 
+            {
+                'common': 'W24X62',
+                '(2,1)': 'W24X68',
+                '(1,2)': 'W12X19',
+                '(2,2)': 'W21X44',
+             }
+         },
+        'column_section':
+         {
+            'common_and_exceptions': 
+            {
+                'common': ('W14X61', 'x'),
+                '(2,1)': ('W14X90', 'x'),
+                '(3,1)': ('W14X48', 'x'),
+                '(1,2)': ('W12X16', 'x'),
+                '(2,2)': ('W14X38', 'x'),
+                '(3,2)': ('W14X43', 'x'),
+            }
+        },
+        'support': 'ppp',
+        'load_comb_multipliers': [1.4, 0, 0, 0],
+        'D_floor_intensity':2.25 * kip / ft,
+        'D_roof_intensity': 1.125 * kip / ft,
+        'L_floor_intensity': 0 * kip / ft,
+        'L_roof_intensity': 0 * kip / ft,
+        'Wind_load_floor': 6.56,
+        'Wind_load_roof': 2.81,
         'Wall_load':0,
         'geometric_imperfection_ratio': 1 / 500
          }

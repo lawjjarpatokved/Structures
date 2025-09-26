@@ -1,29 +1,38 @@
 import math as math
 from libdenavit.cross_section_2d import *
-from Units import *
 from libdenavit.section.wide_flange import *
 import matplotlib.pyplot as plt
 
 
 #################################################
-E=29000*ksi
-fy=36*ksi
-Hk = 0.001*E           # Kinematic hardening modulus
+# E=29000*ksi
+# fy=36*ksi
+# Hk = 0.001*E           # Kinematic hardening modulus
+E=199947961
+fy=248210
+Hk = 0.001*E
 
+#Values for W27X84
+d=0.678
+tw=0.011
+bf=0.254
+tf=0.016
+A=0.016
+Ix=0.001186
+Zx=0.00399
+Iy=4.41205*10**(-5)
+Zy=0.000544
 
 beam_section_tag=1
-beam_section_name="W27X84"
-beam_data = wf_Database(beam_section_name)
-axis='y'
-Mp=fy*beam_data.Zx
-Initial_slope=E*beam_data.Ix
-
+axis='x'
+Mp=fy*Zx
+Initial_slope=E*Ix
 
 def Moment_curvature_analysis(P_value, residual_stress, axis):
     frc = -0.3 * fy if residual_stress else 0
-    beam = I_shape(beam_data.d, beam_data.tw, beam_data.bf, beam_data.tf,
+    beam = I_shape(d, tw, bf, tf,
                    Fy=fy, E=E, Hk=Hk,
-                   A=beam_data.A, Ix=beam_data.Ix, Iy=beam_data.Iy)
+                   A=A, Ix=Ix, Iy=Iy)
     member = CrossSection2d(beam, axis=axis)
     results = member.run_ops_analysis(
         analysis_type='nonproportional_limit_point',
@@ -107,8 +116,8 @@ def comparison_of_major_and_minor_axes(P=0, axes=('x', 'y')):
                      label=f"{ax}-axis ({rs_label})")
 
             # Elastic-plastic line
-            Mp_axis = fy * (beam_data.Zx if ax == 'x' else beam_data.Zy)
-            EI_axis = E * (beam_data.Ix if ax == 'x' else beam_data.Iy)
+            Mp_axis = fy * (Zx if ax == 'x' else Zy)
+            EI_axis = E * (Ix if ax == 'x' else Iy)
             kappa_end = Mp_axis / EI_axis
             if not rs:  # Only plot the slope line once (for uncluttered view)
                 plt.axhline(y=Mp_axis, linestyle=':', linewidth=1.2,
