@@ -12,7 +12,7 @@ ksi = kip / inch**2
 
 import libdenavit.section.database.aisc as section
 import libdenavit.section.wide_flange as database
-class WF_Database:
+class wf_Database:
     def __init__(self,Section_name,unit=inch):
 
         self.section=Section_name
@@ -24,7 +24,7 @@ class WF_Database:
         self.Ix=section.wide_flange_database[self.section]['Ix']*(unit**4)
         self.Iy=section.wide_flange_database[self.section]['Iy']*(unit**4)
 
-class wf_Database:
+class WF_Database:
         def __init__(self,Section_name,unit=inch):
         
             db = database.WideFlangeDB(Section_name)

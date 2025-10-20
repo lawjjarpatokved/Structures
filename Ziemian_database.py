@@ -1,13 +1,42 @@
 from Units import *
 
 
-class Frame_data:
-    
+class convert_dict_items_to_class_attributes:
     def __init__(self,config):
         for k, v in config.items():
             setattr(self, k, v)    
 
-Frame={
+Analysis_Info= {
+    'Second_order_inelastic':{
+                'Residual_Stress':True,
+                'Elastic_analysis':False,
+                'Second_order_effects':True,
+                'stiffness_reduction':0.9,
+                'strength_reduction':0.9,
+                'Geometric_Imperfection':True,
+                'Notional_load':False
+                },
+    'AISC_LRFD_Direct_Modeling':{
+                'Residual_Stress':False,
+                'Elastic_analysis':True,
+                'Second_order_effects':True,
+                'stiffness_reduction':0.8,
+                'strength_reduction':1,
+                'Geometric_Imperfection':True,
+                'Notional_load':False
+                },
+    'AISC_LRFD_Notional_Loads':{
+                'Residual_Stress':False,
+                'Elastic_analysis':True,
+                'Second_order_effects':True,
+                'stiffness_reduction':0.8,
+                'strength_reduction':1,
+                'Geometric_Imperfection':False,
+                'Notional_load':True
+                }
+            }
+
+Frame_Info={
         '0': {
         'Frame_id':'Test_Frame',
         'bay_width': [20 * ft, 48 * ft],
@@ -33,7 +62,7 @@ Frame={
                 '(3,1)': ('W14X120', 'x'),
                 '(1,2)': ('W8X13', 'y'),
                 '(2,2)': ('W14X120', 'x'),
-                '(3,2)': ('W14X109', 'y'),
+                '(3,2)': ('W14X109', 'y')
             }
         },
         'support': 'ppp',
@@ -112,11 +141,50 @@ Frame={
             }
         },
         'support': 'ppp',
-        'load_comb_multipliers': [1.2, 1.6, 0.5, 0],
+        'load_comb_multipliers': [1.2,0, 0, 0],
         'D_floor_intensity': 3.623 * kip / ft,
         'D_roof_intensity': 2.785 * kip / ft,
         'L_floor_intensity': 3.623 * kip / ft,
         'L_roof_intensity': 2.785 * kip / ft,
+        'Wind_load_floor': 0,
+        'Wind_load_roof': 0,
+        'Wall_load':0,
+        'geometric_imperfection_ratio': 1 / 500
+         },
+
+######################################################################
+    '10': {
+        'Frame_id':'Ziemian_10',
+        'bay_width': [20 * ft, 48 * ft],
+        'story_height': [20 * ft, 15 * ft],
+        'column_no_of_ele': 4,
+        'beam_no_of_ele': 4,
+        'beam_section':
+          {
+            'common_and_exceptions': 
+            {
+                'common': 'W30X99',
+                '(2,1)': 'W36X160',
+                '(1,2)': 'W24X55',
+                '(2,2)': 'W30X99',
+             }
+         },
+        'column_section':
+         {
+            'common_and_exceptions': 
+            {
+                'common': ('W14X90', 'y'),
+                '(1,2)': ('W6X9', 'y'),
+                '(2,2)': ('W8X40', 'y'),
+                '(3,2)': ('W8X24', 'y'),
+            }
+        },
+        'support': 'ppp',
+        'load_comb_multipliers': [1.2, 1.6, 0.5, 0],
+        'D_floor_intensity': 2.829 * kip / ft,
+        'D_roof_intensity': 2.175 * kip / ft,
+        'L_floor_intensity': 2.829 * kip / ft,
+        'L_roof_intensity': 2.175 * kip / ft,
         'Wind_load_floor': 0,
         'Wind_load_roof': 0,
         'Wall_load':0,
@@ -281,7 +349,7 @@ Frame={
             }
         },
         'support': 'ppp',
-        'load_comb_multipliers': [1.4, 0, 0, 0],
+        'load_comb_multipliers': [1.4, 0, 0, 1],
         'D_floor_intensity': 7.5 * kip / ft,
         'D_roof_intensity': 3.5 * kip / ft,
         'L_floor_intensity': 0 * kip / ft,

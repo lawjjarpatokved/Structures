@@ -11,6 +11,7 @@ from math import pi, ceil
 from libdenavit.section.wide_flange import *
 from libdenavit.OpenSees import AnalysisResults
 from libdenavit import find_limit_point_in_list, interpolate_list
+import copy
 
 #################################################
 density_of_steel=7850*kg/(m**3)
@@ -52,8 +53,8 @@ class Moment_Frame_2D:
         self.node_to_node_height_column=self.node_to_node_height_column[1:]
         self.node_to_node_length_beam=[bay_width/self.no_of_elements_beam for bay_width in self.bay_width]
         self.node_to_node_length_beam=self.node_to_node_length_beam[1:]
-        self.beam_section=beam_section
-        self.column_section=column_section   
+        self.beam_section=copy.deepcopy(beam_section)
+        self.column_section=copy.deepcopy(column_section)   
         self.Main_Nodes=[]
         self.D_multiplier=load_combination_multipliers[0]      ### Dead Load multiplier
         self.L_multiplier=load_combination_multipliers[1]      ### Live Load multiplier
@@ -81,6 +82,8 @@ class Moment_Frame_2D:
                   'Wall_load':0,
                   'Elastic_analysis':False,
                   'Second_order_effects':True,
+                  'Notional_load':False,
+                  'Geometric_Imperfection':False,
                   'Residual_Stress':True,
                   'stiffness_reduction':1,
                   'strength_reduction':1,
@@ -374,10 +377,21 @@ class Moment_Frame_2D:
         else:
             return [(self.bay_i_roof_load(i - 1)[0] + self.bay_i_roof_load(i)[0]) * 0.5]
 
+    def floor_notional_load(self):
+        return (((self.D_multiplier*self.D_floor_intensity)+(self.L_multiplier*self.L_floor_intensity))*sum(self.bay_width))*0.002
+
+    def roof_notional_load(self):
+        return (((self.D_multiplier*self.D_roof_intensity)+(self.L_r_multiplier*self.L_roof_intensity))*sum(self.bay_width))*0.002
+
     def create_distorted_nodes_and_element_connectivity(self,geometric_imperfection_ratio=None):
-        ratio = geometric_imperfection_ratio if geometric_imperfection_ratio is not None else self.geometric_imperfection_ratio
-        for i in range(len(self.all_nodes)):
-                self.all_nodes[i][1] = self.all_nodes[i][1] +ratio * self.all_nodes[i][2]
+        if self.Geometric_Imperfection:
+            print('Working in imperfect geometry')
+            ratio = geometric_imperfection_ratio if geometric_imperfection_ratio is not None else self.geometric_imperfection_ratio
+            for i in range(len(self.all_nodes)):
+                    self.all_nodes[i][1] = self.all_nodes[i][1] +ratio * self.all_nodes[i][2]
+        else:
+            print('Working in nominal geometry')
+            pass
 
     def make_beam_section_detail_uniform(self):
         self.beam_case = list(self.beam_section.keys())[0]
@@ -417,6 +431,7 @@ class Moment_Frame_2D:
         self.column_section_tags = {}
 
         # Go through each column and assign (section, tag, axis)
+        
         for key, (section, axis) in nested_dict.items():
             tag = section_tags[section]
             updated_nested_dict[key] = (section, tag, axis)
@@ -426,7 +441,6 @@ class Moment_Frame_2D:
             self.column_section_tags[section] = (tag, axis)
 
         self.column_section[self.column_case] = updated_nested_dict
-
 
 
 
@@ -468,9 +482,12 @@ class Moment_Frame_2D:
         # Beams
         for beam_section_name, beam_section_tag in self.beam_section_tags.items():
             beam_data = WF_Database(beam_section_name)
-            beam = I_shape(beam_data.d, beam_data.tw, beam_data.bf, beam_data.tf,   # use tf consistently
+            beam = I_shape(beam_data.d, beam_data.tw, beam_data.bf, beam_data.tf,   
                         Fy=Steel.Fy, E=Steel.E,
-                        A=beam_data.A, Ix=beam_data.Ix, Iy=beam_data.Iy)
+                        A=beam_data.A, 
+                        Ix=beam_data.Ix,Zx=beam_data.Zx,Sx=beam_data.Sx,rx=beam_data.rx,
+                        Iy=beam_data.Iy,Zy=beam_data.Zy,Sy=beam_data.Sy,ry=beam_data.ry,
+                        J=beam_data.J,Cw=beam_data.Cw,rts=beam_data.rts,ho=beam_data.ho)
             beam.build_ops_fiber_section(beam_section_tag,
                                         start_material_id=Steel.mat_tag,
                                         mat_type=mat_type,
@@ -487,7 +504,10 @@ class Moment_Frame_2D:
             column_data = WF_Database(column_section_name)
             column = I_shape(column_data.d, column_data.tw, column_data.bf, column_data.tf,
                             Fy=Steel.Fy, E=Steel.E,
-                            A=column_data.A, Ix=column_data.Ix, Iy=column_data.Iy)
+                            A=column_data.A,
+                            Ix=column_data.Ix, Zx=column_data.Zx, Sx=column_data.Sx, rx=column_data.rx,
+                            Iy=column_data.Iy, Zy=column_data.Zy, Sy=column_data.Sy, ry=column_data.ry,
+                            J=column_data.J, Cw=column_data.Cw, rts=column_data.rts, ho=column_data.ho)
             column.build_ops_fiber_section(column_section_tag,
                                         start_material_id=Steel.mat_tag,
                                         mat_type=mat_type,
@@ -547,7 +567,7 @@ class Moment_Frame_2D:
             ops.element('forceBeamColumn', eleTag, *column_ij_node[1:3], col_and_beam_TransTag, section_tag,'-mass', 1)
 
             # Append section name to column entry
-            self.column_connectivity[i] = column_ij_node + [section_name] +[bending_axis]
+            self.column_connectivity[i] = column_ij_node + [section_name] +[bending_axis]+['col']
 
 
 
@@ -585,7 +605,7 @@ class Moment_Frame_2D:
             # print(f"Defined element {eleTag} between nodes {column_ij_node[1]} and {column_ij_node[2]}")
 
             # Append section name to beam entry
-            self.beam_connectivity[i] = beam_ij_node + [section_name] + ['x']   ###'x' is hard coded because the beams are expected to be bending about major axis only (Discussed in meeting with prof.)
+            self.beam_connectivity[i] = beam_ij_node + [section_name] + ['x']+['beam']   ###'x' is hard coded because the beams are expected to be bending about major axis only (Discussed in meeting with prof.)
 
         self.all_element_connectivity_section_and_bending_axes_detail=self.column_connectivity+self.beam_connectivity
 
@@ -605,7 +625,8 @@ class Moment_Frame_2D:
     #         print('line 605',resp)
     #         return resp[1]
     
-    def return_fiber_strain_in_all_elements(self):
+    def return_max_of_fiber_strain_in_all_elements(self):
+        ## returns the maximum strain from among all elements in the Frame
         maximum_compression_strain=[]
         maximum_tensile_strain=[]
         for ele in self.all_element_connectivity_section_and_bending_axes_detail:
@@ -659,11 +680,91 @@ class Moment_Frame_2D:
 
         return max(max_abs_compression_strain,max_abs_tensile_strain)
 
+    def return_max_of_P_M_M_interaction(self):
+        P_M_M_interaction_all_elements=[]
+        for ele in self.all_element_connectivity_section_and_bending_axes_detail:
+            ele_tag=ele[0]
+            ele_node_i=ele[1]
+            ele_node_j=ele[2]
+            ele_section_name=ele[3]        #### str  'W8X15'
+            ele_bending_axis=ele[4]        #### str  'x'
+            ele_type=ele[5]
+            coords_i = ops.nodeCoord(ele_node_i)  # [x_i, y_i]
+            coords_j = ops.nodeCoord(ele_node_j)  # [x_j, y_j]
+            L = math.sqrt((coords_j[0] - coords_i[0])**2 + (coords_j[1] - coords_i[1])**2)
 
+            section_obj = getattr(self, ele_section_name)   # retrieves the I_shape instance
+            
+            # Build a unique name for the member instance
+            member_name = f"member_{ele_tag}_{ele_section_name}_{ele_bending_axis}"
+            
+            # Create the WideFlangeMember_AISC2023 instance
+            member_obj = WideFlangeMember_AISC2022( section_obj,
+                                                    Fy=section_obj.Fy,
+                                                    E=section_obj.E,
+                                                    L=L  
+                                                )
+            
+            setattr(self, member_name, member_obj) 
+            ### Required Strength and Available Strengths
+            forces = ops.eleResponse(ele_tag, 'localForce')
+            Pr=abs(forces[0])  ## required compressive strength
+            Mr_i=forces[2]
+            Mr_j=forces[5]
+            max_Mr=max(abs(Mr_i),abs(Mr_j))
+            Mrx=0
+            Mry=0
+            Mcx=member_obj.Mnx(Lb=0,Cb=1)  ##available flexural strength for bending about major axis
+            Mcy=member_obj.Mny()   ##available flexural strength for bending about minor axis
 
-    def add_dead_live_wind_wall_loads(self, load_scale=1.0):   
+            if ele_bending_axis=='x':
+                Mrx=max_Mr
+                if ele_type=='col':
+                    Leff=L*self.no_of_elements_column
+                if ele_type=='beam': 
+                    Leff=L*self.no_of_elements_beam
+                Pcc=member_obj.Pnc(Lcx=Leff,Lcy=0) ##available compressive strength 
+
+            if ele_bending_axis=='y':
+                Mry=max_Mr
+                if ele_type=='col':
+                    Leff=L*self.no_of_elements_column
+                if ele_type=='beam': 
+                    Leff=L*self.no_of_elements_beam
+                Pcc=member_obj.Pnc(Lcx=0,Lcy=Leff) ##available compressive strength 
+
+            ### Interaction Eqn H1-1a,H1-1b
+            if Pr/Pcc>=0.2:
+                P_M_M_interaction=Pr/Pcc+(8/9)*((Mrx/Mcx)+(Mry/Mcy))
+            else:
+                P_M_M_interaction=Pr/(2*Pcc)+((Mrx/Mcx)+(Mry/Mcy))
+            P_M_M_interaction_all_elements.append(P_M_M_interaction)
+
+            # print(ele_tag)
+            # print(ele_section_name)
+            # print(L)
+            # print('Mnx',Mcx)
+            # print('Mny',Mcy)
+            # print('Pcc',Pcc)
+            # print('Mrx',Mrx)
+            # print('Mry',Mry)
+            # print('Pr',Pr)
+            # print(P_M_M_interaction)
+            # print(P_M_M_interaction_all_elements)
+        max_P_M_M_interaction_among_all_elements=max(P_M_M_interaction_all_elements)
+        # print(max_P_M_M_interaction_among_all_elements)
+        # print('\n')
+        # print('\n')
+        # print('\n')
+        # print('\n')
+        # input('Hello')
+        return max_P_M_M_interaction_among_all_elements
+
+    
+
+    def add_vertical_dead_live_wall_loads(self,vertical_load_scale=1):   
         """
-        Adds dead, live, wind, and wall loads to the model, scaled by a user-defined load_scale factor.
+        Adds dead, live, wall loads to the model, scaled by a user-defined load_scale factor.
         
         Parameters:
             load_scale (float): Scaling factor for all loads. Use 1.0 for full load, <1.0 for partial.
@@ -671,87 +772,73 @@ class Moment_Frame_2D:
             performing displacement controlled analysis, it is better to apply small portion of the load
             so that the load factors are positive throughout the analysis.
         """
-        # load_timeseries_counter = 1
-        # load_pattern_counter = 1
 
-        ops.timeSeries('Linear', self.load_timeseries_counter)
-        ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
-
-
-
-        # # Self-weight of columns
-        # for columns in self.column_connectivity:
-        #     fiber_section = I_shape(columns[3], Steel.E, Steel.Fy, Steel.Hk)
-        #     Area = fiber_section.A
-        #     ops.eleLoad('-ele', columns[0], '-type', '-beamUniform', 0, -load_scale * Area * density_of_steel * g)
-
-        # # Self-weight and distributed loads on beams
-        # for beams in self.beam_connectivity:
-        #     fiber_section = I_shape(beams[3], Steel.E, Steel.Fy, Steel.Hk)
-        #     Area = fiber_section.A
-        #     ops.eleLoad('-ele', beams[0], '-type', '-beamUniform', -load_scale * Area * density_of_steel * g, 0)
-
-        #     if beams not in self.roof_beams:
-        #         ops.eleLoad('-ele', beams[0], '-type', '-beamUniform', -load_scale * self.D_multiplier * self.D_floor_intensity, 0)
-        #         ops.eleLoad('-ele', beams[0], '-type', '-beamUniform', -load_scale * self.L_multiplier * self.L_floor_intensity, 0)
-        #     else:
-        #         ops.eleLoad('-ele', beams[0], '-type', '-beamUniform', -load_scale * self.D_multiplier * self.D_roof_intensity, 0)
-        #         ops.eleLoad('-ele', beams[0], '-type', '-beamUniform', -load_scale * self.L_r_multiplier * self.L_roof_intensity, 0)
-
+        ##Vertical Loads
         # Node-based Dead and Live Loads 
         for bay in range(1, self.no_of_bays + 1):
             loaded_nodes_floor = self.bay_i_internal_floor_nodes(i=bay)
             load_value_floor = self.bay_i_floor_load(i=bay)
             for node in loaded_nodes_floor:
-                ops.load(node, 0.0, load_scale * load_value_floor[0], 0.0)
+                ops.load(node, 0.0, vertical_load_scale * load_value_floor[0], 0.0)
 
             loaded_nodes_roof = self.bay_i_internal_roof_nodes(bay)
             load_value_roof = self.bay_i_roof_load(bay)
             for node in loaded_nodes_roof:
-                ops.load(node, 0.0, load_scale * load_value_roof[0], 0.0)
+                ops.load(node, 0.0, vertical_load_scale * load_value_roof[0], 0.0)
 
         for axis in range(1, self.no_of_bays + 2):
             loaded_nodes_floor = self.axis_i_floor_nodes(axis)
             load_value_floor = self.axis_i_floor_load(axis)
             for node in loaded_nodes_floor:
-                ops.load(node, 0.0, load_scale * load_value_floor[0], 0.0)
+                ops.load(node, 0.0, vertical_load_scale * load_value_floor[0], 0.0)
 
             loaded_nodes_roof = self.axis_i_roof_nodes(axis)
             load_value_roof = self.axis_i_roof_load(axis)
             for node in loaded_nodes_roof:
-                ops.load(node, 0.0, load_scale * load_value_roof[0], 0.0)
-
-        # Wind or Lateral Load
-        if self.wind_load_dirn.lower() == 'right':
-            for node in self.axis_i_floor_nodes(1):
-                ops.load(node, load_scale * self.Wind_load_floor * self.W_multiplier, 0, 0.0)
-            for node in self.axis_i_roof_nodes(1):
-                ops.load(node, load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
-
-        elif self.wind_load_dirn.lower() == 'left':
-            for node in self.axis_i_floor_nodes(self.no_of_bays + 1):
-                ops.load(node, -load_scale * self.Wind_load_floor * self.W_multiplier, 0, 0.0)
-            for node in self.axis_i_roof_nodes(self.no_of_bays + 1):
-                ops.load(node, -load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
+                ops.load(node, 0.0, vertical_load_scale * load_value_roof[0], 0.0)
 
         # Wall Load
         for node in self.axis_i_floor_nodes(1):
             wall_load = self.Wall_load * self.D_multiplier
-            ops.load(node, 0, -load_scale * wall_load, 0)
+            ops.load(node, 0, -vertical_load_scale * wall_load, 0)
 
         for node in self.axis_i_floor_nodes(self.no_of_bays + 1):
             wall_load = self.Wall_load * self.D_multiplier
-            ops.load(node, 0, -load_scale * wall_load, 0)
+            ops.load(node, 0, -vertical_load_scale * wall_load, 0)
 
         for node in self.axis_i_roof_nodes(1):
             wall_load = self.Wall_load * self.D_multiplier
-            ops.load(node, 0, -load_scale * wall_load / 2, 0)
+            ops.load(node, 0, -vertical_load_scale * wall_load / 2, 0)
 
         for node in self.axis_i_roof_nodes(self.no_of_bays + 1):
             wall_load = self.Wall_load * self.D_multiplier
-            ops.load(node, 0, -load_scale * wall_load / 2, 0)
+            ops.load(node, 0, -vertical_load_scale * wall_load / 2, 0)
 
 
+    def add_lateral_wind_notional_loads(self, lateral_load_scale=1.0):
+        ##Lateral Loads
+        # Wind  Load 
+        if self.wind_load_dirn.lower() == 'right':
+            for node in self.axis_i_floor_nodes(1):
+                ops.load(node, lateral_load_scale * self.Wind_load_floor * self.W_multiplier, 0, 0.0)
+            for node in self.axis_i_roof_nodes(1):
+                ops.load(node, lateral_load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
+
+        elif self.wind_load_dirn.lower() == 'left':
+            for node in self.axis_i_floor_nodes(self.no_of_bays + 1):
+                ops.load(node, -lateral_load_scale * self.Wind_load_floor * self.W_multiplier, 0, 0.0)
+            for node in self.axis_i_roof_nodes(self.no_of_bays + 1):
+                ops.load(node, -lateral_load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
+
+        # Notional Load
+        if self.Notional_load:
+            for node in self.axis_i_floor_nodes(1):
+                ops.load(node, lateral_load_scale * self.floor_notional_load(), 0, 0.0)
+                # print('line852',node,self.floor_notional_load())
+            for node in self.axis_i_roof_nodes(1):
+                ops.load(node, lateral_load_scale * self.roof_notional_load(), 0, 0.0)
+                # print('line856',node,lateral_load_scale * self.roof_notional_load())            
+                
         # opsv.plot_model()
         # opsv.plot_load()
 
@@ -855,13 +942,18 @@ class Moment_Frame_2D:
         num_steps_LCA= kwargs.get('num_steps_LCA', 20)            ######### LCA refers to Load Controlled Analysis
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
+        P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
         try_smaller_steps = kwargs.get('try_smaller_steps', True)
         control_dir=kwargs.get('control_dir','L')  # L for lateral and V for Vertical
+        ops_analysis=kwargs.get('analysis','proportional_limit_point')
+        lateral_load_scale=kwargs.get('lateral_load_scale',1)
+        vertical_load_scale=kwargs.get('vertical_load_scale',1)
+
 
         # Initialize analysis results
         results = AnalysisResults()
         attributes = ['load_ratio','vertical_reaction','base_shear','control_node_displacement', 'control_node_displacement_absolute',
-                      'lowest_eigenvalue','absolute_maximum_strain']
+                      'lowest_eigenvalue','absolute_maximum_strain','max_P_M_M_interaction']
         
         for attr in attributes:
             setattr(results, attr, [])
@@ -871,194 +963,431 @@ class Moment_Frame_2D:
         def find_limit_point():
             if Moment_Frame_2D.print_ops_status:
                 print(results.exit_message)
-
+            if 'Moving to Displacement Controlled Analysis' in results.exit_message:
+                return
+            if  'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading' in results.exit_message:
+                ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
             if 'Analysis Failed' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
             elif 'Eigenvalue Limit' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.lowest_eigenvalue, eigenvalue_limit)
             elif 'Extreme Steel Fiber Strain Limit Reached' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.absolute_maximum_strain, steel_strain_limit)
+            elif 'P_M_M interaction Limit Reached' in results.exit_message:
+                ind, x = find_limit_point_in_list(results.max_P_M_M_interaction, P_M_M_interaction_limit)            
             else:
                 raise Exception('Unknown limit point')
             results.maximum_load_ratio_at_limit_point = interpolate_list(results.load_ratio, ind, x)
             print('Line 884, Max Load Ratio',results.maximum_load_ratio_at_limit_point)
 
-        # region Define recorder
-        def record():
-            time = ops.getTime()
-            results.load_ratio.append(time)
-            ops.reactions()
-            total_vertical_rxn=sum(ops.nodeReaction(n[0])[1] for n in self.NODES_TO_FIX)
-            base_shear=sum(ops.nodeReaction(n[0])[0] for n in self.NODES_TO_FIX)
-            results.vertical_reaction.append(total_vertical_rxn)
-            results.base_shear.append(base_shear)
-            results.lowest_eigenvalue.append(ops.eigen("-genBandArpack", 1)[0])
-            results.absolute_maximum_strain.append(self.return_fiber_strain_in_all_elements())
-            results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
 
-            # print(results.load_ratio[-1])
-            # print(results.lowest_eigenvalue[-1])
-            # print(results.vertical_reaction[-1])
-            # print(results.base_shear[-1])
-            # print(results.absolute_maximum_strain[-1])
-            # print(results.control_node_displacement[-1])
-            # a=input('Hello')
+        if ops_analysis.lower()=='proportional_limit_point':
 
-        # endregion
+            fail_during_LCA=True
 
-        
-        # Control node for lateral deflection
-        if control_dir=='L':
-            control_direction='lateral'
-            control_node = self.axis_i_roof_nodes(1)[0]   
-            control_dof = 1  # horizontal displacement
+            ops.timeSeries('Linear', self.load_timeseries_counter)
+            ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
+            self.add_vertical_dead_live_wall_loads(vertical_load_scale=vertical_load_scale)
+            self.add_lateral_wind_notional_loads(lateral_load_scale=lateral_load_scale)
+            # region Define recorder
+            def record():
+                time = ops.getTime()
+                results.load_ratio.append(time)
+                ops.reactions()
+                total_vertical_rxn=sum(ops.nodeReaction(n[0])[1] for n in self.NODES_TO_FIX)
+                base_shear=sum(ops.nodeReaction(n[0])[0] for n in self.NODES_TO_FIX)
+                results.vertical_reaction.append(total_vertical_rxn)
+                results.base_shear.append(base_shear)
+                results.lowest_eigenvalue.append(ops.eigen("-genBandArpack", 1)[0])
+                results.absolute_maximum_strain.append(self.return_max_of_fiber_strain_in_all_elements())
+                results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
+                results.max_P_M_M_interaction.append(self.return_max_of_P_M_M_interaction())
 
-        # Control node for vertical deflection of beam node
-        else:
-            control_direction='vertical'
-            control_node = self.bay_i_internal_roof_nodes(1)[0]  
-            control_dof = 2  # vertical displacement
+            # endregion
 
-        ops.initialize()
-
-        # Create output folder
-        os.makedirs(self.Frame_id, exist_ok=True)
-
-        ops.constraints('Plain')
-        ops.numberer('RCM')
-        ops.system('UmfPack')
-        ops.test('NormUnbalance', 1e-3, 10)
-        ops.algorithm('Newton')
-        ops.integrator('LoadControl',incr_LCA)
-        ops.analysis('Static')
-
-        record()
-
-        for i in range(num_steps_LCA):
-            if Moment_Frame_2D.print_ops_status:
-                print(f'Running Load Controlled Analysis Step {i}')
-            ok = ops.analyze(1)
-
-
-            if ok != 0:
-                results.exit_message = 'Analysis Failed In Vertical Loading'
-                return results
-
-            record()
-
-        if Moment_Frame_2D.print_ops_status:
-            print(f' Load Controlled Analysis Over. Now Moving to Displacement Controlled Analysis')
-        # print('LIne 968',results.control_node_displacement)
-        # a=input('Hello')
-
-        dU = target_disp / steps
-        if results.control_node_displacement[-1]<0 or control_dof==2:
-            dU=-dU 
-
-        # Analysis setup
-        # ops.constraints('Plain')
-        # ops.numberer('RCM')
-        # ops.system('UmfPack')
-        # ops.test('NormUnbalance', 1e-3, 10)
-        # ops.algorithm('Newton')
-        ops.integrator('DisplacementControl', control_node, control_dof, dU)
-        # ops.analysis('Static')
-
-
-        record()
-
-
-        while True:
-            ok = ops.analyze(1)
-            if try_smaller_steps:
-                if ok != 0:
-                    if Moment_Frame_2D.print_ops_status:
-                        print(f'Trying the step size of: {dU / 10}')
-                    ops.integrator('DisplacementControl',control_node, control_dof, dU / 10)
-                    ok = ops.analyze(1)
-
-                if ok != 0:
-                    if Moment_Frame_2D.print_ops_status:
-                        print(f'Trying the step size of: {dU / 100}')
-                    ops.integrator('DisplacementControl',control_node, control_dof, dU / 100)
-                    ok = ops.analyze(1)
-
-                if ok != 0:
-                    if Moment_Frame_2D.print_ops_status:
-                        print(f'Trying the step size of: {dU / 1000}')
-                    ops.integrator('DisplacementControl', control_node, control_dof, dU / 1000)
-                    ok = ops.analyze(1)
-                    if ok == 0:
-                        dU = dU / 10
-                        if Moment_Frame_2D.print_ops_status:
-                            print(f'Changed the step size to: {dU}')
-
-                if ok != 0:
-                    if Moment_Frame_2D.print_ops_status:
-                        print(f'Trying the step size of: {dU / 10000}')
-                    ops.integrator('DisplacementControl', control_node, control_dof, dU / 10000)
-                    ok = ops.analyze(1)
-                    if ok == 0:
-                        dU = dU / 10
-                        if Moment_Frame_2D.print_ops_status:
-                            print(f'Changed the step size to: {dU / 10}')
-
-            if ok != 0:
-                if Moment_Frame_2D.print_ops_status:
-                    print('Trying ModifiedNewton')
-                ops.algorithm('ModifiedNewton')
-                ok = ops.analyze(1)
-                if ok == 0:
-                    if Moment_Frame_2D.print_ops_status:
-                        print('ModifiedNewton worked')
-
-            if ok != 0:
-                if Moment_Frame_2D.print_ops_status:
-                    print('Trying KrylovNewton')
-                ops.algorithm('KrylovNewton')
-                ok = ops.analyze(1)
-                if ok == 0:
-                    if Moment_Frame_2D.print_ops_status:
-                        print('KrylovNewton worked')
-
-            if ok != 0:
-                if Moment_Frame_2D.print_ops_status:
-                    print('Trying KrylovNewton and Greater Tolerance')
-                ops.algorithm('KrylovNewton')
-                ops.test('NormUnbalance', 1e-4, 10)
-                ok = ops.analyze(1)
-                if ok == 0:
-                    if Moment_Frame_2D.print_ops_status:
-                        print('KrylovNewton worked')
-
-            if ok == 0:
-                # Reset analysis options
-                ops.algorithm('Newton')
-                ops.test('NormUnbalance', 1e-3, 10)
-                ops.integrator('DisplacementControl', control_node, control_dof, dU)
+            # Control node for lateral deflection
+            if control_dir=='L':
+                control_direction='lateral'
+                control_node = self.axis_i_roof_nodes(1)[0]   
+                control_dof = 1  # horizontal displacement
+            # Control node for vertical deflection of beam node
             else:
-                print('Analysis Failed')
-                results.exit_message = 'Analysis Failed'
-                break
+                control_direction='vertical'
+                control_node = self.bay_i_internal_roof_nodes(1)[0]  
+                control_dof = 2  # vertical displacement
+            ops.initialize()
+            # Create output folder
+            os.makedirs(self.Frame_id, exist_ok=True)
 
+            ops.constraints('Plain')
+            ops.numberer('RCM')
+            ops.system('UmfPack')
+            ops.test('NormUnbalance', 1e-3, 10)
+            ops.algorithm('Newton')
+            ops.integrator('LoadControl',incr_LCA)
+            ops.analysis('Static')
+            record()
+            for i in range(num_steps_LCA):
+                if Moment_Frame_2D.print_ops_status:
+                    print(f'Running Load Controlled Analysis Step {i}')
+                ok = ops.analyze(1)
+                if ok != 0:
+                    print(f'Load controlled analysis failed in step {i}')
+                    results.exit_message = 'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading'
+                    find_limit_point()
+                    return results,fail_during_LCA
+                else:
+                    print('Load controlled analysis PASSED')
+                    results.exit_message='Moving to Displacement Controlled Analysis'
+                record()
+
+                # Check for lowest eigenvalue less than zero
+                if eigenvalue_limit is not None:
+                    if results.lowest_eigenvalue[-1] < eigenvalue_limit:
+                        results.exit_message = 'Eigenvalue Limit Reached'
+                        find_limit_point()
+                        return results,fail_during_LCA
+                        # break
+
+                # Check for strain in extreme steel fiber
+                if steel_strain_limit is not None:
+                    # if Moment_Frame_2D.print_ops_status:
+                    #     print(f'Checking Steel Tensile Strain')
+                    if results.absolute_maximum_strain[-1] > steel_strain_limit:
+                        results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
+                        find_limit_point()
+                        return results,fail_during_LCA
+                        # break
+                # Check for maximum PMM interaction value    
+                if self.Elastic_analysis:
+                    if P_M_M_interaction_limit is not None:
+                        # if Moment_Frame_2D.print_ops_status:
+                        #     print(f'Checking PMM Interaction')
+                        if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+                            results.exit_message = 'P_M_M interaction Limit Reached'
+                            find_limit_point()
+                            return results,fail_during_LCA
+
+
+            dU = target_disp / steps
+            if results.control_node_displacement[-1]<0 or control_dof==2:
+                dU=-dU 
+
+            ops.integrator('DisplacementControl', control_node, control_dof, dU)
 
             record()
 
-            # Check for lowest eigenvalue less than zero
-            if eigenvalue_limit is not None:
-                if results.lowest_eigenvalue[-1] < eigenvalue_limit:
-                    results.exit_message = 'Eigenvalue Limit Reached'
+            while True:
+                fail_during_LCA=False
+                ok = ops.analyze(1)
+                if try_smaller_steps:
+                    if ok != 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print(f'Trying the step size of: {dU / 10}')
+                        ops.integrator('DisplacementControl',control_node, control_dof, dU / 10)
+                        ok = ops.analyze(1)
+
+                    if ok != 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print(f'Trying the step size of: {dU / 100}')
+                        ops.integrator('DisplacementControl',control_node, control_dof, dU / 100)
+                        ok = ops.analyze(1)
+
+                    if ok != 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print(f'Trying the step size of: {dU / 1000}')
+                        ops.integrator('DisplacementControl', control_node, control_dof, dU / 1000)
+                        ok = ops.analyze(1)
+                        if ok == 0:
+                            dU = dU / 10
+                            if Moment_Frame_2D.print_ops_status:
+                                print(f'Changed the step size to: {dU}')
+
+                    if ok != 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print(f'Trying the step size of: {dU / 10000}')
+                        ops.integrator('DisplacementControl', control_node, control_dof, dU / 10000)
+                        ok = ops.analyze(1)
+                        if ok == 0:
+                            dU = dU / 10
+                            if Moment_Frame_2D.print_ops_status:
+                                print(f'Changed the step size to: {dU / 10}')
+
+                if ok != 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print('Trying ModifiedNewton')
+                    ops.algorithm('ModifiedNewton')
+                    ok = ops.analyze(1)
+                    if ok == 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print('ModifiedNewton worked')
+
+                if ok != 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print('Trying KrylovNewton')
+                    ops.algorithm('KrylovNewton')
+                    ok = ops.analyze(1)
+                    if ok == 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print('KrylovNewton worked')
+
+                if ok != 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print('Trying KrylovNewton and Greater Tolerance')
+                    ops.algorithm('KrylovNewton')
+                    ops.test('NormUnbalance', 1e-4, 10)
+                    ok = ops.analyze(1)
+                    if ok == 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print('KrylovNewton worked')
+
+                if ok == 0:
+                    # Reset analysis options
+                    ops.algorithm('Newton')
+                    ops.test('NormUnbalance', 1e-3, 10)
+                    ops.integrator('DisplacementControl', control_node, control_dof, dU)
+                else:
+                    print('Analysis Failed')
+                    results.exit_message = 'Analysis Failed'
                     break
 
-            # Check for strain in extreme steel fiber
-            if steel_strain_limit is not None:
-                # if Moment_Frame_2D.print_ops_status:
-                #     print(f'Checking Steel Tensile Strain')
-                if results.absolute_maximum_strain[-1] > steel_strain_limit:
-                    results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
+
+                record()
+
+                # Check for lowest eigenvalue less than zero
+                if eigenvalue_limit is not None:
+                    if results.lowest_eigenvalue[-1] < eigenvalue_limit:
+                        results.exit_message = 'Eigenvalue Limit Reached'
+                        break
+
+                # Check for strain in extreme steel fiber
+                if steel_strain_limit is not None:
+                    # if Moment_Frame_2D.print_ops_status:
+                    #     print(f'Checking Steel Tensile Strain')
+                    if results.absolute_maximum_strain[-1] > steel_strain_limit:
+                        results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
+                        break
+                # Check for maximum PMM interaction value    
+                if self.Elastic_analysis:
+                    if P_M_M_interaction_limit is not None:
+                        # if Moment_Frame_2D.print_ops_status:
+                        #     print(f'Checking PMM Interaction')
+                        if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+                            results.exit_message = 'P_M_M interaction Limit Reached'
+                            break
+
+            find_limit_point()
+
+
+        elif ops_analysis.lower()=='non_proportional_limit_point':
+            
+            fail_during_LCA=True
+
+            ops.timeSeries('Linear', self.load_timeseries_counter)
+            ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
+            # self.add_vertical_dead_live_wall_loads(vertical_load_scale=vertical_load_scale)
+            self.add_lateral_wind_notional_loads(lateral_load_scale=lateral_load_scale)
+            # region Define recorder
+            def record():
+                time = ops.getTime()
+                results.load_ratio.append(time)
+                ops.reactions()
+                total_vertical_rxn=sum(ops.nodeReaction(n[0])[1] for n in self.NODES_TO_FIX)
+                base_shear=sum(ops.nodeReaction(n[0])[0] for n in self.NODES_TO_FIX)
+                results.vertical_reaction.append(total_vertical_rxn)
+                results.base_shear.append(base_shear)
+                results.lowest_eigenvalue.append(ops.eigen("-genBandArpack", 1)[0])
+                results.absolute_maximum_strain.append(self.return_max_of_fiber_strain_in_all_elements())
+                results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
+                results.max_P_M_M_interaction.append(self.return_max_of_P_M_M_interaction())
+
+            # endregion
+
+            # Control node for lateral deflection
+            if control_dir=='L':
+                control_direction='lateral'
+                control_node = self.axis_i_roof_nodes(1)[0]   
+                control_dof = 1  # horizontal displacement
+            # Control node for vertical deflection of beam node
+            else:
+                control_direction='vertical'
+                control_node = self.bay_i_internal_roof_nodes(1)[0]  
+                control_dof = 2  # vertical displacement
+            ops.initialize()
+            # Create output folder
+            os.makedirs(self.Frame_id, exist_ok=True)
+
+            ops.constraints('Plain')
+            ops.numberer('RCM')
+            ops.system('UmfPack')
+            ops.test('NormUnbalance', 1e-3, 10)
+            ops.algorithm('Newton')
+            ops.integrator('LoadControl',incr_LCA)
+            ops.analysis('Static')
+            record()
+            for i in range(num_steps_LCA):
+                if Moment_Frame_2D.print_ops_status:
+                    print(f'Running Load Controlled Analysis Step {i}')
+                ok = ops.analyze(1)
+                if ok != 0:
+                    print(f'Load controlled analysis failed in step {i}')
+                    results.exit_message = 'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading'
+                    find_limit_point()
+                    return results,fail_during_LCA
+                else:
+                    print('Load controlled analysis PASSED')
+                    results.exit_message='Moving to Displacement Controlled Analysis'
+                record()
+
+                # Check for lowest eigenvalue less than zero
+                if eigenvalue_limit is not None:
+                    if results.lowest_eigenvalue[-1] < eigenvalue_limit:
+                        results.exit_message = 'Eigenvalue Limit Reached'
+                        find_limit_point()
+                        return results,fail_during_LCA
+                        # break
+
+                # Check for strain in extreme steel fiber
+                if steel_strain_limit is not None:
+                    # if Moment_Frame_2D.print_ops_status:
+                    #     print(f'Checking Steel Tensile Strain')
+                    if results.absolute_maximum_strain[-1] > steel_strain_limit:
+                        results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
+                        find_limit_point()
+                        return results,fail_during_LCA
+                        # break
+                # Check for maximum PMM interaction value    
+                if self.Elastic_analysis:
+                    if P_M_M_interaction_limit is not None:
+                        # if Moment_Frame_2D.print_ops_status:
+                        #     print(f'Checking PMM Interaction')
+                        if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+                            results.exit_message = 'P_M_M interaction Limit Reached'
+                            find_limit_point()
+                            return results,fail_during_LCA
+                            # break
+            # find_limit_point()
+
+
+            dU = target_disp / steps
+            if results.control_node_displacement[-1]<0 or control_dof==2:
+                dU=-dU 
+            ops.loadConst('-time', 0.0)
+            ops.timeSeries('Linear', self.load_timeseries_counter+1)
+            ops.pattern('Plain',self.load_pattern_counter+1, self.load_timeseries_counter+1)
+            # self.add_lateral_wind_notional_loads()
+            self.add_vertical_dead_live_wall_loads()
+            ops.integrator('DisplacementControl', control_node, control_dof, dU)
+
+            record()
+            i=1
+            while True:
+                print(f'Running Displacement Controlled Analysis {i}')
+                print(lateral_load_scale)
+                i=i+1
+                fail_during_LCA=False
+                ok = ops.analyze(1)
+                if try_smaller_steps:
+                    if ok != 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print(f'Trying the step size of: {dU / 10}')
+                        ops.integrator('DisplacementControl',control_node, control_dof, dU / 10)
+                        ok = ops.analyze(1)
+
+                    if ok != 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print(f'Trying the step size of: {dU / 100}')
+                        ops.integrator('DisplacementControl',control_node, control_dof, dU / 100)
+                        ok = ops.analyze(1)
+
+                    if ok != 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print(f'Trying the step size of: {dU / 1000}')
+                        ops.integrator('DisplacementControl', control_node, control_dof, dU / 1000)
+                        ok = ops.analyze(1)
+                        if ok == 0:
+                            dU = dU / 10
+                            if Moment_Frame_2D.print_ops_status:
+                                print(f'Changed the step size to: {dU}')
+
+                    if ok != 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print(f'Trying the step size of: {dU / 10000}')
+                        ops.integrator('DisplacementControl', control_node, control_dof, dU / 10000)
+                        ok = ops.analyze(1)
+                        if ok == 0:
+                            dU = dU / 10
+                            if Moment_Frame_2D.print_ops_status:
+                                print(f'Changed the step size to: {dU / 10}')
+
+                if ok != 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print('Trying ModifiedNewton')
+                    ops.algorithm('ModifiedNewton')
+                    ok = ops.analyze(1)
+                    if ok == 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print('ModifiedNewton worked')
+
+                if ok != 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print('Trying KrylovNewton')
+                    ops.algorithm('KrylovNewton')
+                    ok = ops.analyze(1)
+                    if ok == 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print('KrylovNewton worked')
+
+                if ok != 0:
+                    if Moment_Frame_2D.print_ops_status:
+                        print('Trying KrylovNewton and Greater Tolerance')
+                    ops.algorithm('KrylovNewton')
+                    ops.test('NormUnbalance', 1e-4, 10)
+                    ok = ops.analyze(1)
+                    if ok == 0:
+                        if Moment_Frame_2D.print_ops_status:
+                            print('KrylovNewton worked')
+
+                if ok == 0:
+                    # Reset analysis options
+                    ops.algorithm('Newton')
+                    ops.test('NormUnbalance', 1e-3, 10)
+                    ops.integrator('DisplacementControl', control_node, control_dof, dU)
+                else:
+                    print('Analysis Failed')
+                    results.exit_message = 'Analysis Failed'
                     break
 
-        find_limit_point()
+
+                record()
+
+                # Check for lowest eigenvalue less than zero
+                if eigenvalue_limit is not None:
+                    if results.lowest_eigenvalue[-1] < eigenvalue_limit:
+                        results.exit_message = 'Eigenvalue Limit Reached'
+                        break
+
+                # Check for strain in extreme steel fiber
+                if steel_strain_limit is not None:
+                    # if Moment_Frame_2D.print_ops_status:
+                    #     print(f'Checking Steel Tensile Strain')
+                    if results.absolute_maximum_strain[-1] > steel_strain_limit:
+                        results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
+                        break
+                # Check for maximum PMM interaction value    
+                if self.Elastic_analysis:
+                    if P_M_M_interaction_limit is not None:
+                        # if Moment_Frame_2D.print_ops_status:
+                        #     print(f'Checking PMM Interaction')
+                        if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+                            results.exit_message = 'P_M_M interaction Limit Reached'
+                            break
+
+            find_limit_point()
+       
+       
+        else:
+            raise Exception('Give valid ops_analysis option')
         # Optional: plot deformed shape
         if plot_defo:
             try:
@@ -1070,57 +1399,9 @@ class Moment_Frame_2D:
                                         for x in results.control_node_displacement]
 
 
-        # --- λ vs displacement
-        self._save_plot(
-            results.control_node_displacement_absolute,
-            results.load_ratio,
-            xlabel='Displacement at Control Node',
-            ylabel='Load Ratio λ',
-            title='Load Ratio vs.  Displacement',
-            filename=f'load_ratio_vs_disp_{control_direction}.png'
-        )
-
-        # --- λ vs max tensile strain
-        self._save_plot(
-            results.absolute_maximum_strain,
-            results.load_ratio,
-            xlabel='Maximum Tensile Strain',
-            ylabel='Load Ratio λ',
-            title='Load Ratio vs. Tensile Strain',
-            filename=f'load_ratio_vs_strain_{control_direction}.png'
-        )
-
-        # --- eigenvalue vs λ  (x = λ, y = lowest eigenvalue)
-        self._save_plot(
-            results.load_ratio,
-            results.lowest_eigenvalue,
-            xlabel='Load Ratio λ',
-            ylabel='Lowest Eigenvalue',
-            title='Eigenvalue vs. Load Ratio',
-            filename=f'load_ratio_vs_eigenvalue_{control_direction}.png'
-)
-        return results
 
 
-    def _save_plot(self,x, y, xlabel, ylabel, title, filename):
-        x = np.asarray(x, dtype=float)
-        y = np.asarray(y, dtype=float)
-        m = np.isfinite(x) & np.isfinite(y)
-        if not np.any(m):
-            print(f"[warn] Nothing to plot for '{title}' (no finite points).")
-            return
-        plt.figure()
-        plt.plot(x[m], y[m], marker='.', linewidth=1)
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
-        plt.title(title)
-        plt.grid(True, which='both', linestyle=':')
-        plt.tight_layout()
-        out_path = os.path.join(self.Frame_id, filename)
-        plt.savefig(out_path, dpi=300, bbox_inches='tight')
-        plt.show()
-        plt.close()
-
+        return results,fail_during_LCA
 
     def save_moments_by_member(self, filename='max_member_moments.csv'):
         os.makedirs(self.Frame_id, exist_ok=True)
