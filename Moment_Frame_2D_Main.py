@@ -475,9 +475,7 @@ class Moment_Frame_2D:
             mat_type = self.mat_type
             frc = -0.3 * Steel.Fy if self.Residual_Stress else 0
 
-        
-        print('LIne 575',mat_type)
-        print('LIne 576',frc)
+    
 
         # Beams
         for beam_section_name, beam_section_tag in self.beam_section_tags.items():
@@ -1024,7 +1022,7 @@ class Moment_Frame_2D:
             ops.system('UmfPack')
             ops.test('NormUnbalance', 1e-3, 10)
             ops.algorithm('Newton')
-            ops.integrator('LoadControl',incr_LCA)
+            ops.integrator('LoadControl',incr_LCA)  ## incr_LCA because, we do not want to apply the entire load during load controlled analysis.
             ops.analysis('Static')
             record()
             for i in range(num_steps_LCA):
@@ -1185,8 +1183,8 @@ class Moment_Frame_2D:
 
             ops.timeSeries('Linear', self.load_timeseries_counter)
             ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
-            # self.add_vertical_dead_live_wall_loads(vertical_load_scale=vertical_load_scale)
-            self.add_lateral_wind_notional_loads(lateral_load_scale=lateral_load_scale)
+            self.add_vertical_dead_live_wall_loads(vertical_load_scale=vertical_load_scale)
+            # self.add_lateral_wind_notional_loads(lateral_load_scale=lateral_load_scale)
             # region Define recorder
             def record():
                 time = ops.getTime()
@@ -1222,7 +1220,7 @@ class Moment_Frame_2D:
             ops.system('UmfPack')
             ops.test('NormUnbalance', 1e-3, 10)
             ops.algorithm('Newton')
-            ops.integrator('LoadControl',incr_LCA)
+            ops.integrator('LoadControl',1/num_steps_LCA)  ## 1/num_steps_LCA because we want the entire vertical load to be applied before starting displacement controlled analysis.
             ops.analysis('Static')
             record()
             for i in range(num_steps_LCA):
@@ -1275,8 +1273,8 @@ class Moment_Frame_2D:
             ops.loadConst('-time', 0.0)
             ops.timeSeries('Linear', self.load_timeseries_counter+1)
             ops.pattern('Plain',self.load_pattern_counter+1, self.load_timeseries_counter+1)
-            # self.add_lateral_wind_notional_loads()
-            self.add_vertical_dead_live_wall_loads()
+            self.add_lateral_wind_notional_loads()
+            # self.add_vertical_dead_live_wall_loads()
             ops.integrator('DisplacementControl', control_node, control_dof, dU)
 
             record()

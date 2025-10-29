@@ -7,7 +7,7 @@ class convert_dict_items_to_class_attributes:
             setattr(self, k, v)    
 
 Analysis_Info= {
-    'Second_order_inelastic':{
+    'Second_Order_Inelastic':{
                 'Residual_Stress':True,
                 'Elastic_analysis':False,
                 'Second_order_effects':True,
@@ -16,7 +16,7 @@ Analysis_Info= {
                 'Geometric_Imperfection':True,
                 'Notional_load':False
                 },
-    'AISC_LRFD_Direct_Modeling':{
+    'AISC_Direct_Modeling':{
                 'Residual_Stress':False,
                 'Elastic_analysis':True,
                 'Second_order_effects':True,
@@ -25,7 +25,7 @@ Analysis_Info= {
                 'Geometric_Imperfection':True,
                 'Notional_load':False
                 },
-    'AISC_LRFD_Notional_Loads':{
+    'AISC_Notional_Loads':{
                 'Residual_Stress':False,
                 'Elastic_analysis':True,
                 'Second_order_effects':True,
@@ -66,7 +66,7 @@ Frame_Info={
             }
         },
         'support': 'ppp',
-        'load_comb_multipliers': [0.1,0.1,0.1, 0],
+        'load_comb_multipliers': [1.2, 1, 0.5, 1],
         'D_floor_intensity': 3.623 * kip / ft,
         'D_roof_intensity': 2.785 * kip / ft,
         'L_floor_intensity': 3.623 * kip / ft,
@@ -99,7 +99,7 @@ Frame_Info={
             }
         },
         'support': 'ppp',
-        'load_comb_multipliers': [0.1,0.1,0.1, 0],
+        'load_comb_multipliers': [1.2, 1, 0.5, 1],
         'D_floor_intensity': 3.623 * kip / ft,
         'D_roof_intensity': 2.785 * kip / ft,
         'L_floor_intensity': 3.623 * kip / ft,
@@ -141,7 +141,7 @@ Frame_Info={
             }
         },
         'support': 'ppp',
-        'load_comb_multipliers': [1.2,0, 0, 0],
+        'load_comb_multipliers': [1.2, 1, 0.5, 1],
         'D_floor_intensity': 3.623 * kip / ft,
         'D_roof_intensity': 2.785 * kip / ft,
         'L_floor_intensity': 3.623 * kip / ft,
@@ -180,7 +180,7 @@ Frame_Info={
             }
         },
         'support': 'ppp',
-        'load_comb_multipliers': [1.2, 1.6, 0.5, 0],
+        'load_comb_multipliers': [1.2, 1, 0.5, 1],
         'D_floor_intensity': 2.829 * kip / ft,
         'D_roof_intensity': 2.175 * kip / ft,
         'L_floor_intensity': 2.829 * kip / ft,

@@ -5,6 +5,7 @@ from libdenavit.OpenSees.get_fiber_data import *
 import gc
 from Plotting import plot_single_bar,line_plot
 import os
+import seaborn as sns
 
 def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1,vertical_load_scale=1,ops_anlaysis='proportional_limit_point'):
     try:
@@ -61,18 +62,20 @@ def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1
         gc.collect()
 
 
-Frame_number= ['SP36H']      # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
-Analysis_type= ['Second_order_inelastic'  ,  'AISC_LRFD_Direct_Modeling'  , 'AISC_LRFD_Notional_Loads']
-# Analysis_type= [  'Second_order_inelastic']
+Frame_number= [13]      # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
+Analysis_type= ['Second_Order_Inelastic'  ,  'AISC_Direct_Modeling'  , 'AISC_Notional_Loads']
+# Analysis_type= [  'AISC_Notional_Loads'  ]
 control_dir=['V']  # 'L'  'V'
 
 # for frame_number in Frame_number:
 
 #     max_load_ratio=[]
+#     analysis_type_labels=[]
 #     for analysis_type in Analysis_type:
+#         analysis_type_labels.append(analysis_type.replace("_", " "))
 #         results,frame_id,fail_during_LCA=MF_2D_runner(Frame_number=frame_number,Analysis_type=analysis_type,control_dir='V',ops_anlaysis='proportional_limit_point')
 
-#         #     --- λ vs displacement
+#         #    ---- λ vs displacement
 #         os.makedirs(frame_id, exist_ok=True)
 #         filename=os.path.join(frame_id,f'load_ratio_vs_disp_{frame_number}_{analysis_type}_{control_dir}.png')
 #         line_plot(results.control_node_displacement_absolute,results.load_ratio,
@@ -106,31 +109,73 @@ control_dir=['V']  # 'L'  'V'
 
 #     os.makedirs(frame_id, exist_ok=True)
 #     filename=os.path.join(frame_id, f"{frame_number}_Barplot")
-#     plot_single_bar(max_load_ratio,filename=filename, x_labels=Analysis_type,title='Load Ratio Comparison',ylabel='Load Ratio')
+#     plot_single_bar(max_load_ratio,filename=filename, x_labels=analysis_type_labels,title=f'{frame_number}:Comparison of Load Ratio',ylabel='Load Ratio')
 
 for frame_number in Frame_number:
     fig, ax = plt.subplots(figsize=(5,5))
-    for analysis_type in Analysis_type:
-        ALR_H=[]
-        ALR_V=[]
-        for i in np.arange(0,11.6,0.1):
-            print(f'Running lateral load scale {i} ')
-            results,frame_id,fail_during_LCA=MF_2D_runner(Frame_number=frame_number,Analysis_type=analysis_type,lateral_load_scale=i,control_dir='V',ops_anlaysis='non_proportional_limit_point')
-            print(results.maximum_load_ratio_at_limit_point)
+    palette = sns.color_palette("pastel", len(Analysis_type))
+    for j,analysis_type in enumerate(Analysis_type):
+        ALR_H = []
+        ALR_V = []
+
+        results, frame_id, fail_during_LCA = MF_2D_runner(
+            Frame_number=frame_number,
+            Analysis_type=analysis_type,
+            lateral_load_scale=0,
+            control_dir='V',
+            ops_anlaysis='proportional_limit_point'
+        )
+
+        ALR_V_max = results.maximum_load_ratio_at_limit_point
+        os.makedirs(frame_id, exist_ok=True)
+        filename = os.path.join(
+            frame_id, f'ALR_H_vs_ALR_V_{frame_number}.png'
+        )
+
+        # Sweep load ratios
+        for i in np.arange(0, 0.99, 0.1):
+            print(f'Running vertical load scale {i}')
+            results, frame_id, fail_during_LCA = MF_2D_runner(
+                Frame_number=frame_number,
+                Analysis_type=analysis_type,
+                vertical_load_scale=i*ALR_V_max,
+                control_dir='L',
+                ops_anlaysis='non_proportional_limit_point'
+            )
             if fail_during_LCA:
-                ALR_H.append(ALR_H[-1])
-                ALR_V.append(0)
-                pass
+                ALR_H.append(0)
+                ALR_V.append(ALR_V_max)
+                break
             else:
-                ALR_H.append(i)
-                ALR_V.append(results.maximum_load_ratio_at_limit_point)
-        # ALR_V=[a/max(ALR_V) for a in ALR_V]
-        # ALR_H=[a/max(ALR_H) for a in ALR_H]
-        ax.plot(ALR_H, ALR_V, marker='o', linestyle='-', label=analysis_type)
-    ax.set_xlabel('ALR_H (Horizontal Load Ratio)')
-    ax.set_ylabel('ALR_V (Vertical Load Ratio)')
-    ax.set_title(f'Frame {frame_number}: ALR_H vs ALR_V')
-    ax.grid(True, linestyle='--', alpha=0.5)
-    ax.legend(title='Analysis Type')
-    plt.tight_layout()
-    plt.show()
+                ALR_H.append(results.maximum_load_ratio_at_limit_point)
+                ALR_V.append(i*ALR_V_max)
+
+        for i in np.arange(0.99, 1.1, 0.01):
+            print(f'Running vertical load scale {i}')
+            results, frame_id, fail_during_LCA = MF_2D_runner(
+                Frame_number=frame_number,
+                Analysis_type=analysis_type,
+                vertical_load_scale=i*ALR_V_max,
+                control_dir='L',
+                ops_anlaysis='non_proportional_limit_point'
+            )
+            if fail_during_LCA:
+                ALR_H.append(0)
+                ALR_V.append(ALR_V_max)
+                break
+            else:
+                ALR_H.append(results.maximum_load_ratio_at_limit_point)
+                ALR_V.append(i*ALR_V_max)
+        # Plot each analysis type on the same axes
+        line_plot(
+            ALR_H, ALR_V,
+            xlabel='ALR_H',
+            ylabel='ALR_V',
+            title=f'Frame {frame_number}: ALR_V vs ALR_H',
+            filename=filename,
+            ax=ax,
+            label=analysis_type,
+            linewidth=1,
+            markersize=2,
+            color=palette[j]
+        )
