@@ -7,7 +7,7 @@ class convert_dict_items_to_class_attributes:
             setattr(self, k, v)    
 
 Analysis_Info= {
-    'Second_Order_Inelastic':{
+    'GMNIA':{
                 'Residual_Stress':True,
                 'Elastic_analysis':False,
                 'Second_order_effects':True,
@@ -16,7 +16,16 @@ Analysis_Info= {
                 'Geometric_Imperfection':True,
                 'Notional_load':False
                 },
-    'AISC_Direct_Modeling':{
+    'GMNA':{
+                'Residual_Stress':True,
+                'Elastic_analysis':False,
+                'Second_order_effects':True,
+                'stiffness_reduction':0.9,
+                'strength_reduction':0.9,
+                'Geometric_Imperfection':False,
+                'Notional_load':False
+                },
+    'GNIA':{
                 'Residual_Stress':False,
                 'Elastic_analysis':True,
                 'Second_order_effects':True,
@@ -25,7 +34,7 @@ Analysis_Info= {
                 'Geometric_Imperfection':True,
                 'Notional_load':False
                 },
-    'AISC_Notional_Loads':{
+    'GNA_Notional_Loads':{
                 'Residual_Stress':False,
                 'Elastic_analysis':True,
                 'Second_order_effects':True,
@@ -33,6 +42,15 @@ Analysis_Info= {
                 'strength_reduction':1,
                 'Geometric_Imperfection':False,
                 'Notional_load':True
+                },
+    'GNA':{
+                'Residual_Stress':False,
+                'Elastic_analysis':True,
+                'Second_order_effects':True,
+                'stiffness_reduction':0.8,
+                'strength_reduction':1,
+                'Geometric_Imperfection':False,
+                'Notional_load':False
                 }
             }
 
@@ -349,7 +367,47 @@ Frame_Info={
             }
         },
         'support': 'ppp',
-        'load_comb_multipliers': [1.4, 0, 0, 1],
+        'load_comb_multipliers': [1.2, 0, 0, 1],
+        'D_floor_intensity': 7.5 * kip / ft,
+        'D_roof_intensity': 3.5 * kip / ft,
+        'L_floor_intensity': 0 * kip / ft,
+        'L_roof_intensity': 0 * kip / ft,
+        'Wind_load_floor': 6.56*kip,
+        'Wind_load_roof': 2.81*kip,
+        'Wall_load':0,
+        'geometric_imperfection_ratio': 1 / 500
+         },
+
+
+
+        'SF36H': {
+        'Frame_id':'Ziemian_SF36H',
+        'bay_width': [34 * ft, 34 * ft],
+        'story_height': [20 * ft, 15 * ft],
+        'column_no_of_ele': 2,
+        'beam_no_of_ele': 4,
+        'beam_section':
+          {
+            'common_and_exceptions': 
+            {
+                'common': 'W30X108',
+                '(1,2)': 'W24X62',
+                '(2,2)': 'W24X62',
+             }
+         },
+        'column_section':
+         {
+            'common_and_exceptions': 
+            {
+                'common': ('W14X48', 'x'),
+                '(2,1)': ('W14X74', 'x'),
+                '(1,2)': ('W14X43', 'x'),
+                '(2,2)': ('W14X43', 'x'),
+                '(3,2)': ('W14X43', 'x'),
+            }
+        },
+        'support': 'fff',
+        'load_comb_multipliers': [1.2, 0, 0, 1],
         'D_floor_intensity': 7.5 * kip / ft,
         'D_roof_intensity': 3.5 * kip / ft,
         'L_floor_intensity': 0 * kip / ft,

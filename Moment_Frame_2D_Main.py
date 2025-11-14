@@ -12,6 +12,9 @@ from libdenavit.section.wide_flange import *
 from libdenavit.OpenSees import AnalysisResults
 from libdenavit import find_limit_point_in_list, interpolate_list
 import copy
+import matplotlib.cm as color
+from matplotlib.colors import Normalize
+from matplotlib.animation import FuncAnimation
 
 #################################################
 density_of_steel=7850*kg/(m**3)
@@ -678,89 +681,69 @@ class Moment_Frame_2D:
 
         return max(max_abs_compression_strain,max_abs_tensile_strain)
 
-    def return_max_of_P_M_M_interaction(self):
-        P_M_M_interaction_all_elements=[]
+    def return_P_M_M_interaction_values(self):
+        P_M_M_interaction_all_elements = []
+        Element_Forces=[]
         for ele in self.all_element_connectivity_section_and_bending_axes_detail:
-            ele_tag=ele[0]
-            ele_node_i=ele[1]
-            ele_node_j=ele[2]
-            ele_section_name=ele[3]        #### str  'W8X15'
-            ele_bending_axis=ele[4]        #### str  'x'
-            ele_type=ele[5]
-            coords_i = ops.nodeCoord(ele_node_i)  # [x_i, y_i]
-            coords_j = ops.nodeCoord(ele_node_j)  # [x_j, y_j]
+            ele_tag = ele[0]
+            ele_node_i = ele[1]
+            ele_node_j = ele[2]
+            ele_section_name = ele[3]        # e.g., 'W8X15'
+            ele_bending_axis = ele[4]        # e.g., 'x'
+            ele_type = ele[5]
+
+            coords_i = ops.nodeCoord(ele_node_i)
+            coords_j = ops.nodeCoord(ele_node_j)
             L = math.sqrt((coords_j[0] - coords_i[0])**2 + (coords_j[1] - coords_i[1])**2)
 
-            section_obj = getattr(self, ele_section_name)   # retrieves the I_shape instance
-            
-            # Build a unique name for the member instance
+            section_obj = getattr(self, ele_section_name)
             member_name = f"member_{ele_tag}_{ele_section_name}_{ele_bending_axis}"
-            
-            # Create the WideFlangeMember_AISC2023 instance
-            member_obj = WideFlangeMember_AISC2022( section_obj,
-                                                    Fy=section_obj.Fy,
-                                                    E=section_obj.E,
-                                                    L=L  
-                                                )
-            
-            setattr(self, member_name, member_obj) 
-            ### Required Strength and Available Strengths
+
+            member_obj = WideFlangeMember_AISC2022(
+                section_obj,
+                Fy=section_obj.Fy,
+                E=section_obj.E,
+                L=L
+            )
+            setattr(self, member_name, member_obj)
+
+            # Element forces
             forces = ops.eleResponse(ele_tag, 'localForce')
-            Pr=abs(forces[0])  ## required compressive strength
-            Mr_i=forces[2]
-            Mr_j=forces[5]
-            max_Mr=max(abs(Mr_i),abs(Mr_j))
-            Mrx=0
-            Mry=0
-            Mcx=member_obj.Mnx(Lb=0,Cb=1)  ##available flexural strength for bending about major axis
-            Mcy=member_obj.Mny()   ##available flexural strength for bending about minor axis
+            Pr = abs(forces[0])
+            Mr_i = forces[2]
+            Mr_j = forces[5]
+            max_Mr = max(abs(Mr_i), abs(Mr_j))
 
-            if ele_bending_axis=='x':
-                Mrx=max_Mr
-                if ele_type=='col':
-                    Leff=L*self.no_of_elements_column
-                if ele_type=='beam': 
-                    Leff=L*self.no_of_elements_beam
-                Pcc=member_obj.Pnc(Lcx=Leff,Lcy=0) ##available compressive strength 
+            Mrx = Mry = 0
+            Mcx = member_obj.Mnx(Lb=0, Cb=1)
+            Mcy = member_obj.Mny()
 
-            if ele_bending_axis=='y':
-                Mry=max_Mr
-                if ele_type=='col':
-                    Leff=L*self.no_of_elements_column
-                if ele_type=='beam': 
-                    Leff=L*self.no_of_elements_beam
-                Pcc=member_obj.Pnc(Lcx=0,Lcy=Leff) ##available compressive strength 
+            if ele_bending_axis == 'x':
+                Mrx = max_Mr
+                Leff = L * (self.no_of_elements_column if ele_type == 'col' else self.no_of_elements_beam)
+                Pcc = member_obj.Pnc(Lcx=Leff, Lcy=0)
 
-            ### Interaction Eqn H1-1a,H1-1b
-            if Pr/Pcc>=0.2:
-                P_M_M_interaction=Pr/Pcc+(8/9)*((Mrx/Mcx)+(Mry/Mcy))
+            elif ele_bending_axis == 'y':
+                Mry = max_Mr
+                Leff = L * (self.no_of_elements_column if ele_type == 'col' else self.no_of_elements_beam)
+                Pcc = member_obj.Pnc(Lcx=0, Lcy=Leff)
+
+            # Interaction Eqn H1-1a or H1-1b
+            if Pr / Pcc >= 0.2:
+                P_M_M_interaction = Pr / Pcc + (8 / 9) * ((Mrx / Mcx) + (Mry / Mcy))
             else:
-                P_M_M_interaction=Pr/(2*Pcc)+((Mrx/Mcx)+(Mry/Mcy))
-            P_M_M_interaction_all_elements.append(P_M_M_interaction)
+                P_M_M_interaction = Pr / (2 * Pcc) + ((Mrx / Mcx) + (Mry / Mcy))
 
-            # print(ele_tag)
-            # print(ele_section_name)
-            # print(L)
-            # print('Mnx',Mcx)
-            # print('Mny',Mcy)
-            # print('Pcc',Pcc)
-            # print('Mrx',Mrx)
-            # print('Mry',Mry)
-            # print('Pr',Pr)
-            # print(P_M_M_interaction)
-            # print(P_M_M_interaction_all_elements)
-        max_P_M_M_interaction_among_all_elements=max(P_M_M_interaction_all_elements)
-        # print(max_P_M_M_interaction_among_all_elements)
-        # print('\n')
-        # print('\n')
-        # print('\n')
-        # print('\n')
-        # input('Hello')
-        return max_P_M_M_interaction_among_all_elements
+            # Store as tuple
+            P_M_M_interaction_all_elements.append((ele_tag, P_M_M_interaction))
+            Element_Forces.append((ele_tag,forces))
 
-    
+        # Find max interaction and its element tag
+        max_ele_tag, max_PMM = max(P_M_M_interaction_all_elements, key=lambda x: x[1])
 
-    def add_vertical_dead_live_wall_loads(self,vertical_load_scale=1):   
+        return max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces
+
+    def add_vertical_dead_live_wall_notional_loads(self,vertical_load_scale=1):   
         """
         Adds dead, live, wall loads to the model, scaled by a user-defined load_scale factor.
         
@@ -813,7 +796,17 @@ class Moment_Frame_2D:
             ops.load(node, 0, -vertical_load_scale * wall_load / 2, 0)
 
 
-    def add_lateral_wind_notional_loads(self, lateral_load_scale=1.0):
+        if self.Notional_load:
+            for node in self.axis_i_floor_nodes(1):
+                ops.load(node, vertical_load_scale * self.floor_notional_load(), 0, 0.0)
+                # print('line852',node,self.floor_notional_load())
+            for node in self.axis_i_roof_nodes(1):
+                ops.load(node, vertical_load_scale * self.roof_notional_load(), 0, 0.0)
+                # print('line856',node,lateral_load_scale * self.roof_notional_load()) 
+     
+
+
+    def add_lateral_wind_loads(self, lateral_load_scale=1.0):
         ##Lateral Loads
         # Wind  Load 
         if self.wind_load_dirn.lower() == 'right':
@@ -828,18 +821,10 @@ class Moment_Frame_2D:
             for node in self.axis_i_roof_nodes(self.no_of_bays + 1):
                 ops.load(node, -lateral_load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
 
-        # Notional Load
-        if self.Notional_load:
-            for node in self.axis_i_floor_nodes(1):
-                ops.load(node, lateral_load_scale * self.floor_notional_load(), 0, 0.0)
-                # print('line852',node,self.floor_notional_load())
-            for node in self.axis_i_roof_nodes(1):
-                ops.load(node, lateral_load_scale * self.roof_notional_load(), 0, 0.0)
-                # print('line856',node,lateral_load_scale * self.roof_notional_load())            
+          
                 
         # opsv.plot_model()
         # opsv.plot_load()
-
 
     def run_load_controlled_analysis(self,steps = 10,plot_defo=False,display_reactions=False):
 
@@ -927,7 +912,7 @@ class Moment_Frame_2D:
         
         return disp_x
 
-    def run_displacement_controlled_analysis(self, target_disp=10, steps=20000, plot_defo=False,**kwargs):
+    def run_displacement_controlled_analysis(self, target_disp=10, steps=20000, plot_defo=True,**kwargs):
         """
         Runs displacement-controlled analysis and plots load ratio (λ) vs. displacement and vertical reaction.
 
@@ -936,8 +921,8 @@ class Moment_Frame_2D:
             steps (int): Number of steps to reach target
             plot_defo (bool): Whether to plot deformed shape at end
         """
-        incr_LCA= kwargs.get('incr_LCA', 0.02)          ######### LCA refers to Load Controlled Analysis
-        num_steps_LCA= kwargs.get('num_steps_LCA', 20)            ######### LCA refers to Load Controlled Analysis
+        incr_LCA= kwargs.get('incr_LCA', 0.0001)          ######### LCA refers to Load Controlled Analysis
+        num_steps_LCA= kwargs.get('num_steps_LCA', 100)            ######### LCA refers to Load Controlled Analysis
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
         P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
@@ -951,7 +936,7 @@ class Moment_Frame_2D:
         # Initialize analysis results
         results = AnalysisResults()
         attributes = ['load_ratio','vertical_reaction','base_shear','control_node_displacement', 'control_node_displacement_absolute',
-                      'lowest_eigenvalue','absolute_maximum_strain','max_P_M_M_interaction']
+                      'lowest_eigenvalue','absolute_maximum_strain','max_P_M_M_interaction','P_M_M_interaction_all_elements','Element_Forces']
         
         for attr in attributes:
             setattr(results, attr, [])
@@ -985,8 +970,8 @@ class Moment_Frame_2D:
 
             ops.timeSeries('Linear', self.load_timeseries_counter)
             ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
-            self.add_vertical_dead_live_wall_loads(vertical_load_scale=vertical_load_scale)
-            self.add_lateral_wind_notional_loads(lateral_load_scale=lateral_load_scale)
+            self.add_vertical_dead_live_wall_notional_loads(vertical_load_scale=vertical_load_scale)
+            self.add_lateral_wind_loads(lateral_load_scale=lateral_load_scale)
             # region Define recorder
             def record():
                 time = ops.getTime()
@@ -999,8 +984,10 @@ class Moment_Frame_2D:
                 results.lowest_eigenvalue.append(ops.eigen("-genBandArpack", 1)[0])
                 results.absolute_maximum_strain.append(self.return_max_of_fiber_strain_in_all_elements())
                 results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
-                results.max_P_M_M_interaction.append(self.return_max_of_P_M_M_interaction())
-
+                max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=self.return_P_M_M_interaction_values()
+                results.max_P_M_M_interaction.append(max_PMM)
+                results.P_M_M_interaction_all_elements.append(P_M_M_interaction_all_elements)
+                results.Element_Forces.append(Element_Forces)
             # endregion
 
             # Control node for lateral deflection
@@ -1183,7 +1170,7 @@ class Moment_Frame_2D:
 
             ops.timeSeries('Linear', self.load_timeseries_counter)
             ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
-            self.add_vertical_dead_live_wall_loads(vertical_load_scale=vertical_load_scale)
+            self.add_vertical_dead_live_wall_notional_loads(vertical_load_scale=vertical_load_scale)
             # self.add_lateral_wind_notional_loads(lateral_load_scale=lateral_load_scale)
             # region Define recorder
             def record():
@@ -1197,7 +1184,10 @@ class Moment_Frame_2D:
                 results.lowest_eigenvalue.append(ops.eigen("-genBandArpack", 1)[0])
                 results.absolute_maximum_strain.append(self.return_max_of_fiber_strain_in_all_elements())
                 results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
-                results.max_P_M_M_interaction.append(self.return_max_of_P_M_M_interaction())
+                max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=self.return_P_M_M_interaction_values()
+                results.max_P_M_M_interaction.append(max_PMM)
+                results.P_M_M_interaction_all_elements.append(P_M_M_interaction_all_elements)
+                results.Element_Forces.append(Element_Forces)
 
             # endregion
 
@@ -1273,7 +1263,7 @@ class Moment_Frame_2D:
             ops.loadConst('-time', 0.0)
             ops.timeSeries('Linear', self.load_timeseries_counter+1)
             ops.pattern('Plain',self.load_pattern_counter+1, self.load_timeseries_counter+1)
-            self.add_lateral_wind_notional_loads()
+            self.add_lateral_wind_loads(lateral_load_scale=lateral_load_scale)
             # self.add_vertical_dead_live_wall_loads()
             ops.integrator('DisplacementControl', control_node, control_dof, dU)
 
@@ -1281,7 +1271,6 @@ class Moment_Frame_2D:
             i=1
             while True:
                 print(f'Running Displacement Controlled Analysis {i}')
-                print(lateral_load_scale)
                 i=i+1
                 fail_during_LCA=False
                 ok = ops.analyze(1)
@@ -1393,8 +1382,8 @@ class Moment_Frame_2D:
                 opsvis.plot_defo()
             except:
                 print("opsvis not available for deformation plotting.")
-        results.control_node_displacement_absolute[:] = [abs(x) if x is not None else None
-                                        for x in results.control_node_displacement]
+        # results.control_node_displacement_absolute[:] = [abs(x) if x is not None else None
+        #                                 for x in results.control_node_displacement]
 
 
 
@@ -1461,7 +1450,7 @@ class Moment_Frame_2D:
         ## destroy all components of the Analysis object
         ops.wipeAnalysis()
         
-
+    
     def plot_model(self):
         plot_undeformed_2d()
 
