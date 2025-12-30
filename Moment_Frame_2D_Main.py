@@ -45,6 +45,7 @@ class Moment_Frame_2D:
 
         self.bay_width=[0]+width_of_bay
         self.storey_height = [0] + storey_height
+        self.length_of_frame=sum(self.bay_width)
         # Assigning values to instance variables
         self.no_of_bays = len(self.bay_width)-1            ######### number of bays
         self.no_of_stories = len(self.storey_height)-1     ######### number of stories
@@ -59,6 +60,7 @@ class Moment_Frame_2D:
         self.beam_section=copy.deepcopy(beam_section)
         self.column_section=copy.deepcopy(column_section)   
         self.Main_Nodes=[]
+        self.Leaning_Nodes=[]
         self.D_multiplier=load_combination_multipliers[0]      ### Dead Load multiplier
         self.L_multiplier=load_combination_multipliers[1]      ### Live Load multiplier
         self.L_r_multiplier=load_combination_multipliers[2]    ### Roof Live Load multiplier
@@ -84,7 +86,7 @@ class Moment_Frame_2D:
                   'Wind_load_roof':0,
                   'Wall_load':0,
                   'Elastic_analysis':False,
-                  'Second_order_effects':True,
+                  'Second_order_effects':False,
                   'Notional_load':False,
                   'Geometric_Imperfection':False,
                   'Residual_Stress':True,
@@ -92,6 +94,8 @@ class Moment_Frame_2D:
                   'strength_reduction':1,
                   'geometric_imperfection_ratio':1/500,
                   'wind_load_dirn':'right',
+                  'Leaning_column':True,
+                  'Leaning_column_offset':4,
                   'plot_sections':False}
         
         for key,value in defaults.items():
@@ -209,8 +213,7 @@ class Moment_Frame_2D:
 
         self.NODES_TO_FIX= [Nodes for Nodes in self.Main_Nodes if Nodes[2]==0]
 
-
-
+        
 
 ########### This code chunk generates the additional nodes and connectivity of columns based on the number of elements required ############
         temp_column_node_pairs = []
@@ -286,6 +289,34 @@ class Moment_Frame_2D:
         self.beam_nodes += self.beam_intermediate_nodes
         
         self.all_nodes=self.Main_Nodes+self.column_intermediate_nodes+self.beam_intermediate_nodes
+
+
+        #### Generating leaning column nodes and connectivity if required ####
+        if self.Leaning_column:
+            print('Generating leaning column nodes and connectivity')
+            print(self.length_of_frame)
+            x_coord=self.length_of_frame + self.Leaning_column_offset
+            y_coord=0
+            for j in range(self.no_of_stories+1): # 0 to 98
+                y_coord= y_coord+ self.storey_height[j]
+                node_tag=100000+j
+                self.Leaning_Nodes.append([node_tag,x_coord,y_coord])
+            print('Line 304',self.Leaning_Nodes)
+
+            ## Generate nodal connectivity for leaning columns
+            self.leaning_column_connectivity=[]
+            ## assigning element tags continuing from last element tag
+            for i in range(self.no_of_stories):
+                element_tag+=1
+                self.leaning_column_connectivity.append([element_tag,self.Leaning_Nodes[i][0],self.Leaning_Nodes[i+1][0]])
+
+            ## Generate nodal connectivity between main frame nodes and leaning column nodes at each floor level to later use in defining constraints
+            self.leaning_column_and_frame_beam_connectivity=[]
+            for i in range(1,self.no_of_stories+1):
+                element_tag+=1
+                main_frame_node_tag=(self.no_of_bays+1)*100 + i
+                self.leaning_column_and_frame_beam_connectivity.append([element_tag,main_frame_node_tag,self.Leaning_Nodes[i][0]])
+
 
 ###################### The code below is written so as to change the order of elements for direct comparison with Ziemian results
         self.sorted_column_connectivity= sorted(
@@ -465,6 +496,19 @@ class Moment_Frame_2D:
                 ops.fix(node_tag, 1, 1, 0)
             else:                                      # Wrong condition
                 raise ValueError(f"Unsupported support condition{support_condition}.Expected 'F' or 'P'.")
+                
+        if self.Leaning_column:
+            ## Define leaning column nodes
+            for leaning_column_node in self.Leaning_Nodes:
+                ops.node(leaning_column_node[0],leaning_column_node[1],leaning_column_node[2])
+
+            ## Fix the rotational dof of leaning column nodes except the base node
+            for leaning_node in self.Leaning_Nodes[1:]:
+                ops.fix(leaning_node[0],0,0,1)          # Restricting only rotational dof for leaning column nodes except base node
+
+            ## Pin the base of leaning column if it exists  
+                base_leaning_node_tag=self.Leaning_Nodes[0][0]
+                ops.fix(base_leaning_node_tag,1,1,1)          # Pinned support for leaning column base node
 
 
         Steel=Steel_Material(1,E=E,Fy=Fy,G=G,Hk=Hk,density=density_of_steel)
@@ -609,6 +653,27 @@ class Moment_Frame_2D:
             self.beam_connectivity[i] = beam_ij_node + [section_name] + ['x']+['beam']   ###'x' is hard coded because the beams are expected to be bending about major axis only (Discussed in meeting with prof.)
 
         self.all_element_connectivity_section_and_bending_axes_detail=self.column_connectivity+self.beam_connectivity
+
+        ## Define leaning column elements (corrotational truss/truss with large AE/L) if required ##
+        if self.Leaning_column:
+            for leaning_col_ij in self.leaning_column_connectivity:
+                eleTag = leaning_col_ij[0]
+                node_i = leaning_col_ij[1]
+                node_j = leaning_col_ij[2]
+                if self.Second_order_effects:
+                    ops.element('corotTruss', eleTag, node_i, node_j, 100 ,1,'-rho',1)
+                else:
+                    ops.element('truss', eleTag, node_i, node_j, 100 ,1, '-rho',1)
+
+            ## Define geometric constraint between leaning column nodes and main frame nodes at each floor level ## 
+            for constraint in self.leaning_column_and_frame_beam_connectivity:
+                eleTag = constraint[0]
+                main_frame_node_tag = constraint[1]
+                leaning_column_node_tag = constraint[2]
+                ops.equalDOF(main_frame_node_tag,leaning_column_node_tag,1,2)  # Constraining UX and UY of leaning column node to main frame node
+
+
+
 
         self.roof_beams=[]
         for beams in self.beam_connectivity:
@@ -823,8 +888,8 @@ class Moment_Frame_2D:
 
           
                 
-        # opsv.plot_model()
-        # opsv.plot_load()
+        opsv.plot_model()
+        opsv.plot_load()
 
     def run_load_controlled_analysis(self,steps = 10,plot_defo=False,display_reactions=False):
 
@@ -1004,7 +1069,8 @@ class Moment_Frame_2D:
             # Create output folder
             os.makedirs(self.Frame_id, exist_ok=True)
 
-            ops.constraints('Plain')
+            # ops.constraints('Plain')
+            ops.constraints('Transformation')
             ops.numberer('RCM')
             ops.system('UmfPack')
             ops.test('NormUnbalance', 1e-3, 10)
@@ -1205,7 +1271,8 @@ class Moment_Frame_2D:
             # Create output folder
             os.makedirs(self.Frame_id, exist_ok=True)
 
-            ops.constraints('Plain')
+            # ops.constraints('Plain')
+            ops.constraints('Transformation')
             ops.numberer('RCM')
             ops.system('UmfPack')
             ops.test('NormUnbalance', 1e-3, 10)
