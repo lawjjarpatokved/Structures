@@ -375,7 +375,11 @@ Frame_Info={
         'Wind_load_floor': 6.56*kip,
         'Wind_load_roof': 2.81*kip,
         'Wall_load':0,
-        'geometric_imperfection_ratio': 1 / 500
+        'geometric_imperfection_ratio': 1 / 500,
+        'Leaning_column':True,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load':2,
+        'Leaning_column_roof_load':1
          },
 
 

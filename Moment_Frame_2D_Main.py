@@ -96,6 +96,8 @@ class Moment_Frame_2D:
                   'wind_load_dirn':'right',
                   'Leaning_column':True,
                   'Leaning_column_offset':4,
+                  'Leaning_column_floor_load':0,
+                  'Leaning_column_roof_load':0,
                   'plot_sections':False}
         
         for key,value in defaults.items():
@@ -507,8 +509,8 @@ class Moment_Frame_2D:
                 ops.fix(leaning_node[0],0,0,1)          # Restricting only rotational dof for leaning column nodes except base node
 
             ## Pin the base of leaning column if it exists  
-                base_leaning_node_tag=self.Leaning_Nodes[0][0]
-                ops.fix(base_leaning_node_tag,1,1,1)          # Pinned support for leaning column base node
+            base_leaning_node_tag=self.Leaning_Nodes[0][0]
+            ops.fix(base_leaning_node_tag,1,1,1)          # Pinned support for leaning column base node
 
 
         Steel=Steel_Material(1,E=E,Fy=Fy,G=G,Hk=Hk,density=density_of_steel)
@@ -670,7 +672,7 @@ class Moment_Frame_2D:
                 eleTag = constraint[0]
                 main_frame_node_tag = constraint[1]
                 leaning_column_node_tag = constraint[2]
-                ops.equalDOF(main_frame_node_tag,leaning_column_node_tag,1,2)  # Constraining UX and UY of leaning column node to main frame node
+                ops.equalDOF(main_frame_node_tag,leaning_column_node_tag,1)  # Constraining UX and UY of leaning column node to main frame node
 
 
 
@@ -868,8 +870,14 @@ class Moment_Frame_2D:
             for node in self.axis_i_roof_nodes(1):
                 ops.load(node, vertical_load_scale * self.roof_notional_load(), 0, 0.0)
                 # print('line856',node,lateral_load_scale * self.roof_notional_load()) 
-     
 
+        if self.Leaning_column:
+            ## Add vertical loads to the floor and roof nodes of leaning columns ##
+            ## floor nodes ##
+            for i in range(1,self.no_of_stories):
+                ops.load(self.Leaning_Nodes[i][0], 0.0, -vertical_load_scale * self.Leaning_column_floor_load, 0.0)
+            ## roof node ##
+            ops.load(self.Leaning_Nodes[-1][0], 0.0, -vertical_load_scale * self.Leaning_column_roof_load, 0.0)
 
     def add_lateral_wind_loads(self, lateral_load_scale=1.0):
         ##Lateral Loads
@@ -891,91 +899,258 @@ class Moment_Frame_2D:
         opsv.plot_model()
         opsv.plot_load()
 
-    def run_load_controlled_analysis(self,steps = 10,plot_defo=False,display_reactions=False):
+    def return_drift_of_all_storeys_at_given_axis(self,i): 
+        ## Calculate the drift of each storey at one of the axis (say axis i).
+        ## At each axis I need to separately find the drift of first story using the nodes to fix and 
+        ## axis i floor nodes. and the use loop to find the drift of other storeys. and again find the drift
+        ## of roof using axis i roof nodes and last element of axis i floor nodes.
+        drift = []
+        ## First storey drift
+        base_node_tag = self.NODES_TO_FIX[i-1][0]
+        storey_nodes_tags = self.axis_i_floor_nodes(i)
+        roof_node_tag = self.axis_i_roof_nodes(i)[0]
+        first_storey_drift= ops.nodeDisp(storey_nodes_tags[0],1)-ops.nodeDisp(base_node_tag,1)
+        drift.append(first_storey_drift)
 
-            
-        """
-        Runs gravity analysis.
-        Note that the model should be built before
-        calling this function.
+        ## Other storeys drift
+        for storey in range(1,self.no_of_stories-1):
+            lower_storey_node_tag = self.axis_i_floor_nodes(i)[storey-1]
+            upper_storey_node_tag = self.axis_i_floor_nodes(i)[storey]
+            storey_drift= ops.nodeDisp(upper_storey_node_tag,1)-ops.nodeDisp(lower_storey_node_tag,1)
+            drift.append(storey_drift)
+
+        ## Roof drift
+        last_storey_node_tag = self.axis_i_floor_nodes(i)[-1]
+        roof_drift= ops.nodeDisp(roof_node_tag,1)-ops.nodeDisp(last_storey_node_tag,1)
+        drift.append(roof_drift)
+        return drift          
+
+    def run_load_controlled_anlaysis(self,**kwargs):
+
+        incr_LCA= kwargs.get('incr_LCA', 0.1)          ######### LCA refers to Load Controlled Analysis
+        num_steps_LCA= kwargs.get('num_steps_LCA', 10)            ######### LCA refers to Load Controlled Analysis
+        steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
+        eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
+        P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
+        # try_smaller_steps = kwargs.get('try_smaller_steps', True)
+        # control_dir=kwargs.get('control_dir','L')  # L for lateral and V for Vertical
+        # ops_analysis=kwargs.get('analysis','proportional_limit_point')
+        lateral_load_scale=kwargs.get('lateral_load_scale',1)
+        vertical_load_scale=kwargs.get('vertical_load_scale',1)
+
+
+        # Initialize analysis results
+        results = AnalysisResults()
+        attributes = ['load_ratio','vertical_reaction','base_shear','control_node_displacement', 'control_node_displacement_absolute',
+                      'lowest_eigenvalue','absolute_maximum_strain','max_P_M_M_interaction','P_M_M_interaction_all_elements','Element_Forces']
         
-        Keyword arguments:
-        steps -- total number of analysis steps
+        for attr in attributes:
+            setattr(results, attr, [])
 
-        """
+        # Define function to find limit point
+        def find_limit_point():
+            if Moment_Frame_2D.print_ops_status:
+                print(results.exit_message)
+            if 'Moving to Displacement Controlled Analysis' in results.exit_message:
+                return
+            if  'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading' in results.exit_message:
+                ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
+            if 'Analysis Failed' in results.exit_message:
+                ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
+            elif 'Eigenvalue Limit' in results.exit_message:
+                ind, x = find_limit_point_in_list(results.lowest_eigenvalue, eigenvalue_limit)
+            elif 'Extreme Steel Fiber Strain Limit Reached' in results.exit_message:
+                ind, x = find_limit_point_in_list(results.absolute_maximum_strain, steel_strain_limit)
+            elif 'P_M_M interaction Limit Reached' in results.exit_message:
+                ind, x = find_limit_point_in_list(results.max_P_M_M_interaction, P_M_M_interaction_limit)            
+            else:
+                raise Exception('Unknown limit point')
+            results.maximum_load_ratio_at_limit_point = interpolate_list(results.load_ratio, ind, x)
+            print('Line 884, Max Load Ratio',results.maximum_load_ratio_at_limit_point)
 
+        fail_during_LCA=True
+
+        ops.timeSeries('Linear', self.load_timeseries_counter)
+        ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
+        self.add_vertical_dead_live_wall_notional_loads(vertical_load_scale=vertical_load_scale)
+        self.add_lateral_wind_loads(lateral_load_scale=lateral_load_scale)
+        # region Define recorder
+        def record():
+            time = ops.getTime()
+            results.load_ratio.append(time)
+            ops.reactions()
+            total_vertical_rxn=sum(ops.nodeReaction(n[0])[1] for n in self.NODES_TO_FIX)
+            base_shear=sum(ops.nodeReaction(n[0])[0] for n in self.NODES_TO_FIX)
+            results.vertical_reaction.append(total_vertical_rxn)
+            results.base_shear.append(base_shear)
+            results.lowest_eigenvalue.append(ops.eigen("-genBandArpack", 1)[0])
+            results.absolute_maximum_strain.append(self.return_max_of_fiber_strain_in_all_elements())
+            # results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
+            max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=self.return_P_M_M_interaction_values()
+            results.max_P_M_M_interaction.append(max_PMM)
+            results.P_M_M_interaction_all_elements.append(P_M_M_interaction_all_elements)
+            results.Element_Forces.append(Element_Forces)
+        # endregion
+
+        # # Control node for lateral deflection
+        # if control_dir=='L':
+        #     control_direction='lateral'
+        #     control_node = self.axis_i_roof_nodes(1)[0]   
+        #     control_dof = 1  # horizontal displacement
+        # # Control node for vertical deflection of beam node
+        # else:
+        #     control_direction='vertical'
+        #     control_node = self.bay_i_internal_roof_nodes(1)[0]  
+        #     control_dof = 2  # vertical displacement
         ops.initialize()
-        # Records the response of a number of nodes at every converged step
-        self.main_node_tags=[tags[0] for tags in sorted(self.Main_Nodes,key=lambda x:x[2])]
-        # Ensure output folder exists
+        # Create output folder
         os.makedirs(self.Frame_id, exist_ok=True)
-        filename=self.Frame_id+'/Gravity_Displacements.out'
-        ops.recorder('Node', '-file', filename,
-                    '-time','-node', *self.main_node_tags, '-dof',*[1] , 'disp')
 
-        # plain constraint handler enforces homogeneous single point constraints
-        ops.constraints('Plain')
-
-        # RCM numberer uses the reverse Cuthill-McKee scheme to order the matrix equations
+        # ops.constraints('Plain')
+        ops.constraints('Transformation')
         ops.numberer('RCM')
-
-        # Constructs a profileSPDSOE (Symmetric Positive Definite) system of equation object
-        ops.system('ProfileSPD')
-
-        # Uses the norm of the left hand side solution vector of the matrix equation to
-        # determine if convergence has been reached
-        ops.test('NormDispIncr', 1.0e-6, 100, 0, 2)
-
-        # Uses the Newton-Raphson algorithm to solve the nonlinear residual equation
+        ops.system('UmfPack')
+        ops.test('NormUnbalance', 1e-3, 10)
         ops.algorithm('Newton')
-
-        # Uses LoadControl integrator object
-        ops.integrator('LoadControl', 1/steps)
-
-        # Constructs the Static Analysis object
+        ops.integrator('LoadControl',incr_LCA)  ## incr_LCA because, we do not want to apply the entire load during load controlled analysis.
         ops.analysis('Static')
 
-        # Records the current state of the model
-        ops.record()
-        # Performs the analysis
-        ops.analyze(steps)    
-        Moment_Frame_2D.generate_clean_csv_file_from_messy_out_files(filename)
+        record()
+        for i in range(num_steps_LCA):
+            if Moment_Frame_2D.print_ops_status:
+                print(f'Running Load Controlled Analysis Step {i}')
+            ok = ops.analyze(1)
+            if ok != 0:
+                print(f'Load controlled analysis failed in step {i}')
+                results.exit_message = 'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading'
+                # find_limit_point()
+                return results,fail_during_LCA
+            else:
+                print('Load controlled analysis PASSED')
+                results.exit_message='Moving to Displacement Controlled Analysis'
+            record()
 
-        # === Track horizontal displacement of top node in axis 1 ===
-        '''
-        By tracking the displacement of the top node, the displacement controlled analysis decides whether to 
-        perform the analysis for left or right lateral displacement'''
-        top_node_tag = self.axis_i_roof_nodes(1)[0]  # This returns the tag of top node in the frist axis
-        disp_x = ops.nodeDisp(top_node_tag, 1)       # DOF 1 = horizontal
-        print(f"Horizontal displacement of control node {top_node_tag} = {disp_x:.5f} ")
-              
-        if display_reactions:
-            print("Reactions at base nodes:")
-            total_rx = 0.0
-            total_ry = 0.0
-            total_Mz = 0.0
+            # Check for lowest eigenvalue less than zero
+            if eigenvalue_limit is not None:
+                if results.lowest_eigenvalue[-1] < eigenvalue_limit:
+                    results.exit_message = 'Eigenvalue Limit Reached'
+                    # find_limit_point()
+                    return results,fail_during_LCA
+                    # break
 
-            for base_node in [n[0] for n in self.NODES_TO_FIX]:  # extract node tags from base node lists
-                ops.reactions()
-                rxn=ops.nodeReaction(base_node)
-                rx, ry, rz = rxn[0], rxn[1], rxn[2]
-                total_rx += rx
-                total_ry += ry
-                total_Mz += rz
-                print(f"Node {base_node}: Rx = {rx:.4f}, Ry = {ry:.4f}, Mz = {rz:.4f}")
+            # Check for strain in extreme steel fiber
+            if steel_strain_limit is not None:
+                # if Moment_Frame_2D.print_ops_status:
+                #     print(f'Checking Steel Tensile Strain')
+                if results.absolute_maximum_strain[-1] > steel_strain_limit:
+                    results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
+                    # find_limit_point()
+                    return results,fail_during_LCA
+                    # break
+            # Check for maximum PMM interaction value    
+            if self.Elastic_analysis:
+                if P_M_M_interaction_limit is not None:
+                    # if Moment_Frame_2D.print_ops_status:
+                    #     print(f'Checking PMM Interaction')
+                    if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+                        results.exit_message = 'P_M_M interaction Limit Reached'
+                        # find_limit_point()
+                        return results,fail_during_LCA
 
-            print(f"\nTotal Reactions: Rx = {total_rx:.4f}, Ry = {total_ry:.4f}, Mz = {total_Mz:.4f}")
-
-
-        # forces=ops.eleResponse(9,'localForce')
-        # print("Forces",forces)
-        print("Gravity analysis Done!")
-        if plot_defo==True:
-            opsv.plot_defo()
-        else:
-            pass
+        ## Store drift at all storeys at axis 1 ##
         
-        return disp_x
+        drift=self.return_drift_of_all_storeys_at_given_axis(1)
+        max_drift= max(abs(d) for d in drift)
+            
+        
+
+        
+
+    # def run_load_controlled_analysis(self,steps = 10,plot_defo=False,display_reactions=False):
+
+            
+    #     """
+    #     Runs gravity analysis.
+    #     Note that the model should be built before
+    #     calling this function.
+        
+    #     Keyword arguments:
+    #     steps -- total number of analysis steps
+
+    #     """
+
+    #     ops.initialize()
+    #     # Records the response of a number of nodes at every converged step
+    #     self.main_node_tags=[tags[0] for tags in sorted(self.Main_Nodes,key=lambda x:x[2])]
+    #     # Ensure output folder exists
+    #     os.makedirs(self.Frame_id, exist_ok=True)
+    #     filename=self.Frame_id+'/Gravity_Displacements.out'
+    #     ops.recorder('Node', '-file', filename,
+    #                 '-time','-node', *self.main_node_tags, '-dof',*[1] , 'disp')
+
+    #     # plain constraint handler enforces homogeneous single point constraints
+    #     ops.constraints('Plain')
+
+    #     # RCM numberer uses the reverse Cuthill-McKee scheme to order the matrix equations
+    #     ops.numberer('RCM')
+
+    #     # Constructs a profileSPDSOE (Symmetric Positive Definite) system of equation object
+    #     ops.system('ProfileSPD')
+
+    #     # Uses the norm of the left hand side solution vector of the matrix equation to
+    #     # determine if convergence has been reached
+    #     ops.test('NormDispIncr', 1.0e-6, 100, 0, 2)
+
+    #     # Uses the Newton-Raphson algorithm to solve the nonlinear residual equation
+    #     ops.algorithm('Newton')
+
+    #     # Uses LoadControl integrator object
+    #     ops.integrator('LoadControl', 1/steps)
+
+    #     # Constructs the Static Analysis object
+    #     ops.analysis('Static')
+
+    #     # Records the current state of the model
+    #     ops.record()
+    #     # Performs the analysis
+    #     ops.analyze(steps)    
+    #     Moment_Frame_2D.generate_clean_csv_file_from_messy_out_files(filename)
+
+    #     # === Track horizontal displacement of top node in axis 1 ===
+    #     '''
+    #     By tracking the displacement of the top node, the displacement controlled analysis decides whether to 
+    #     perform the analysis for left or right lateral displacement'''
+    #     top_node_tag = self.axis_i_roof_nodes(1)[0]  # This returns the tag of top node in the frist axis
+    #     disp_x = ops.nodeDisp(top_node_tag, 1)       # DOF 1 = horizontal
+    #     print(f"Horizontal displacement of control node {top_node_tag} = {disp_x:.5f} ")
+              
+    #     if display_reactions:
+    #         print("Reactions at base nodes:")
+    #         total_rx = 0.0
+    #         total_ry = 0.0
+    #         total_Mz = 0.0
+
+    #         for base_node in [n[0] for n in self.NODES_TO_FIX]:  # extract node tags from base node lists
+    #             ops.reactions()
+    #             rxn=ops.nodeReaction(base_node)
+    #             rx, ry, rz = rxn[0], rxn[1], rxn[2]
+    #             total_rx += rx
+    #             total_ry += ry
+    #             total_Mz += rz
+    #             print(f"Node {base_node}: Rx = {rx:.4f}, Ry = {ry:.4f}, Mz = {rz:.4f}")
+
+    #         print(f"\nTotal Reactions: Rx = {total_rx:.4f}, Ry = {total_ry:.4f}, Mz = {total_Mz:.4f}")
+
+
+    #     # forces=ops.eleResponse(9,'localForce')
+    #     # print("Forces",forces)
+    #     print("Gravity analysis Done!")
+    #     if plot_defo==True:
+    #         opsv.plot_defo()
+    #     else:
+    #         pass
+        
+    #     return disp_x
 
     def run_displacement_controlled_analysis(self, target_disp=10, steps=20000, plot_defo=True,**kwargs):
         """
