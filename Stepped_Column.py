@@ -7,13 +7,15 @@ from libdenavit.OpenSees.plotting import *
 
 class Stepped_Column:
 
-    def __init__(self,bottom_column_section_name,height_of_bottom_column,number_of_elements_bottom_column,
-                 top_column_section_name,height_of_top_column,number_of_elements_top_column,offset_1,offset_2,offset_3,**kwargs):
+    def __init__(self,bottom_column_section_name,height_of_bottom_column,number_of_elements_bottom_column,load_on_bottom_column,
+                 top_column_section_name,height_of_top_column,number_of_elements_top_column,load_on_top_column,offset_1,offset_2,offset_3,**kwargs):
 
         self.height_of_bottom_column = height_of_bottom_column
         self.height_of_top_column = height_of_top_column
         self.number_of_elements_bottom_column = number_of_elements_bottom_column
         self.number_of_elements_top_column = number_of_elements_top_column
+        self.load_on_bottom_column = load_on_bottom_column
+        self.load_on_top_column = load_on_top_column
         self.bottom_column_section_name = bottom_column_section_name
         self.top_column_section_name = top_column_section_name 
         self.offset1 = offset_1  ## dist from top of bottom column to right node where point load is applied for bottom column
@@ -22,7 +24,7 @@ class Stepped_Column:
         self.length_of_single_bottom_column_element = height_of_bottom_column/number_of_elements_bottom_column 
         self.length_of_single_top_column_element = height_of_top_column/number_of_elements_top_column
 
-        defaults={'nip':4,
+        defaults={'nip':3,
                   'mat_type':'Steel01',
                   'nfy':20,
                   'nfx':20,
@@ -33,9 +35,11 @@ class Stepped_Column:
                   'Elastic_analysis':False,
                   'Second_order_effects':True,
                   'Residual_Stress':True,
+                  'Geometric_Imperfection':False,
+                  'geometric_imperfection_ratio':1/500,
                   'stiffness_reduction':1,
                   'strength_reduction':1,
-                  }    
+                  'show_model':True}    
         
         for key,value in defaults.items():
             setattr(self,key,kwargs.get(key,value))
@@ -48,22 +52,50 @@ class Stepped_Column:
 
         ## Bottom node of bottom column
         ops.node(1,0.0,0.0)
+
         ## Create nodes along bottom column
         for i in range(self.number_of_elements_bottom_column):
-            ops.node(i+2,0.0,(i+1)*self.length_of_single_bottom_column_element)
+            x=0.0
+            y=(i+1)*self.length_of_single_bottom_column_element
+            if not self.Geometric_Imperfection:
+                ops.node(i+2,x,y)
+            else:
+                ops.node(i+2,x+self.geometric_imperfection_ratio*y,y)
         bottom_column_top_node_tag=self.number_of_elements_bottom_column+1
+
         ## Create right offset node for bottom column
         right_offset1_node_tag=bottom_column_top_node_tag+1
-        ops.node(right_offset1_node_tag,self.offset1,self.height_of_bottom_column)
+        x=self.offset1
+        y=self.height_of_bottom_column
+        if not self.Geometric_Imperfection:
+            ops.node(right_offset1_node_tag,x,y)
+        else:
+            ops.node(right_offset1_node_tag,x+self.geometric_imperfection_ratio*y,y)
+        
         ## Create nodes along top column
         top_column_bottom_node_tag=right_offset1_node_tag+1
-        ops.node(top_column_bottom_node_tag,-self.offset2,self.height_of_bottom_column)
+        if not self.Geometric_Imperfection:
+            ops.node(top_column_bottom_node_tag,-self.offset2,self.height_of_bottom_column)
+        else:
+            ops.node(top_column_bottom_node_tag,-self.offset2+self.geometric_imperfection_ratio*self.height_of_bottom_column,self.height_of_bottom_column)
+
         for j in range(self.number_of_elements_top_column):
-            ops.node(top_column_bottom_node_tag+j+1,-self.offset2,self.height_of_bottom_column+(j+1)*self.length_of_single_top_column_element)
+            if not self.Geometric_Imperfection:
+                ops.node(top_column_bottom_node_tag+j+1,-self.offset2,self.height_of_bottom_column+(j+1)*self.length_of_single_top_column_element)
+            else:
+                 ops.node(top_column_bottom_node_tag+j+1,-self.offset2+self.geometric_imperfection_ratio*(self.height_of_bottom_column+(j+1)*self.length_of_single_top_column_element),self.height_of_bottom_column+(j+1)*self.length_of_single_top_column_element)
+            
         top_column_top_node_tag=top_column_bottom_node_tag+self.number_of_elements_top_column
+
         ## Create right offset node for top column
         right_offset3_node_tag=top_column_top_node_tag+1
-        ops.node(right_offset3_node_tag,-self.offset2+self.offset3,self.height_of_bottom_column+self.height_of_top_column)
+        x=self.offset3
+        y=self.height_of_bottom_column+self.height_of_top_column
+        if not self.Geometric_Imperfection:
+            ops.node(right_offset3_node_tag,x,y)
+        else:
+            ops.node(right_offset3_node_tag,x+self.geometric_imperfection_ratio*y,y)
+        
 
         ## Define geometric transformation for columns
         col_TransTag=1
@@ -122,7 +154,7 @@ class Stepped_Column:
         
         ## Define 2nd offset beam element at bottom of top column
         offset2_element_tag=offset1_element_tag+1
-        ops.element('forceBeamColumn',offset2_element_tag,right_offset1_node_tag,top_column_bottom_node_tag,
+        ops.element('forceBeamColumn',offset2_element_tag,bottom_column_top_node_tag,top_column_bottom_node_tag,
                     col_TransTag,offset_beam_section_tag)
         
         ## Define top column section
@@ -163,9 +195,14 @@ class Stepped_Column:
         ## Apply point load at right offset node of bottom column and offset node of top column
         ops.timeSeries('Linear',1)
         ops.pattern('Plain',1,1)
-        ops.load(right_offset1_node_tag,0.0,-1.0,0.0)  ## Apply vertical downward load
-        ops.load(right_offset3_node_tag,0.0,-1.0,0.0)  ## Apply vertical downward load
+        ops.load(right_offset1_node_tag,0.0,-self.load_on_bottom_column,0.0)  ## Apply vertical downward load
+        ops.load(right_offset3_node_tag,0.0,-self.load_on_top_column,0.0)  ## Apply vertical downward load
 
+        if self.show_model: 
+            opsv.plot_model()
+            opsv.plot_load()
+    
+    
     def plot_model(self):
         # show quick model diagnostics then plot using libdenavit's plotting
         try:
@@ -177,16 +214,15 @@ class Stepped_Column:
         plot_undeformed_2d(axis_equal=True)
 
 
-Stepped_Column = Stepped_Column(bottom_column_section_name='W14X90',height_of_bottom_column=120.0,number_of_elements_bottom_column=4,
-                                    top_column_section_name='W14X132',height_of_top_column=80.0,number_of_elements_top_column=4,
-                                    offset_1=4.0,offset_2=4.0,offset_3=2.0,
+Stepped_Column = Stepped_Column(bottom_column_section_name='W14X90',height_of_bottom_column=120.0,number_of_elements_bottom_column=1,load_on_bottom_column=10,
+                                    top_column_section_name='W14X132',height_of_top_column=80.0,number_of_elements_top_column=1,load_on_top_column=5,
+                                    offset_1=4.0,offset_2=4.0,offset_3=6.0,
                                     Fy=36,E=29000,
                                     Elastic_analysis=False,
                                     Second_order_effects=True,
-                                    Residual_Stress=True) 
+                                    Residual_Stress=True,
+                                    Geometric_Imperfection=True,
+                                    geometric_imperfection_ratio=-1/10)
+
 Stepped_Column.build_stepped_column()
 Stepped_Column.plot_model()
-try:
-    opsv.plot_model()
-except Exception as e:
-    print("opsvis.plot_model() failed or produced no visible output:", e)
