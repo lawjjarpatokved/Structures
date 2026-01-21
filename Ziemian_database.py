@@ -376,7 +376,51 @@ Frame_Info={
         'Wind_load_roof': 2.81*kip,
         'Wall_load':0,
         'geometric_imperfection_ratio': 1 / 500,
-        'Leaning_column':True,
+        'Leaning_column':False,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load':2,
+        'Leaning_column_roof_load':1
+         },
+
+
+
+        'SP36H_copy': {
+        'Frame_id':'Ziemian_SP36H_copy',
+        'bay_width': [34 * ft, 34 * ft],
+        'story_height': [20 * ft, 15 * ft],
+        'column_no_of_ele': 2,
+        'beam_no_of_ele': 4,
+        'beam_section':
+          {
+            'common_and_exceptions': 
+            {
+                'common': 'W33X118',
+                '(1,2)': 'W24X62',
+                '(2,2)': 'W24X62',
+             }
+         },
+        'column_section':
+         {
+            'common_and_exceptions': 
+            {
+                'common': ('W14X53', 'x'),
+                '(2,1)': ('W14X90', 'x'),
+                '(1,2)': ('W14X53', 'x'),
+                '(2,2)': ('W14X22', 'x'),
+                '(3,2)': ('W14X53', 'x'),
+            }
+        },
+        'support': 'ppp',
+        'load_comb_multipliers': [1.2, 0, 0, 1],
+        'D_floor_intensity': 0 * kip / ft,
+        'D_roof_intensity': 0 * kip / ft,
+        'L_floor_intensity': 0 * kip / ft,
+        'L_roof_intensity': 0 * kip / ft,
+        'Wind_load_floor': 0*kip,
+        'Wind_load_roof': 0*kip,
+        'Wall_load':0,
+        'geometric_imperfection_ratio': 1 / 500,
+        'Leaning_column':False,
         'Leaning_column_offset': 2,
         'Leaning_column_floor_load':2,
         'Leaning_column_roof_load':1

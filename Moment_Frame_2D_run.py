@@ -45,7 +45,11 @@ def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1
                     Geometric_Imperfection=Analysis_details.Geometric_Imperfection,
                     nip=3,
                     mat_type='Steel01',
-                    wind_load_dirn=wind_load_dirn)
+                    wind_load_dirn=wind_load_dirn,
+                    Leaning_column=Frame_details.Leaning_column,
+                    Leaning_column_offset=Frame_details.Leaning_column_offset,
+                    Leaning_column_floor_load=Frame_details.Leaning_column_floor_load,
+                    Leaning_column_roof_load=Frame_details.Leaning_column_roof_load)
 
     Frame.generate_Nodes_and_Element_Connectivity()
     Frame.create_distorted_nodes_and_element_connectivity(Frame_details.geometric_imperfection_ratio)
@@ -566,7 +570,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False):
 
 
 
-Frame_number= ['SF36H']      # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
+Frame_number= ['SP36H']      # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
 Analysis_type= ['GMNA'  ,  'GMNIA'  ,'GNA', 'GNIA', 'GNA_Notional_Loads']
 
 

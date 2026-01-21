@@ -15,6 +15,7 @@ import copy
 import matplotlib.cm as color
 from matplotlib.colors import Normalize
 from matplotlib.animation import FuncAnimation
+import inspect
 
 #################################################
 density_of_steel=7850*kg/(m**3)
@@ -42,6 +43,8 @@ class Moment_Frame_2D:
                 no_of_elements_column, no_of_elements_beam,
                  beam_section,column_section,load_combination_multipliers,Frame_id,
                  **kwargs):
+        # ---- Save a "constructor snapshot" for later cloning ---- This is useful for resetting or duplicating the model. Eg. Calculation of del2_over_del1
+        self._init_spec = copy.deepcopy({k: v for k, v in locals().items() if k != "self"})
 
         self.bay_width=[0]+width_of_bay
         self.storey_height = [0] + storey_height
@@ -295,15 +298,13 @@ class Moment_Frame_2D:
 
         #### Generating leaning column nodes and connectivity if required ####
         if self.Leaning_column:
-            print('Generating leaning column nodes and connectivity')
-            print(self.length_of_frame)
             x_coord=self.length_of_frame + self.Leaning_column_offset
             y_coord=0
             for j in range(self.no_of_stories+1): # 0 to 98
                 y_coord= y_coord+ self.storey_height[j]
                 node_tag=100000+j
                 self.Leaning_Nodes.append([node_tag,x_coord,y_coord])
-            print('Line 304',self.Leaning_Nodes)
+            
 
             ## Generate nodal connectivity for leaning columns
             self.leaning_column_connectivity=[]
@@ -692,6 +693,34 @@ class Moment_Frame_2D:
     #                                'deformation') 
     #         print('line 605',resp)
     #         return resp[1]
+
+
+    def rebuild_with_overrides(self, **overrides):
+        ## This function rebuilds the current instance with overridden parameters.This is 
+        ## useful for parametric studies where only a few parameters need to be changed.
+        ## For example, this method can be used for the calculation of del2_over_del1 parameter
+        ## for a frame whatever be the original analysis choice (Second order effects: True or False) made during instantiation of the class.
+        spec = copy.deepcopy(self._init_spec)
+        spec.setdefault("kwargs", {})
+
+        sig = inspect.signature(self.__class__.__init__)
+        explicit_params = {
+            p.name for p in sig.parameters.values()
+            if p.name not in ("self",) and p.kind != inspect.Parameter.VAR_KEYWORD
+        }
+
+        # Apply overrides: explicit args stay explicit, everything else goes into **kwargs
+        for k, v in overrides.items():
+            if k in explicit_params:
+                spec[k] = copy.deepcopy(v)
+            else:
+                spec["kwargs"][k] = copy.deepcopy(v)
+
+        #  split the call into explicit args + **kwargs dict
+        kwargs_dict = spec.pop("kwargs", {})
+        return self.__class__(**spec, **kwargs_dict)
+    
+    
     
     def return_max_of_fiber_strain_in_all_elements(self):
         ## returns the maximum strain from among all elements in the Frame
@@ -899,7 +928,7 @@ class Moment_Frame_2D:
         opsv.plot_model()
         opsv.plot_load()
 
-    def return_drift_of_all_storeys_at_given_axis(self,i): 
+    def  return_drift_of_all_storeys_at_given_axis(self,i): 
         ## Calculate the drift of each storey at one of the axis (say axis i).
         ## At each axis I need to separately find the drift of first story using the nodes to fix and 
         ## axis i floor nodes. and the use loop to find the drift of other storeys. and again find the drift
@@ -1060,9 +1089,30 @@ class Moment_Frame_2D:
         ## Store drift at all storeys at axis 1 ##
         
         drift=self.return_drift_of_all_storeys_at_given_axis(1)
-        max_drift= max(abs(d) for d in drift)
-            
+        return drift
         
+
+    def get_del2_over_del1(self):
+
+        Second_order_frame=self.rebuild_with_overrides(Second_order_effects=True)
+        Second_order_frame.generate_Nodes_and_Element_Connectivity()
+        Second_order_frame.build_ops_model()
+        drift_with_second_order_effects=Second_order_frame.run_load_controlled_anlaysis()
+        print('drift_with_second_order_effects',drift_with_second_order_effects)
+
+        First_order_frame=self.rebuild_with_overrides(Second_order_effects=False)
+        First_order_frame.generate_Nodes_and_Element_Connectivity()
+        First_order_frame.build_ops_model()
+        drift_with_first_order_effects=First_order_frame.run_load_controlled_anlaysis()
+        print('drift_with_first_order_effects',drift_with_first_order_effects)
+
+        del2_over_del1=[]
+        for i in range(len(drift_with_first_order_effects)):
+            del2_over_del1.append(drift_with_second_order_effects[i]/drift_with_first_order_effects[i])
+        print('del2_over_del1',del2_over_del1)
+        input()
+        return max(del2_over_del1)
+
 
         
 
