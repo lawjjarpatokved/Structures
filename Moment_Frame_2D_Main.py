@@ -1110,7 +1110,7 @@ class Moment_Frame_2D:
         for i in range(len(drift_with_first_order_effects)):
             del2_over_del1.append(drift_with_second_order_effects[i]/drift_with_first_order_effects[i])
         print('del2_over_del1',del2_over_del1)
-        input()
+        
         return max(del2_over_del1)
 
 
@@ -1211,8 +1211,8 @@ class Moment_Frame_2D:
             steps (int): Number of steps to reach target
             plot_defo (bool): Whether to plot deformed shape at end
         """
-        incr_LCA= kwargs.get('incr_LCA', 0.0001)          ######### LCA refers to Load Controlled Analysis
-        num_steps_LCA= kwargs.get('num_steps_LCA', 100)            ######### LCA refers to Load Controlled Analysis
+        incr_LCA= kwargs.get('incr_LCA', 0.01)          ######### LCA refers to Load Controlled Analysis
+        num_steps_LCA= kwargs.get('num_steps_LCA', 10)            ######### LCA refers to Load Controlled Analysis
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
         P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
@@ -1550,6 +1550,11 @@ class Moment_Frame_2D:
 
 
             dU = target_disp / steps
+            print(results.control_node_displacement)
+            print(results.vertical_reaction)
+            print(results.base_shear)
+            print(control_dof)
+            input()
             if results.control_node_displacement[-1]<0 or control_dof==2:
                 dU=-dU 
             ops.loadConst('-time', 0.0)
@@ -1744,7 +1749,7 @@ class Moment_Frame_2D:
         
     
     def plot_model(self):
-        plot_undeformed_2d()
+        plot_undeformed_2d(axis_equal=True)
 
     def display_node_coords(self):
         get_node_coords_and_disp()
