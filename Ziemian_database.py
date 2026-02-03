@@ -95,6 +95,8 @@ Frame_Info={
         'geometric_imperfection_ratio': 1 / 500
          },
 
+
+##########################################################################
         '100': {
         'Frame_id':'Test_Frame',
         'bay_width': [20 * ft, 48 * ft],
@@ -336,10 +338,15 @@ Frame_Info={
         'Wind_load_floor': 6.56,
         'Wind_load_roof': 2.81,
         'Wall_load':0,
-        'geometric_imperfection_ratio': 1 / 500
+        'geometric_imperfection_ratio':1/500,
+        'Leaning_column':False,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load':2,
+        'Leaning_column_roof_load':1
          },
 
 
+###########################################################################
         'SP36H': {
         'Frame_id':'Ziemian_SP36H',
         'bay_width': [34 * ft, 34 * ft],
@@ -377,12 +384,12 @@ Frame_Info={
         'Wall_load':0,
         'geometric_imperfection_ratio': 1 / 500,
         'Leaning_column':False,
-        'Leaning_column_offset': 2,
-        'Leaning_column_floor_load':2,
-        'Leaning_column_roof_load':1
+        'Leaning_column_offset': 1.5*ft,
+        'Leaning_column_floor_load':289*kip,
+        'Leaning_column_roof_load':119*kip
          },
 
-
+###########################################################################
 
         'SP36H_copy': {
         'Frame_id':'Ziemian_SP36H_copy',
@@ -426,7 +433,7 @@ Frame_Info={
         'Leaning_column_roof_load':1
          },
 
-
+########################################################################
 
         'SF36H': {
         'Frame_id':'Ziemian_SF36H',
@@ -463,7 +470,11 @@ Frame_Info={
         'Wind_load_floor': 6.56*kip,
         'Wind_load_roof': 2.81*kip,
         'Wall_load':0,
-        'geometric_imperfection_ratio': 1 / 500
+        'geometric_imperfection_ratio': 0,
+        'Leaning_column':False,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load':2,
+        'Leaning_column_roof_load':1
          },
 
 
@@ -544,7 +555,11 @@ Frame_Info={
         'Wind_load_floor': 6.56,
         'Wind_load_roof': 2.81,
         'Wall_load':0,
-        'geometric_imperfection_ratio': 1 / 500
+        'geometric_imperfection_ratio': 1 / 500,
+        'Leaning_column':False,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load':2,
+        'Leaning_column_roof_load':1
          }
 
 
