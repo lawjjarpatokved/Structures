@@ -94,8 +94,50 @@ Frame_Info={
         'Wall_load':0,
         'geometric_imperfection_ratio': 1 / 500
          },
-
-
+###########################################################################
+        'Trial_Col': {
+        'Frame_id':'Trial_Col',
+        'bay_width': [],
+        'story_height': [20 * ft, 15 * ft],
+        'column_no_of_ele': 2,   ## change to 2
+        'beam_no_of_ele': 4,     ## change to 4
+        'beam_section':
+          {
+            'common_and_exceptions': 
+            {
+                'common': 'W27X84',
+                '(2,1)': 'W36X170',
+                '(1,2)': 'W21X44',
+                '(2,2)': 'W27X102',
+             }
+         },
+        'column_section':
+         {
+            'common_and_exceptions': 
+            {
+                'common': ('W8X15', 'x'),
+                '(2,1)': ('W14X132', 'x'),
+                '(3,1)': ('W14X120', 'x'),
+                '(1,2)': ('W8X13', 'x'),
+                '(2,2)': ('W14X120', 'x'),
+                '(3,2)': ('W14X109', 'x'),
+            }
+        },
+        'support': 'p',
+        'load_comb_multipliers': [1.4, 0, 0, 0],
+        'D_floor_intensity': 7.5 * kip / ft,
+        'D_roof_intensity': 3.5 * kip / ft,
+        'L_floor_intensity': 0 * kip / ft,
+        'L_roof_intensity': 0 * kip / ft,
+        'Wind_load_floor': 6.56,
+        'Wind_load_roof': 2.81,
+        'Wall_load':0,
+        'geometric_imperfection_ratio':1/500,
+        'Leaning_column':False,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load':2,
+        'Leaning_column_roof_load':1
+         },
 ##########################################################################
         '100': {
         'Frame_id':'Test_Frame',
