@@ -43,6 +43,15 @@ Analysis_Info= {
                 'Geometric_Imperfection':False,
                 'Notional_load':True
                 },
+    'No_Second_order_effects':{
+                'Residual_Stress':False,
+                'Elastic_analysis':True,
+                'Second_order_effects':False,
+                'stiffness_reduction':0.8,
+                'strength_reduction':1,
+                'Geometric_Imperfection':False,
+                'Notional_load':True
+                },
     'GNA':{
                 'Residual_Stress':False,
                 'Elastic_analysis':True,
@@ -123,14 +132,14 @@ Frame_Info={
                 '(3,2)': ('W14X109', 'x'),
             }
         },
-        'support': 'p',
-        'load_comb_multipliers': [1.4, 0, 0, 0],
-        'D_floor_intensity': 7.5 * kip / ft,
-        'D_roof_intensity': 3.5 * kip / ft,
+        'support': 'f',
+        'load_comb_multipliers': [1, 0, 0, 0],
+        'D_floor_intensity': 7.5  * kip,
+        'D_roof_intensity': 3.5 * kip,
         'L_floor_intensity': 0 * kip / ft,
         'L_roof_intensity': 0 * kip / ft,
-        'Wind_load_floor': 6.56,
-        'Wind_load_roof': 2.81,
+        'Wind_load_floor': 6.56*10*kip,
+        'Wind_load_roof': 2.81*10*kip,
         'Wall_load':0,
         'geometric_imperfection_ratio':1/500,
         'Leaning_column':False,
@@ -425,7 +434,7 @@ Frame_Info={
         'Wind_load_roof': 2.81*kip,
         'Wall_load':0,
         'geometric_imperfection_ratio': 1 / 500,
-        'Leaning_column':False,
+        'Leaning_column':True,
         'Leaning_column_offset': 1.5*ft,
         'Leaning_column_floor_load':289*kip,
         'Leaning_column_roof_load':119*kip

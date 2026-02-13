@@ -1,10 +1,12 @@
 from MFColumn2D import *
+from Plots import line_plot
 from Ziemian_database import Frame_Info, convert_dict_items_to_class_attributes,Analysis_Info
 from libdenavit.OpenSees.get_fiber_data import *
 import opsvis as opsv 
 
 Frame_number='Trial_Col'
 Analysis_type='GMNIA'
+analysis_folder = os.path.join(Frame_number, Analysis_type)
 Frame_dict=Frame_Info[str(Frame_number)]
 Frame_details=convert_dict_items_to_class_attributes(Frame_dict)
 if Frame_details.geometric_imperfection_ratio>0:
@@ -46,7 +48,6 @@ Frame=MFColumn_2D(Frame_details.bay_width, Frame_details.story_height, Frame_det
 
 # print(Frame.get_del2_over_del1())
 Frame.generate_Nodes_and_Element_Connectivity()
-input()
 # print(Frame.Main_Nodes)
 # print(Frame.NODES_TO_FIX)
 # print(Frame.column_intermediate_nodes)
@@ -75,26 +76,55 @@ input()
 
 
 # Frame.plot_model()
-print(Frame_details.geometric_imperfection_ratio)
-input()
 Frame.create_distorted_nodes_and_element_connectivity()
 # print(Frame.all_nodes)
 # print(Frame.Main_Nodes)
 Frame.build_ops_model()
 # disp=Frame.run_load_controlled_analysis(steps=100,plot_defo=False)
-print((Frame.__dict__))
-input()
 
 opsv.plot_model()
-print(Frame.all_nodes)
-print(Frame.Second_order_effects)
-input()
 Frame.plot_model()
 # Frame.build_ops_model()
 # Frame.add_dead_live_wind_wall_loads()
 # target_disp=-10 if disp<0 else 10
-Frame.run_displacement_controlled_analysis(plot_defo=True,analysis='non_proportional_limit_point',vertical_load_scale=0.0,lateral_load_scale=1.0)
+results,_ =Frame.run_displacement_controlled_analysis(plot_defo=True,analysis='non_proportional_limit_point',vertical_load_scale=1,lateral_load_scale=1,control_dir='L')
 Frame.plot_model()
+# --- Plot 1: λ vs displacement ---
+
+filename = os.path.join(analysis_folder, f'load_ratio_vs_disp_{Frame_number}_{Analysis_type}_V.png')
+line_plot(results.control_node_displacement, results.load_ratio,
+        xlabel='Displacement at Control Node', ylabel='Load Ratio λ',
+        title='Load Ratio vs Displacement', filename=filename)
+
+# --- Plot 2: λ vs base shear ---
+filename = os.path.join(analysis_folder, f'load_ratio_vs_base_shear_{Frame_number}_{Analysis_type}_V.png')
+line_plot(results.base_shear, results.load_ratio,
+        xlabel='Base Shear', ylabel='Load Ratio λ',
+        title='Load Ratio vs Base Shear', filename=filename)
+
+# --- Plot 3: λ vs vertical reaction ---
+filename = os.path.join(analysis_folder, f'load_ratio_vs_vertical_reaction_{Frame_number}_{Analysis_type}_V.png')
+line_plot(results.vertical_reaction, results.load_ratio,
+        xlabel='Vertical Reaction', ylabel='Load Ratio λ',
+        title='Load Ratio vs Vertical Reaction', filename=filename)
+
+# --- Plot 4: λ vs max tensile strain ---
+filename = os.path.join(analysis_folder, f'load_ratio_vs_strain_{Frame_number}_{Analysis_type}_V.png')
+line_plot(results.absolute_maximum_strain, results.load_ratio,
+        xlabel='Maximum Tensile Strain', ylabel='Load Ratio λ',
+        title='Load Ratio vs Tensile Strain', filename=filename)
+
+# --- Plot 5: eigenvalue vs λ ---
+filename = os.path.join(analysis_folder, f'load_ratio_vs_eigenvalue_{Frame_number}_{Analysis_type}_V.png')
+line_plot(results.load_ratio, results.lowest_eigenvalue,
+        xlabel='Load Ratio λ', ylabel='Lowest Eigenvalue',
+        title='Eigenvalue vs Load Ratio', filename=filename)
+
+# --- Plot 6: λ vs P_M_M_interaction ---
+filename = os.path.join(analysis_folder, f'load_ratio_vs_P_M_M_interaction_{Frame_number}_{Analysis_type}_V.png')
+line_plot(results.load_ratio, results.max_P_M_M_interaction,
+        xlabel='Load Ratio λ', ylabel='max_P_M_M_interaction',
+        title='P_M_M_interaction vs Load Ratio', filename=filename)
 # Frame.save_moments_by_member()
 
 # Frame.plot_all_fiber_section_in_the_model()

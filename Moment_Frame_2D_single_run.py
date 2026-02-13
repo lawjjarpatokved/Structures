@@ -3,7 +3,7 @@ from Ziemian_database import Frame_Info, convert_dict_items_to_class_attributes,
 from libdenavit.OpenSees.get_fiber_data import *
 import opsvis as opsv 
 
-Frame_number='UP36H'
+Frame_number='SP36H'
 Analysis_type='GMNIA'
 Frame_dict=Frame_Info[str(Frame_number)]
 Frame_details=convert_dict_items_to_class_attributes(Frame_dict)
