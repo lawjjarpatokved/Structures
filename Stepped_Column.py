@@ -58,9 +58,9 @@ class Stepped_Column(Structures_2D):
         ops.model('basic','-ndm',2,'-ndf',3)
 
         ## Calculate left offset based on section depth of top and bottom column
-        bottom_column_section=WF_Database(self.bottom_column_section_name,unit=1) 
+        bottom_column_section=U.WF_Database(self.bottom_column_section_name,unit=1) 
         
-        top_column_section=WF_Database(self.top_column_section_name,unit=1)
+        top_column_section=U.WF_Database(self.top_column_section_name,unit=1)
         
         self.offset2= (bottom_column_section.d/2)-(top_column_section.d/2)     
         print("Offset2 (Left offset for top column): ",self.offset2)   
@@ -152,7 +152,7 @@ class Stepped_Column(Structures_2D):
         
         ## Define offset beam section
         offset_beam_section_tag=2
-        ops.section('Elastic', offset_beam_section_tag, 29000*ksi, 1000*(inch**2), 1.0e6*(inch**4))
+        ops.section('Elastic', offset_beam_section_tag, 29000*U.ksi, 1000*(U.inch**2), 1.0e6*(U.inch**4))
         ## Define beam integration for offset beam section
         ops.beamIntegration("Lobatto", offset_beam_section_tag, offset_beam_section_tag, self.nip)
         ## Define offset beam element at top of bottom column
