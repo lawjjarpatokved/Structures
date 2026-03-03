@@ -410,7 +410,7 @@ class Stepped_Column(Structures_2D):
         ops.test('NormUnbalance', 1e-3, 10, 1)
         ops.algorithm('Newton')   
         ops.analysis('Static')
-        ops.integrator('LoadControl', 1.0)
+        ops.integrator('LoadControl', 0.0)
         
         # Run one step with no load
         ok = ops.analyze(1)
@@ -497,7 +497,8 @@ if __name__ == "__main__":
     #Stepped_Column.show_model()
     
     #results= Stepped_Column.run_load_controlled_analysis()
-    results = Stepped_Column.run_displacement_controlled_analysis(target_disp=10, steps=100)
+    results = Stepped_Column.run_displacement_controlled_analysis(target_disp=1, steps=10000, P_M_M_interaction_limit=None)
+    print(results.exit_message)
 
     line_plot( results.load_ratio,results.control_node_displacement,
             xlabel='Load Ratio λ', ylabel='Displacement at Control Node', marker = 'o', markersize=5,
