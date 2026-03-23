@@ -10,6 +10,7 @@ import numpy as np
 from Structures_2D import Structures_2D
 
 class Stepped_Column(Structures_2D):
+    # @todo - there is a lot of extra stuff in Structures_2D that is not necessary here. 
 
     def __init__(self,bottom_column_section_name,height_of_bottom_column,load_on_bottom_column,
                  top_column_section_name,height_of_top_column,number_of_elements,load_on_top_column,lateral_load,offset_1,offset_3,**kwargs):
@@ -24,9 +25,9 @@ class Stepped_Column(Structures_2D):
         self.top_column_section_name = top_column_section_name 
         self.offset1 = offset_1  ## dist from top of bottom column to right node where point load is applied for bottom column
         self.offset3 = offset_3  ## dist from top of top column to right node where load is applied for top column
-        self.length_of_single_bottom_column_element = height_of_bottom_column/number_of_elements
-        self.length_of_single_top_column_element = height_of_top_column/number_of_elements
-        self.total_height = height_of_bottom_column + height_of_top_column
+        self.length_of_single_bottom_column_element = height_of_bottom_column/number_of_elements # @todo - this would be better as a computed property
+        self.length_of_single_top_column_element = height_of_top_column/number_of_elements # @todo - this would be better as a computed property
+        self.total_height = height_of_bottom_column + height_of_top_column # @todo - this would be better as a computed property
         self.all_element_connectivity_section_and_bending_axes_detail = []
         defaults={'nip':3,
                   'mat_type':'Steel01',
@@ -43,7 +44,7 @@ class Stepped_Column(Structures_2D):
                   'geometric_imperfection_ratio':1/500,
                   'stiffness_reduction':1,
                   'strength_reduction':1,
-                  'plot_model':True,
+                  'plot_model':False,
                   'bottom_column_bending_axes':'x',
                   'top_column_bending_axes':'x'
                   }    
@@ -63,8 +64,8 @@ class Stepped_Column(Structures_2D):
         top_column_section=U.WF_Database(self.top_column_section_name,unit=1)
         
         self.offset2= (bottom_column_section.d/2)-(top_column_section.d/2)     
-        print("Offset2 (Left offset for top column): ",self.offset2)   
-        input()
+        #print("Offset2 (Left offset for top column): ",self.offset2)   
+        #input()
 
         ## Bottom node of bottom column
         ops.node(1,0.0,0.0)
@@ -131,6 +132,8 @@ class Stepped_Column(Structures_2D):
             Ix=bottom_column_section.Ix,Zx=bottom_column_section.Zx,Sx=bottom_column_section.Sx,rx=bottom_column_section.rx,
             Iy=bottom_column_section.Iy,Zy=bottom_column_section.Zy,Sy=bottom_column_section.Sy,ry=bottom_column_section.ry,
             J=bottom_column_section.J,Cw=bottom_column_section.Cw,rts=bottom_column_section.rts,ho=bottom_column_section.ho)
+        # @todo - it would be nice to simplify this definition something like this: bottom_column = I_shape(bottom_column_section,self.Fy,self.E)
+            
         bottom_column.build_ops_fiber_section(bottom_column_section_tag,
                                     start_material_id=1,
                                     mat_type=mat_type,
@@ -138,7 +141,9 @@ class Stepped_Column(Structures_2D):
                                     frc=frc,num_regions=self.num_regions,
                                     stiffness_reduction=self.stiffness_reduction,strength_reduction=self.strength_reduction,
                                     axis='x')
-        setattr(self,self.bottom_column_section_name,bottom_column)
+        setattr(self,self.bottom_column_section_name,bottom_column)  # @todo - what is going on here?
+        
+        
         ## Define bottom column elements
         ops.beamIntegration("Lobatto", bottom_column_section_tag, bottom_column_section_tag, self.nip)
         for k in range(self.no_of_elements_column):
@@ -148,7 +153,7 @@ class Stepped_Column(Structures_2D):
             ops.element('forceBeamColumn',element_tag,node_i_tag,node_j_tag,
                         col_TransTag,
                         bottom_column_section_tag,'-mass', 1)
-            self.all_element_connectivity_section_and_bending_axes_detail.append([element_tag,node_i_tag,node_j_tag,self.bottom_column_section_name,self.bottom_column_bending_axes,'col'])
+            self.all_element_connectivity_section_and_bending_axes_detail.append([element_tag,node_i_tag,node_j_tag,self.bottom_column_section_name,self.bottom_column_bending_axes,'col']) # @todo - lets make sure this is necessary
         
         ## Define offset beam section
         offset_beam_section_tag=2
@@ -280,11 +285,11 @@ class Stepped_Column(Structures_2D):
             max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=self.return_P_M_M_interaction_values()
             results.max_P_M_M_interaction.append(max_PMM)
 
-        ops.initialize()
+        ops.initialize()   # @todo - what does this do?
         ops.constraints('Transformation')
         ops.numberer('RCM')
         ops.system('UmfPack')
-        ops.test('NormUnbalance', 1e-3, 10)
+        ops.test('NormUnbalance', 1e-3, 10, 1)
         ops.algorithm('Newton')
     
         ops.timeSeries('Linear',1)
@@ -328,6 +333,7 @@ class Stepped_Column(Structures_2D):
                     # break
             # Check for maximum PMM interaction value    
             if self.Elastic_analysis:
+                # @todo - Why only if Elastic_analysis?
                 if P_M_M_interaction_limit is not None:
                     # if Structures_2D.print_ops_status:
                     #     print(f'Checking PMM Interaction')
@@ -340,48 +346,47 @@ class Stepped_Column(Structures_2D):
 
 
 
-    def run_displacement_controlled_analysis(self, target_disp=1, steps=10,**kwargs):
-        incr_LCA= kwargs.get('incr_LCA', 0.1)          ######### LCA refers to Load Controlled Analysis
-        num_steps_LCA= kwargs.get('num_steps_LCA', 10)            ######### LCA refers to Load Controlled Analysis
+    def run_displacement_controlled_analysis(self, target_disp=1, steps=1000,**kwargs):
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
         P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
         try_smaller_steps = kwargs.get('try_smaller_steps', True)
         print_ops_status = kwargs.get('print_ops_status', True)
+
+        control_node = self.bottom_column_top_node_tag  # Bottom node of top column is the control node for displacement control
+        print(f'Control node for displacement control: {control_node}')
+        control_dof = 1   # Horizontal displacement is the control DOF
+
+
         # Initialize analysis results
         results = AnalysisResults()
-        attributes =['load_ratio','control_node_displacement',
-                      'lowest_eigenvalue','vertical_reaction','lateral_reaction','absolute_maximum_strain','max_P_M_M_interaction']
-        
+        attributes =['load_ratio',
+                     'control_node_displacement',
+                     'lowest_eigenvalue',
+                     'vertical_reaction',
+                     'lateral_reaction',
+                     'absolute_maximum_strain',
+                     'max_P_M_M_interaction']
         for attr in attributes:
             setattr(results, attr, [])
 
         # Define function to find limit point
         def find_limit_point():
-            print(results.exit_message)
             if 'Analysis Failed' in results.exit_message:
-                print('Analysis Failed before reaching negative eigenvalue')
-                ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
+                ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio)) # @todo - should there be a limit point defined here?
             elif 'Eigenvalue Limit Reached' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.lowest_eigenvalue, eigenvalue_limit)
             elif 'Extreme Steel Fiber Strain Limit Reached' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.absolute_maximum_strain, steel_strain_limit)
-            elif  'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading' in results.exit_message:
-                ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio)) 
             elif 'P_M_M interaction Limit Reached' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.max_P_M_M_interaction, P_M_M_interaction_limit)           
-            elif 'Moving to Displacement Controlled Analysis' in results.exit_message:
-                print('Moving to Displacement Controlled Analysis, no limit point reached in Load Controlled Analysis')
-                return          
             else:
                 raise Exception('Unknown limit point')
+            
             results.maximum_load_ratio_at_limit_point = interpolate_list(results.load_ratio, ind, x)
             print(' Max Load Ratio',results.maximum_load_ratio_at_limit_point)
 
-        control_node = self.bottom_column_top_node_tag  # Bottom node of top column is the control node for displacement control
-        # print(f'Control node for displacement control: {control_node}')
-        control_dof = 1   # Horizontal displacement is the control DOF
-        # region Define recorder
+        # Define recorder
         def record():
             time = ops.getTime()
             results.load_ratio.append(time)
@@ -396,119 +401,52 @@ class Stepped_Column(Structures_2D):
             # results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
             max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=self.return_P_M_M_interaction_values()
             results.max_P_M_M_interaction.append(max_PMM)
-        # endregion
 
-        ops.initialize()
+
+        ops.initialize() # @todo - what is this for?
         ops.constraints('Transformation')
         ops.numberer('RCM')
         ops.system('UmfPack')
-        ops.test('NormUnbalance', 1e-3, 10)
-        ops.algorithm('Newton')
-    
-        # ops.integrator('LoadControl', 1/num_steps_LCA)  
+        ops.test('NormUnbalance', 1e-3, 10, 1)
+        ops.algorithm('Newton')   
         ops.analysis('Static')
-        record()
-        # for i in range(num_steps_LCA):
-        #     if print_ops_status:
-        #         print(f'Running Load Controlled Analysis Step {i}')
-        #     ok = ops.analyze(1)
-        #     if ok != 0:
-        #         print(f'Load controlled analysis failed in step {i}')
-        #         results.exit_message = 'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading'
-        #         find_limit_point()
-        #         return results
-        #     else:
-        #         print('Load controlled analysis PASSED')
-        #         results.exit_message='Moving to Displacement Controlled Analysis'
-        #     record()
+        ops.integrator('LoadControl', 0.0)
         
-        print('Starting Displacement Controlled Analysis')
-        # ops.loadConst('-time', 0.0)
+        # Run one step with no load
+        ok = ops.analyze(1)
+        record()
+        
+        # Apply load
         ops.timeSeries('Linear', 2)
         ops.pattern('Plain',2,2)
         self.add_vertical_load()
         self.add_lateral_load()
-        ## Apply lateral load at the control node
-        dU = target_disp / steps
-        ops.integrator('DisplacementControl', control_node, control_dof, dU)
 
-        record()
+        # Run Displacement Control Analysis
         i=1
+        ok = 0
         while True:
+            
+            # Reset analysis options            
+            if ok == 0:
+                ops.algorithm('Newton')
+                ops.test('NormUnbalance', 1e-3, 10, 1)
+                dU = target_disp / steps
+                ops.integrator('DisplacementControl', control_node, control_dof, dU)            
+
+            # Run Analysis Step
             print(f'Running Displacement Controlled Analysis {i}')
             i=i+1
             ok = ops.analyze(1)
-            if try_smaller_steps:
-                if ok != 0:
-                    if print_ops_status:
-                        print(f'Trying the step size of: {dU / 10}')
-                    ops.integrator('DisplacementControl',control_node, control_dof, dU / 10)
-                    ok = ops.analyze(1)
+            
 
-                if ok != 0:
-                    if print_ops_status:
-                        print(f'Trying the step size of: {dU / 100}')
-                    ops.integrator('DisplacementControl',control_node, control_dof, dU / 100)
-                    ok = ops.analyze(1)
+            # @todo - try some things to make the analysis succeed
 
-                if ok != 0:
-                    if print_ops_status:
-                        print(f'Trying the step size of: {dU / 1000}')
-                    ops.integrator('DisplacementControl', control_node, control_dof, dU / 1000)
-                    ok = ops.analyze(1)
-                    if ok == 0:
-                        dU = dU / 10
-                        if print_ops_status:
-                            print(f'Changed the step size to: {dU}')
-
-                if ok != 0:
-                    if print_ops_status:
-                        print(f'Trying the step size of: {dU / 10000}')
-                    ops.integrator('DisplacementControl', control_node, control_dof, dU / 10000)
-                    ok = ops.analyze(1)
-                    if ok == 0:
-                        dU = dU / 10
-                        if print_ops_status:
-                            print(f'Changed the step size to: {dU / 10}')
 
             if ok != 0:
-                if print_ops_status:
-                    print('Trying ModifiedNewton')
-                ops.algorithm('ModifiedNewton')
-                ok = ops.analyze(1)
-                if ok == 0:
-                    if print_ops_status:
-                        print('ModifiedNewton worked')
-
-            if ok != 0:
-                if print_ops_status:
-                    print('Trying KrylovNewton')
-                ops.algorithm('KrylovNewton')
-                ok = ops.analyze(1)
-                if ok == 0:
-                    if print_ops_status:
-                        print('KrylovNewton worked')
-
-            if ok != 0:
-                if print_ops_status:
-                    print('Trying KrylovNewton and Greater Tolerance')
-                ops.algorithm('KrylovNewton')
-                ops.test('NormUnbalance', 1e-4, 10)
-                ok = ops.analyze(1)
-                if ok == 0:
-                    if print_ops_status:
-                        print('KrylovNewton worked')
-
-            if ok == 0:
-                # Reset analysis options
-                ops.algorithm('Newton')
-                ops.test('NormUnbalance', 1e-3, 10)
-                ops.integrator('DisplacementControl', control_node, control_dof, dU)
-            else:
                 print('Analysis Failed')
                 results.exit_message = 'Analysis Failed'
                 break
-
 
             record()
 
@@ -520,60 +458,68 @@ class Stepped_Column(Structures_2D):
 
             # Check for strain in extreme steel fiber
             if steel_strain_limit is not None:
-                # if Structures_2D.print_ops_status:
-                #     print(f'Checking Steel Tensile Strain')
-                print(results.absolute_maximum_strain[-1])
                 if results.absolute_maximum_strain[-1] > steel_strain_limit:
                     results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
                     break
+
             # Check for maximum PMM interaction value    
-            if self.Elastic_analysis:
-                if P_M_M_interaction_limit is not None:
-                    # if Structures_2D.print_ops_status:
-                    #     print(f'Checking PMM Interaction')
-                    if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
-                        results.exit_message = 'P_M_M interaction Limit Reached'
-                        break
+            if P_M_M_interaction_limit is not None:
+                if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+                    results.exit_message = 'P_M_M interaction Limit Reached'
+                    break
+                              
         find_limit_point()
         return results
 
 if __name__ == "__main__":
-    Stepped_Column = Stepped_Column(bottom_column_section_name='W14X132',height_of_bottom_column=8.0*U.ft,load_on_bottom_column=100*10*10*100*5*U.KN,
-                                        top_column_section_name='W14X90',height_of_top_column=8.0*U.ft,number_of_elements=2,load_on_top_column=80*10*10*100*5*U.KN,lateral_load=20*10*10*100*5*U.KN,
-                                        offset_1=0.3,offset_3=0.25,
-                                        Fy=36*U.ksi,E=29000*U.ksi,
-                                        Elastic_analysis=False,
-                                        Second_order_effects=True,
-                                        Residual_Stress=True,
-                                        Geometric_Imperfection=True,
-                                        geometric_imperfection_ratio=1/500)
+    Stepped_Column = Stepped_Column(bottom_column_section_name='W14X132',
+                                    height_of_bottom_column=8.0*U.ft,
+                                    load_on_bottom_column=100*10*10*100*5*U.KN,
+                                    top_column_section_name='W14X90',
+                                    height_of_top_column=8.0*U.ft,
+                                    number_of_elements=4,
+                                    load_on_top_column=80*10*10*100*5*U.KN,
+                                    lateral_load=20*10*10*100*5*U.KN,
+                                    offset_1=0.3,
+                                    offset_3=0.25,
+                                    Fy=36*U.ksi,
+                                    E=29000*U.ksi,
+                                    Elastic_analysis=False,
+                                    Second_order_effects=True,
+                                    Residual_Stress=True,
+                                    Geometric_Imperfection=True,
+                                    geometric_imperfection_ratio=1/500,
+                                    plot_model=False,
+                                    try_smaller_steps=False)
 
     Stepped_Column.build_stepped_column()
-    print(Stepped_Column.all_element_connectivity_section_and_bending_axes_detail)
-    Stepped_Column.show_model()
-    results= Stepped_Column.run_load_controlled_analysis()
-    # results = Stepped_Column.run_displacement_controlled_analysis(target_disp=10, steps=100)
+    #print(Stepped_Column.all_element_connectivity_section_and_bending_axes_detail)
+    #Stepped_Column.show_model()
+    
+    #results= Stepped_Column.run_load_controlled_analysis()
+    results = Stepped_Column.run_displacement_controlled_analysis(target_disp=1, steps=10000, P_M_M_interaction_limit=None)
+    print(results.exit_message)
 
     line_plot( results.load_ratio,results.control_node_displacement,
-            xlabel='Load Ratio λ', ylabel='Displacement at Control Node',
-            title='Load Ratio vs Displacement',show=True)
+            xlabel='Load Ratio λ', ylabel='Displacement at Control Node', marker = 'o', markersize=5,
+            title='Load Ratio vs Displacement')
 
-    line_plot( results.load_ratio,results.lowest_eigenvalue,
+    line_plot( results.load_ratio,results.lowest_eigenvalue, marker = 'o',markersize=5,
             xlabel='Load Ratio λ', ylabel='Lowest Eigenvalue',
-            title='Load Ratio vs Lowest Eigenvalue',show=True)
+            title='Load Ratio vs Lowest Eigenvalue')
 
-    line_plot( results.load_ratio,results.vertical_reaction, 
+    line_plot( results.load_ratio,results.vertical_reaction, marker = 'o',markersize=5,
             xlabel='Load Ratio λ', ylabel='Vertical Reaction',
-            title='Load Ratio vs Vertical Reaction',show=True)
+            title='Load Ratio vs Vertical Reaction')
 
-    line_plot( results.load_ratio,results.lateral_reaction, 
+    line_plot( results.load_ratio,results.lateral_reaction, marker = 'o',markersize=5,
             xlabel='Load Ratio λ', ylabel='Lateral Reaction',
-            title='Load Ratio vs Lateral Reaction',show=True) 
+            title='Load Ratio vs Lateral Reaction') 
 
-    line_plot( results.load_ratio,results.absolute_maximum_strain, 
+    line_plot( results.load_ratio,results.absolute_maximum_strain, marker = 'o',markersize=5,
             xlabel='Load Ratio λ', ylabel='Absolute Maximum Strain',
-            title='Load Ratio vs Absolute Maximum Strain',show=True) 
+            title='Load Ratio vs Absolute Maximum Strain') 
 
-    line_plot( results.load_ratio,results.max_P_M_M_interaction,
+    line_plot( results.load_ratio,results.max_P_M_M_interaction, marker = 'o',markersize=5,
             xlabel='Load Ratio λ', ylabel='Max P-M-M Interaction',
             title='Load Ratio vs Max P-M-M Interaction',show=True) 
