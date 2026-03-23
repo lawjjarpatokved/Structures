@@ -6,6 +6,7 @@ import os
 import opsvis as opsv
 from libdenavit.OpenSees.plotting import *
 from libdenavit.OpenSees.get_fiber_data import *
+from Plots import line_plot
 from Units import *
 from math import pi, ceil
 from libdenavit.section.wide_flange import *
@@ -46,6 +47,9 @@ class Structures_2D:
                  **kwargs):
         # ---- Save a "constructor snapshot" for later cloning ---- This is useful for resetting or duplicating the model. Eg. Calculation of del2_over_del1
         self._init_spec = copy.deepcopy({k: v for k, v in locals().items() if k != "self"})
+        # print(self._init_spec)
+        # print("Constructor snapshot saved. You can use self._init_spec to clone or reset the model later.")
+        # input()
 
         self.bay_width=[0]+width_of_bay
         self.storey_height = [0] + storey_height
@@ -127,7 +131,8 @@ class Structures_2D:
         
         if len(self.support_condition)!= self.no_of_bays+1:
             raise ValueError(f"The number of arguments given for supports {self.support} should be equal to the number of columns, {(self.no_of_bays)+1}. ")
-        
+  
+
     @staticmethod
     def nth_digit(num, n, m=None):
         m=1 if m is None else m
@@ -409,7 +414,7 @@ class Structures_2D:
     def create_distorted_nodes_and_element_connectivity(self,geometric_imperfection_ratio=None):
         if self.Geometric_Imperfection:
             print('Working in imperfect geometry')
-            ratio = geometric_imperfection_ratio if geometric_imperfection_ratio is not None else self.geometric_imperfection_ratio
+            ratio = (geometric_imperfection_ratio if geometric_imperfection_ratio is not None else self.geometric_imperfection_ratio) * (1 if self.self.wind_load_dirn=='right' else -1)
             for i in range(len(self.all_nodes)):
                     self.all_nodes[i][1] = self.all_nodes[i][1] +ratio * self.all_nodes[i][2]
         else:
@@ -669,7 +674,15 @@ class Structures_2D:
             if Structures_2D.nth_digit(beams[1],2,2)==self.no_of_stories:
                 self.roof_beams.append(beams)
 
-    def rebuild_with_overrides(self, **overrides):
+    def rebuild_with_overrides(self, message=False, **overrides ):
+
+        if message:
+            print("WARNING: You are using the rebuild_with_overrides method, which creates a new instance of the class with overridden parameters." \
+            " Make sure to assign the result to a variable, e.g., new_instance = old_instance.rebuild_with_overrides(**overrides). Furthermore, if you are using this" \
+            "method for the first time, make sure that you have given correct override parameters. You can do a simple chekck by comparing the output of the original instance and the new instance for a simple case where you know the expected output. ")
+
+            input("Press Enter to continue...")
+
         ## This function rebuilds the current instance with overridden parameters.This is 
         ## useful for parametric studies where only a few parameters need to be changed.
         ## For example, this method can be used for the calculation of del2_over_del1 parameter
@@ -682,8 +695,11 @@ class Structures_2D:
             p.name for p in sig.parameters.values()
             if p.name not in ("self",) and p.kind != inspect.Parameter.VAR_KEYWORD
         }
-
+        print("Explicit parameters:", explicit_params)
+    
         # Apply overrides: explicit args stay explicit, everything else goes into **kwargs
+
+        print('Overrides to apply:', overrides)
         for k, v in overrides.items():
             if k in explicit_params:
                 spec[k] = copy.deepcopy(v)
@@ -692,6 +708,9 @@ class Structures_2D:
 
         #  split the call into explicit args + **kwargs dict
         kwargs_dict = spec.pop("kwargs", {})
+        print("Spec after overrides:", spec)
+        print("Kwargs dict:", kwargs_dict)
+        input()
         return self.__class__(**spec, **kwargs_dict)
     
     def return_max_of_fiber_strain_in_all_elements(self):
@@ -699,9 +718,6 @@ class Structures_2D:
         maximum_compression_strain=[]
         maximum_tensile_strain=[]
         for ele in self.all_element_connectivity_section_and_bending_axes_detail:
-            print('Fiber strain calculation for element:')
-            print(ele)
-            input()
             ele_tag=ele[0]
             # ele_node_i=ele[1]
             # ele_node_j=ele[2]
@@ -868,12 +884,21 @@ class Structures_2D:
 
 
         if self.Notional_load:
-            for node in self.axis_i_floor_nodes(1):
-                ops.load(node, vertical_load_scale * self.floor_notional_load(), 0, 0.0)
-                # print('line852',node,self.floor_notional_load())
-            for node in self.axis_i_roof_nodes(1):
-                ops.load(node, vertical_load_scale * self.roof_notional_load(), 0, 0.0)
-                # print('line856',node,lateral_load_scale * self.roof_notional_load()) 
+            if self.wind_load_dirn.lower() == 'right':
+                for node in self.axis_i_floor_nodes(1):
+                    ops.load(node, vertical_load_scale * self.floor_notional_load(), 0, 0.0)
+                    # print('line852',node,self.floor_notional_load())
+                for node in self.axis_i_roof_nodes(1):
+                    ops.load(node, vertical_load_scale * self.roof_notional_load(), 0, 0.0)
+                    # print('line856',node,lateral_load_scale * self.roof_notional_load()) 
+
+            elif self.wind_load_dirn.lower() == 'left':
+                for node in self.axis_i_floor_nodes(self.no_of_bays + 1):
+                    ops.load(node, -vertical_load_scale * self.floor_notional_load(), 0, 0.0)
+                    # print('line862',node,self.floor_notional_load())
+                for node in self.axis_i_roof_nodes(self.no_of_bays + 1):
+                    ops.load(node, -vertical_load_scale * self.roof_notional_load(), 0, 0.0)
+                    # print('line866',node,lateral_load_scale * self.roof_notional_load())
 
         if self.Leaning_column:
             ## Add vertical loads to the floor and roof nodes of leaning columns ##
@@ -887,21 +912,24 @@ class Structures_2D:
         ##Lateral Loads
         # Wind  Load 
         if self.wind_load_dirn.lower() == 'right':
+            print('Applying wind loads towards right')
             for node in self.axis_i_floor_nodes(1):
                 ops.load(node, lateral_load_scale * self.Wind_load_floor * self.W_multiplier, 0, 0.0)
             for node in self.axis_i_roof_nodes(1):
                 ops.load(node, lateral_load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
 
         elif self.wind_load_dirn.lower() == 'left':
+            print('Applying wind loads towards left')
             for node in self.axis_i_floor_nodes(self.no_of_bays + 1):
                 ops.load(node, -lateral_load_scale * self.Wind_load_floor * self.W_multiplier, 0, 0.0)
             for node in self.axis_i_roof_nodes(self.no_of_bays + 1):
                 ops.load(node, -lateral_load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
 
-          
+        input()
                 
-        opsv.plot_model()
-        opsv.plot_load()
+        # Visualization disabled to avoid GUI issues in non-interactive environments
+        # opsv.plot_model()
+        # opsv.plot_load()
 
     def  return_drift_of_all_storeys_at_given_axis(self,i): 
         ## Calculate the drift of each storey at one of the axis (say axis i).
@@ -909,30 +937,54 @@ class Structures_2D:
         ## axis i floor nodes. and the use loop to find the drift of other storeys. and again find the drift
         ## of roof using axis i roof nodes and last element of axis i floor nodes.
         drift = []
-        ## First storey drift
+
         base_node_tag = self.NODES_TO_FIX[i-1][0]
         storey_nodes_tags = self.axis_i_floor_nodes(i)
         roof_node_tag = self.axis_i_roof_nodes(i)[0]
-        first_storey_drift= ops.nodeDisp(storey_nodes_tags[0],1)-ops.nodeDisp(base_node_tag,1)
+
+        # -------- Special Case: One Storey --------
+        if self.no_of_stories == 1:
+            single_storey_drift = (
+                ops.nodeDisp(roof_node_tag, 1)
+                - ops.nodeDisp(base_node_tag, 1)
+            )
+            drift.append(single_storey_drift)
+            return drift
+        # ------------------------------------------
+
+        ## First storey drift
+        first_storey_drift = (
+            ops.nodeDisp(storey_nodes_tags[0], 1)
+            - ops.nodeDisp(base_node_tag, 1)
+        )
         drift.append(first_storey_drift)
 
         ## Other storeys drift
-        for storey in range(1,self.no_of_stories-1):
-            lower_storey_node_tag = self.axis_i_floor_nodes(i)[storey-1]
-            upper_storey_node_tag = self.axis_i_floor_nodes(i)[storey]
-            storey_drift= ops.nodeDisp(upper_storey_node_tag,1)-ops.nodeDisp(lower_storey_node_tag,1)
+        for storey in range(1, self.no_of_stories - 1):
+            lower_storey_node_tag = storey_nodes_tags[storey - 1]
+            upper_storey_node_tag = storey_nodes_tags[storey]
+            storey_drift = (
+                ops.nodeDisp(upper_storey_node_tag, 1)
+                - ops.nodeDisp(lower_storey_node_tag, 1)
+            )
             drift.append(storey_drift)
 
         ## Roof drift
-        last_storey_node_tag = self.axis_i_floor_nodes(i)[-1]
-        roof_drift= ops.nodeDisp(roof_node_tag,1)-ops.nodeDisp(last_storey_node_tag,1)
+        last_storey_node_tag = storey_nodes_tags[-1]
+        roof_drift = (
+            ops.nodeDisp(roof_node_tag, 1)
+            - ops.nodeDisp(last_storey_node_tag, 1)
+        )
         drift.append(roof_drift)
-        return drift          
+        print(drift)
+        return drift       
 
     def run_load_controlled_anlaysis(self,**kwargs):
 
+        
+
         incr_LCA= kwargs.get('incr_LCA', 0.1)          ######### LCA refers to Load Controlled Analysis
-        num_steps_LCA= kwargs.get('num_steps_LCA', 10)            ######### LCA refers to Load Controlled Analysis
+        num_steps_LCA= kwargs.get('num_steps_LCA', 500)            ######### LCA refers to Load Controlled Analysis
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
         P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
@@ -941,6 +993,7 @@ class Structures_2D:
         # ops_analysis=kwargs.get('analysis','proportional_limit_point')
         lateral_load_scale=kwargs.get('lateral_load_scale',1)
         vertical_load_scale=kwargs.get('vertical_load_scale',1)
+        plot=kwargs.get('plot',False)
 
 
         # Initialize analysis results
@@ -961,7 +1014,7 @@ class Structures_2D:
                 ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
             if 'Analysis Failed' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
-            elif 'Eigenvalue Limit' in results.exit_message:
+            elif 'Eigenvalue Limit Reached' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.lowest_eigenvalue, eigenvalue_limit)
             elif 'Extreme Steel Fiber Strain Limit Reached' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.absolute_maximum_strain, steel_strain_limit)
@@ -970,8 +1023,36 @@ class Structures_2D:
             else:
                 raise Exception('Unknown limit point')
             results.maximum_load_ratio_at_limit_point = interpolate_list(results.load_ratio, ind, x)
-            print('Line 884, Max Load Ratio',results.maximum_load_ratio_at_limit_point)
+            results.displacement_at_limit_point=results.control_node_displacement[-2]
+            print('inside find limit point, Max Load Ratio',results.maximum_load_ratio_at_limit_point)
+            print('inside find limit point, Displacement at limit point',results.displacement_at_limit_point)
 
+
+        def plot_analysis_history():
+            line_plot( results.load_ratio,results.control_node_displacement,
+                    xlabel='Load Ratio λ', ylabel='Displacement at Control Node',
+                    title='Load Ratio vs Displacement',show=True)
+
+            line_plot( results.load_ratio,results.lowest_eigenvalue,
+                    xlabel='Load Ratio λ', ylabel='Lowest Eigenvalue',
+                    title='Load Ratio vs Lowest Eigenvalue',show=True)
+
+            line_plot( results.load_ratio,results.vertical_reaction, 
+                    xlabel='Load Ratio λ', ylabel='Vertical Reaction',
+                    title='Load Ratio vs Vertical Reaction',show=True)
+
+            line_plot( results.load_ratio,results.base_shear, 
+                    xlabel='Load Ratio λ', ylabel='Base Shear',
+                    title='Load Ratio vs Base Shear',show=True) 
+
+            line_plot( results.load_ratio,results.absolute_maximum_strain, 
+                    xlabel='Load Ratio λ', ylabel='Absolute Maximum Strain',
+                    title='Load Ratio vs Absolute Maximum Strain',show=True) 
+
+            line_plot( results.load_ratio,results.max_P_M_M_interaction,
+                    xlabel='Load Ratio λ', ylabel='Max P-M-M Interaction',
+                    title='Load Ratio vs Max P-M-M Interaction',show=True) 
+            
         fail_during_LCA=True
 
         ops.timeSeries('Linear', self.load_timeseries_counter)
@@ -989,13 +1070,13 @@ class Structures_2D:
             results.base_shear.append(base_shear)
             results.lowest_eigenvalue.append(ops.eigen("-genBandArpack", 1)[0])
             results.absolute_maximum_strain.append(self.return_max_of_fiber_strain_in_all_elements())
-            # results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
+            results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
             max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=self.return_P_M_M_interaction_values()
             results.max_P_M_M_interaction.append(max_PMM)
             results.P_M_M_interaction_all_elements.append(P_M_M_interaction_all_elements)
             results.Element_Forces.append(Element_Forces)
         # endregion
-
+        control_node,control_dof=self.get_control_node_and_dof(control_dir='L')
         ops.initialize()
         # Create output folder
         os.makedirs(self.Frame_id, exist_ok=True)
@@ -1004,9 +1085,9 @@ class Structures_2D:
         ops.constraints('Transformation')
         ops.numberer('RCM')
         ops.system('UmfPack')
-        ops.test('NormUnbalance', 1e-3, 10)
+        ops.test('NormUnbalance', 1e-3, 10,1)
         ops.algorithm('Newton')
-        ops.integrator('LoadControl',incr_LCA)  ## incr_LCA because, we do not want to apply the entire load during load controlled analysis.
+        ops.integrator('LoadControl',1/num_steps_LCA)  ## incr_LCA because, we do not want to apply the entire load during load controlled analysis.
         ops.analysis('Static')
 
         record()
@@ -1017,8 +1098,11 @@ class Structures_2D:
             if ok != 0:
                 print(f'Load controlled analysis failed in step {i}')
                 results.exit_message = 'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading'
-                # find_limit_point()
-                return results,fail_during_LCA
+                find_limit_point()
+                drift=self.return_drift_of_all_storeys_at_given_axis(1)
+                if plot:
+                    plot_analysis_history() 
+                return drift,results,fail_during_LCA
             else:
                 print('Load controlled analysis PASSED')
                 results.exit_message='Moving to Displacement Controlled Analysis'
@@ -1028,8 +1112,11 @@ class Structures_2D:
             if eigenvalue_limit is not None:
                 if results.lowest_eigenvalue[-1] < eigenvalue_limit:
                     results.exit_message = 'Eigenvalue Limit Reached'
-                    # find_limit_point()
-                    return results,fail_during_LCA
+                    drift=self.return_drift_of_all_storeys_at_given_axis(1)
+                    find_limit_point()
+                    if plot:
+                        plot_analysis_history()
+                    return drift,results,fail_during_LCA
                     # break
 
             # Check for strain in extreme steel fiber
@@ -1038,37 +1125,110 @@ class Structures_2D:
                 #     print(f'Checking Steel Tensile Strain')
                 if results.absolute_maximum_strain[-1] > steel_strain_limit:
                     results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
-                    # find_limit_point()
-                    return results,fail_during_LCA
+                    drift=self.return_drift_of_all_storeys_at_given_axis(1)
+                    find_limit_point()
+                    if plot:
+                        plot_analysis_history()
+                    return drift,results,fail_during_LCA
                     # break
             # Check for maximum PMM interaction value    
-            if self.Elastic_analysis:
-                if P_M_M_interaction_limit is not None:
-                    # if Structures_2D.print_ops_status:
-                    #     print(f'Checking PMM Interaction')
-                    if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
-                        results.exit_message = 'P_M_M interaction Limit Reached'
-                        # find_limit_point()
-                        return results,fail_during_LCA
+
+            # if self.Elastic_analysis:
+            #     if P_M_M_interaction_limit is not None:
+            #         # if Structures_2D.print_ops_status:
+            #         #     print(f'Checking PMM Interaction')
+            #         if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+            #             results.exit_message = 'P_M_M interaction Limit Reached'
+            #             drift=self.return_drift_of_all_storeys_at_given_axis(1)
+            #             find_limit_point()
+            #             if plot:
+            #                 plot_analysis_history()
+            #             return drift,results,fail_during_LCA
 
         ## Store drift at all storeys at axis 1 ##
         
         drift=self.return_drift_of_all_storeys_at_given_axis(1)
-        return drift
+        print(results.control_node_displacement)
+        print(results.lowest_eigenvalue)
+        plot_analysis_history()
+
+        input('Press Enter to continue...')
+        return drift,results,fail_during_LCA
+
+    def get_lateral_loading_direction(self):
+        print('I am inside get_lateral_loading_direction method')
+        input()
+        # if self.geometric_imperfection_ratio>0:
+        #     self.wind_load_dirn='right'
+        # elif self.geometric_imperfection_ratio<0:
+        #     self.wind_load_dirn='left'
+        # else:
+        Dummy_Frame=self.rebuild_with_overrides(Second_order_effects=True,
+                                                       Residual_Stress=False,
+                                                       Elastic_analysis=True,
+                                                       stiffness_reduction=0.8,
+                                                       strength_reduction=1,
+                                                       Geometric_Imperfection=False,
+                                                       geometric_imperfection_ratio=1/500,
+                                                       Notional_load=False)
+        Dummy_Frame.generate_Nodes_and_Element_Connectivity()
+        Dummy_Frame.build_ops_model()
+        _,dummy_results,_=Dummy_Frame.run_load_controlled_anlaysis(lateral_load_scale=0.01,plot=True)
+        print(dummy_results.control_node_displacement)
+        if dummy_results.displacement_at_limit_point>=0:
+            self.wind_load_dirn='right'
+        else:
+            self.wind_load_dirn='left'
         
-
-    def get_del2_over_del1(self):
-
-        Second_order_frame=self.rebuild_with_overrides(Second_order_effects=True)
+                 
+    def get_del2_over_del1(self,vertical_load_scale=1, lateral_load_scale=1):
+        print('Second order Frame')
+        Second_order_frame=self.rebuild_with_overrides(Second_order_effects=True,
+                                                       Residual_Stress=False,
+                                                       Elastic_analysis=True,
+                                                       stiffness_reduction=0.8,
+                                                       strength_reduction=1,
+                                                       Geometric_Imperfection=False,
+                                                       geometric_imperfection_ratio=1/500,
+                                                       Notional_load=False,
+                                                       wind_load_dirn=self.wind_load_dirn)
+        print(Second_order_frame.Second_order_effects)
+        print(Second_order_frame.Geometric_Imperfection)
+        print(Second_order_frame.geometric_imperfection_ratio)
+        print(Second_order_frame.Notional_load)
+        print(Second_order_frame.stiffness_reduction)
+        print(Second_order_frame.strength_reduction)
+        print(Second_order_frame.Residual_Stress)
+        print(Second_order_frame.Elastic_analysis)
+        input()
         Second_order_frame.generate_Nodes_and_Element_Connectivity()
+        Second_order_frame.create_distorted_nodes_and_element_connectivity()
         Second_order_frame.build_ops_model()
-        drift_with_second_order_effects=Second_order_frame.run_load_controlled_anlaysis()
+        drift_with_second_order_effects,_,fail_during_LCA=Second_order_frame.run_load_controlled_anlaysis(vertical_load_scale=vertical_load_scale,lateral_load_scale=lateral_load_scale)
         print('drift_with_second_order_effects',drift_with_second_order_effects)
-
-        First_order_frame=self.rebuild_with_overrides(Second_order_effects=False)
+        print('First order Frame')
+        First_order_frame=self.rebuild_with_overrides(Second_order_effects=False,
+                                                       Residual_Stress=False,
+                                                       Elastic_analysis=True,
+                                                       stiffness_reduction=0.8,
+                                                       strength_reduction=1,
+                                                       Geometric_Imperfection=False,
+                                                       geometric_imperfection_ratio=1/500,
+                                                       Notional_load=False,
+                                                       wind_load_dirn=self.wind_load_dirn)
+        print(First_order_frame.Second_order_effects)
+        print(First_order_frame.Geometric_Imperfection)
+        print(First_order_frame.geometric_imperfection_ratio)
+        print(First_order_frame.Notional_load)
+        print(First_order_frame.stiffness_reduction)
+        print(First_order_frame.strength_reduction)
+        print(First_order_frame.Residual_Stress)
+        print(First_order_frame.Elastic_analysis)
+        input()
         First_order_frame.generate_Nodes_and_Element_Connectivity()
+        First_order_frame.create_distorted_nodes_and_element_connectivity()
         First_order_frame.build_ops_model()
-        drift_with_first_order_effects=First_order_frame.run_load_controlled_anlaysis()
+        drift_with_first_order_effects,_,fail_during_LCA=First_order_frame.run_load_controlled_anlaysis(vertical_load_scale=vertical_load_scale,lateral_load_scale=lateral_load_scale)
         print('drift_with_first_order_effects',drift_with_first_order_effects)
 
         del2_over_del1=[]
@@ -1080,7 +1240,7 @@ class Structures_2D:
 
 
 
-    def run_displacement_controlled_analysis(self, target_disp=10, steps=20000, plot_defo=True,**kwargs):
+    def run_displacement_controlled_analysis(self, target_disp=10, steps=1000, plot_defo=True,**kwargs):
         """
         Runs displacement-controlled analysis and plots load ratio (λ) vs. displacement and vertical reaction.
 
@@ -1089,8 +1249,9 @@ class Structures_2D:
             steps (int): Number of steps to reach target
             plot_defo (bool): Whether to plot deformed shape at end
         """
+
         incr_LCA= kwargs.get('incr_LCA', 0.01)          ######### LCA refers to Load Controlled Analysis
-        num_steps_LCA= kwargs.get('num_steps_LCA', 10)            ######### LCA refers to Load Controlled Analysis
+        num_steps_LCA= kwargs.get('num_steps_LCA', 100)            ######### LCA refers to Load Controlled Analysis
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
         P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
@@ -1120,7 +1281,7 @@ class Structures_2D:
                 ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
             if 'Analysis Failed' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
-            elif 'Eigenvalue Limit' in results.exit_message:
+            elif 'Eigenvalue Limit Reached' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.lowest_eigenvalue, eigenvalue_limit)
             elif 'Extreme Steel Fiber Strain Limit Reached' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.absolute_maximum_strain, steel_strain_limit)
@@ -1140,6 +1301,8 @@ class Structures_2D:
             ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
             self.add_vertical_dead_live_wall_notional_loads(vertical_load_scale=vertical_load_scale)
             self.add_lateral_wind_loads(lateral_load_scale=lateral_load_scale)
+            # ops.printModel()
+            # input()
             # region Define recorder
             def record():
                 time = ops.getTime()
@@ -1167,7 +1330,7 @@ class Structures_2D:
             ops.constraints('Transformation')
             ops.numberer('RCM')
             ops.system('UmfPack')
-            ops.test('NormUnbalance', 1e-3, 10)
+            ops.test('NormUnbalance', 1e-3, 10, 1)
             ops.algorithm('Newton')
             ops.integrator('LoadControl',incr_LCA)  ## incr_LCA because, we do not want to apply the entire load during load controlled analysis.
             ops.analysis('Static')
@@ -1175,7 +1338,7 @@ class Structures_2D:
             for i in range(num_steps_LCA):
                 if Structures_2D.print_ops_status:
                     print(f'Running Load Controlled Analysis Step {i}')
-                    input()
+                    # input()
                 ok = ops.analyze(1)
                 if ok != 0:
                     print(f'Load controlled analysis failed in step {i}')
@@ -1214,12 +1377,16 @@ class Structures_2D:
                             find_limit_point()
                             return results,fail_during_LCA
 
-            print(results.control_node_displacement)
-            input()
+            # print(results.control_node_displacement)
+            # input()
             dU = target_disp / steps
-            if results.control_node_displacement[-1]<0 or control_dof==2:
-                dU=-dU 
 
+            # if results.control_node_displacement[-1]<0 or control_dof==2:
+            #     dU=-dU 
+            print(self.wind_load_dirn)
+            
+            if self.wind_load_dirn=="left" or control_dof==2:
+                dU=-dU 
             ops.integrator('DisplacementControl', control_node, control_dof, dU)
 
             record()
@@ -1249,7 +1416,7 @@ class Structures_2D:
                         ops.integrator('DisplacementControl', control_node, control_dof, dU / 1000)
                         ok = ops.analyze(1)
                         if ok == 0:
-                            dU = dU / 10
+                            # dU = dU / 10
                             if Structures_2D.print_ops_status:
                                 print(f'Changed the step size to: {dU}')
 
@@ -1259,7 +1426,7 @@ class Structures_2D:
                         ops.integrator('DisplacementControl', control_node, control_dof, dU / 10000)
                         ok = ops.analyze(1)
                         if ok == 0:
-                            dU = dU / 10
+                            # dU = dU / 10
                             if Structures_2D.print_ops_status:
                                 print(f'Changed the step size to: {dU / 10}')
 
@@ -1285,7 +1452,7 @@ class Structures_2D:
                     if Structures_2D.print_ops_status:
                         print('Trying KrylovNewton and Greater Tolerance')
                     ops.algorithm('KrylovNewton')
-                    ops.test('NormUnbalance', 1e-4, 10)
+                    ops.test('NormUnbalance', 1e-4, 10,1)
                     ok = ops.analyze(1)
                     if ok == 0:
                         if Structures_2D.print_ops_status:
@@ -1293,9 +1460,9 @@ class Structures_2D:
 
                 if ok == 0:
                     # Reset analysis options
-                    print(f'Displacement controlled analysis step {i} PASSED')
+                    print(f'Displacement controlled analysis step {i-1} PASSED')
                     ops.algorithm('Newton')
-                    ops.test('NormUnbalance', 1e-3, 10)
+                    ops.test('NormUnbalance', 1e-3, 10,1)
                     ops.integrator('DisplacementControl', control_node, control_dof, dU)
                 else:
                     print('Analysis Failed')
@@ -1307,6 +1474,7 @@ class Structures_2D:
 
                 # Check for lowest eigenvalue less than zero
                 if eigenvalue_limit is not None:
+                    print(results.lowest_eigenvalue[-1])
                     if results.lowest_eigenvalue[-1] < eigenvalue_limit:
                         results.exit_message = 'Eigenvalue Limit Reached'
                         break
@@ -1315,6 +1483,7 @@ class Structures_2D:
                 if steel_strain_limit is not None:
                     # if Structures_2D.print_ops_status:
                     #     print(f'Checking Steel Tensile Strain')
+                    print(results.absolute_maximum_strain[-1])
                     if results.absolute_maximum_strain[-1] > steel_strain_limit:
                         results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
                         break
@@ -1326,6 +1495,10 @@ class Structures_2D:
                         if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
                             results.exit_message = 'P_M_M interaction Limit Reached'
                             break
+                if i>steps*100000 :
+                    results.exit_message = 'Analysis Failed'
+                    break
+
 
             find_limit_point()
 
@@ -1337,6 +1510,8 @@ class Structures_2D:
             ops.timeSeries('Linear', self.load_timeseries_counter)
             ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
             self.add_vertical_dead_live_wall_notional_loads(vertical_load_scale=vertical_load_scale)
+            # ops.printModel()
+            # input()
             # self.add_lateral_wind_notional_loads(lateral_load_scale=lateral_load_scale)
             # region Define recorder
             def record():
@@ -1359,8 +1534,8 @@ class Structures_2D:
 
             control_node,control_dof=self.get_control_node_and_dof(control_dir=control_dir)
 
-            print(control_node,control_dof)
-            input()
+            # print(control_node,control_dof)
+            # input()
 
             ops.initialize()
             # Create output folder
@@ -1370,7 +1545,7 @@ class Structures_2D:
             ops.constraints('Transformation')
             ops.numberer('RCM')
             ops.system('UmfPack')
-            ops.test('NormUnbalance', 1e-3, 10)
+            ops.test('NormUnbalance', 1e-3, 10,1)
             ops.algorithm('Newton')
             ops.integrator('LoadControl',1/num_steps_LCA)  ## 1/num_steps_LCA because we want the entire vertical load to be applied before starting displacement controlled analysis.
             ops.analysis('Static')
@@ -1424,13 +1599,21 @@ class Structures_2D:
             print(results.vertical_reaction)
             print(results.base_shear)
             print(control_dof)
-            input()
-            if results.control_node_displacement[-1]<0 or control_dof==2:
+            # input()
+            # if results.control_node_displacement[-1]<0 or control_dof==2:
+            #     dU=-dU 
+
+            if self.wind_load_dirn=="left" or control_dof==2:
                 dU=-dU 
+
             ops.loadConst('-time', 0.0)
             ops.timeSeries('Linear', self.load_timeseries_counter+1)
             ops.pattern('Plain',self.load_pattern_counter+1, self.load_timeseries_counter+1)
+            # print(lateral_load_scale)
+            # input()
             self.add_lateral_wind_loads(lateral_load_scale=lateral_load_scale)
+            # ops.printModel()
+            # input()
             # self.add_vertical_dead_live_wall_loads()
             ops.integrator('DisplacementControl', control_node, control_dof, dU)
 
@@ -1496,7 +1679,7 @@ class Structures_2D:
                     if Structures_2D.print_ops_status:
                         print('Trying KrylovNewton and Greater Tolerance')
                     ops.algorithm('KrylovNewton')
-                    ops.test('NormUnbalance', 1e-4, 10)
+                    ops.test('NormUnbalance', 1e-4, 10,1)
                     ok = ops.analyze(1)
                     if ok == 0:
                         if Structures_2D.print_ops_status:
@@ -1506,7 +1689,7 @@ class Structures_2D:
                     # Reset analysis options
                     print(f'Displacement controlled analysis step {i} PASSED')
                     ops.algorithm('Newton')
-                    ops.test('NormUnbalance', 1e-3, 10)
+                    ops.test('NormUnbalance', 1e-3, 10,1)
                     ops.integrator('DisplacementControl', control_node, control_dof, dU)
                 else:
                     print('Analysis Failed')

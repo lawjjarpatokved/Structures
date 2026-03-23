@@ -45,91 +45,100 @@ class MFColumn_2D(Structures_2D):
                 no_of_elements_column, no_of_elements_beam,
                  beam_section,column_section,load_combination_multipliers,Frame_id,
                  **kwargs):
+        
+        super().__init__(width_of_bay,storey_height,
+                no_of_elements_column, no_of_elements_beam,
+                 beam_section,column_section,load_combination_multipliers,Frame_id,
+                 **kwargs)
         # ---- Save a "constructor snapshot" for later cloning ---- This is useful for resetting or duplicating the model. Eg. Calculation of del2_over_del1
-        self._init_spec = copy.deepcopy({k: v for k, v in locals().items() if k != "self"})
+        # self._init_spec = copy.deepcopy({k: v for k, v in locals().items() if k != "self"})
 
-        self.bay_width=[0]+width_of_bay
-        self.storey_height = [0] + storey_height
-        self.length_of_frame=sum(self.bay_width)
-        # Assigning values to instance variables
-        self.no_of_bays = len(self.bay_width)-1            ######### number of bays
-        self.no_of_stories = len(self.storey_height)-1     ######### number of stories
-        self.no_of_elements_column = no_of_elements_column
-        self.no_of_elements_beam = no_of_elements_beam
-        self.no_of_nodes_column=self.no_of_elements_column-1
-        self.no_of_nodes_beam=self.no_of_elements_beam-1
-        self.node_to_node_height_column=[storey_height/self.no_of_elements_column for storey_height in self.storey_height]
-        self.node_to_node_height_column=self.node_to_node_height_column[1:]
-        self.node_to_node_length_beam=[bay_width/self.no_of_elements_beam for bay_width in self.bay_width]
-        self.node_to_node_length_beam=self.node_to_node_length_beam[1:]
-        self.beam_section=copy.deepcopy(beam_section)
-        self.column_section=copy.deepcopy(column_section)   
-        self.Main_Nodes=[]
-        self.Leaning_Nodes=[]
-        self.D_multiplier=load_combination_multipliers[0]      ### Dead Load multiplier
-        self.L_multiplier=load_combination_multipliers[1]      ### Live Load multiplier
-        self.L_r_multiplier=load_combination_multipliers[2]    ### Roof Live Load multiplier
-        self.W_multiplier=load_combination_multipliers[3]      ### Wind Load multiplier
-        self.Frame_id=Frame_id
-        self.make_beam_section_detail_uniform()
-        self.make_column_section_detail_uniform()
-        self.load_timeseries_counter = 1
-        self.load_pattern_counter = 1
-        self.kwargs=kwargs
+        # print(self._init_spec)
+        # print("Constructor snapshot saved. You can use self._init_spec to clone or reset the model later.")
+        # input()
 
-        defaults={'support':'All_Fixed',
-                  'nip':4,
-                  'mat_type':'Steel01',
-                  'nfy':20,
-                  'nfx':20,
-                  'num_regions':10,
-                  'D_floor_intensity':0,
-                  'D_roof_intensity':0,
-                  'L_floor_intensity':0,
-                  'L_roof_intensity':0,
-                  'Wind_load_floor':0,
-                  'Wind_load_roof':0,
-                  'Wall_load':0,
-                  'Elastic_analysis':False,
-                  'Second_order_effects':False,
-                  'Notional_load':False,
-                  'Geometric_Imperfection':False,
-                  'Residual_Stress':True,
-                  'stiffness_reduction':1,
-                  'strength_reduction':1,
-                  'geometric_imperfection_ratio':1/500,
-                  'wind_load_dirn':'right',
-                  'Leaning_column':True,
-                  'Leaning_column_offset':4,
-                  'Leaning_column_floor_load':0,
-                  'Leaning_column_roof_load':0,
-                  'plot_sections':False}
+        # self.bay_width=[0]+width_of_bay
+        # self.storey_height = [0] + storey_height
+        # self.length_of_frame=sum(self.bay_width)
+        # # Assigning values to instance variables
+        # self.no_of_bays = len(self.bay_width)-1            ######### number of bays
+        # self.no_of_stories = len(self.storey_height)-1     ######### number of stories
+        # self.no_of_elements_column = no_of_elements_column
+        # self.no_of_elements_beam = no_of_elements_beam
+        # self.no_of_nodes_column=self.no_of_elements_column-1
+        # self.no_of_nodes_beam=self.no_of_elements_beam-1
+        # self.node_to_node_height_column=[storey_height/self.no_of_elements_column for storey_height in self.storey_height]
+        # self.node_to_node_height_column=self.node_to_node_height_column[1:]
+        # self.node_to_node_length_beam=[bay_width/self.no_of_elements_beam for bay_width in self.bay_width]
+        # self.node_to_node_length_beam=self.node_to_node_length_beam[1:]
+        # self.beam_section=copy.deepcopy(beam_section)
+        # self.column_section=copy.deepcopy(column_section)   
+        # self.Main_Nodes=[]
+        # self.Leaning_Nodes=[]
+        # self.D_multiplier=load_combination_multipliers[0]      ### Dead Load multiplier
+        # self.L_multiplier=load_combination_multipliers[1]      ### Live Load multiplier
+        # self.L_r_multiplier=load_combination_multipliers[2]    ### Roof Live Load multiplier
+        # self.W_multiplier=load_combination_multipliers[3]      ### Wind Load multiplier
+        # self.Frame_id=Frame_id
+        # self.make_beam_section_detail_uniform()
+        # self.make_column_section_detail_uniform()
+        # self.load_timeseries_counter = 1
+        # self.load_pattern_counter = 1
+        # self.kwargs=kwargs
+
+        # defaults={'support':'All_Fixed',
+        #           'nip':4,
+        #           'mat_type':'Steel01',
+        #           'nfy':20,
+        #           'nfx':20,
+        #           'num_regions':10,
+        #           'D_floor_intensity':0,
+        #           'D_roof_intensity':0,
+        #           'L_floor_intensity':0,
+        #           'L_roof_intensity':0,
+        #           'Wind_load_floor':0,
+        #           'Wind_load_roof':0,
+        #           'Wall_load':0,
+        #           'Elastic_analysis':False,
+        #           'Second_order_effects':False,
+        #           'Notional_load':False,
+        #           'Geometric_Imperfection':False,
+        #           'Residual_Stress':True,
+        #           'stiffness_reduction':1,
+        #           'strength_reduction':1,
+        #           'geometric_imperfection_ratio':1/500,
+        #           'wind_load_dirn':'right',
+        #           'Leaning_column':True,
+        #           'Leaning_column_offset':4,
+        #           'Leaning_column_floor_load':0,
+        #           'Leaning_column_roof_load':0,
+        #           'plot_sections':False}
         
-        for key,value in defaults.items():
-            setattr(self,key,kwargs.get(key,value))
+        # for key,value in defaults.items():
+        #     setattr(self,key,kwargs.get(key,value))
         
-        if self.support=='All_Fixed':
-            self.support_condition=['F']*(self.no_of_bays+1)
-        else:
-            self.support_condition=list(self.support)
+        # if self.support=='All_Fixed':
+        #     self.support_condition=['F']*(self.no_of_bays+1)
+        # else:
+        #     self.support_condition=list(self.support)
 
-        # Input validation
-        if not (0<= self.no_of_bays < 10):
-            raise ValueError("Number of bays must be from 1 to 9.")
+        # # Input validation
+        # if not (0<= self.no_of_bays < 10):
+        #     raise ValueError("Number of bays must be from 1 to 9.")
 
-        if not(1<=self.no_of_stories < 100):
-            raise ValueError("Number of stories must be from 1 to 99.")
+        # if not(1<=self.no_of_stories < 100):
+        #     raise ValueError("Number of stories must be from 1 to 99.")
 
-        if not(1<=self.no_of_elements_column < 10):
-            raise ValueError("Number of elements in columns must be from 1 to 9.")
+        # if not(1<=self.no_of_elements_column < 10):
+        #     raise ValueError("Number of elements in columns must be from 1 to 9.")
 
-        if not(1<=self.no_of_elements_beam < 9):
-            raise ValueError("Number of elements in beams must be from 1 to 9.")
+        # if not(1<=self.no_of_elements_beam < 9):
+        #     raise ValueError("Number of elements in beams must be from 1 to 9.")
         
-        if len(self.support_condition)!= self.no_of_bays+1:
-            raise ValueError(f"The number of arguments given for supports {self.support} should be equal to the number of columns, {(self.no_of_bays)+1}. ")
+        # if len(self.support_condition)!= self.no_of_bays+1:
+        #     raise ValueError(f"The number of arguments given for supports {self.support} should be equal to the number of columns, {(self.no_of_bays)+1}. ")
         
-
+        # self.get_lateral_loading_direction()  
 
     def axis_i_floor_load(self, i=1):
         if i == 1:
@@ -151,12 +160,10 @@ class MFColumn_2D(Structures_2D):
     
     def get_control_node_and_dof(self,control_dir='L'):
         if control_dir=='L':
-            control_direction='lateral'
             control_node = self.axis_i_roof_nodes(1)[0]   
             control_dof = 1  # horizontal displacement
         # Control node for vertical deflection of beam node
         else:
-            control_direction='vertical'
             control_node = self.axis_i_roof_nodes(1)[0]  
             control_dof = 2  # vertical displacement    
 

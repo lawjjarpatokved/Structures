@@ -8,6 +8,7 @@ from Plots import plot_single_bar,line_plot
 import os
 import seaborn as sns
 import opsvis
+import matplotlib.pyplot as plt
 
 def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1,vertical_load_scale=1,ops_anlaysis='proportional_limit_point'):
     # try:
@@ -57,6 +58,10 @@ def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1
     results,fail_during_LCA=Frame.run_displacement_controlled_analysis(target_disp=5,plot_defo=False,control_dir=control_dir,
                 lateral_load_scale=lateral_load_scale,vertical_load_scale=vertical_load_scale,analysis=ops_anlaysis)
     
+    # --- CLEANUP ---
+    ops.wipe()
+    gc.collect()
+    
     # Frame.plot_model()
     return results,Frame_details.Frame_id,fail_during_LCA
 
@@ -90,10 +95,12 @@ def Bar_plot_comparison(Frame_number,Analysis_type):
             os.makedirs(analysis_folder, exist_ok=True)
             
             # ---make animation of PMM evolution throught the analysis
-            filename = os.path.join(analysis_folder,f'PMM_Movie{frame_number}_{analysis_type}.gif')
-            title=f'PM_History_{frame_number}_{analysis_type}'
-            plotting.animate_PMM_evolution(results.P_M_M_interaction_all_elements,save_path=filename,fps=40,title=title  )
+            # NOTE: Commented out animation to avoid memory exhaustion with high load scales
+            # filename = os.path.join(analysis_folder,f'PMM_Movie{frame_number}_{analysis_type}.gif')
+            # title=f'PM_History_{frame_number}_{analysis_type}'
+            # plotting.animate_PMM_evolution(results.P_M_M_interaction_all_elements,save_path=filename,fps=40,title=title  )
 
+            import matplotlib.pyplot as plt
 
             # --- Plot 1: λ vs displacement ---
             results.control_node_displacement_absolute[:] = [abs(x) if x is not None else None
@@ -102,36 +109,42 @@ def Bar_plot_comparison(Frame_number,Analysis_type):
             line_plot(results.control_node_displacement_absolute, results.load_ratio,
                     xlabel='Displacement at Control Node', ylabel='Load Ratio λ',
                     title='Load Ratio vs Displacement', filename=filename)
+            plt.close('all')
 
             # --- Plot 2: λ vs base shear ---
             filename = os.path.join(analysis_folder, f'load_ratio_vs_base_shear_{frame_number}_{analysis_type}_V.png')
             line_plot(results.base_shear, results.load_ratio,
                     xlabel='Base Shear', ylabel='Load Ratio λ',
                     title='Load Ratio vs Base Shear', filename=filename)
+            plt.close('all')
 
             # --- Plot 3: λ vs vertical reaction ---
             filename = os.path.join(analysis_folder, f'load_ratio_vs_vertical_reaction_{frame_number}_{analysis_type}_V.png')
             line_plot(results.vertical_reaction, results.load_ratio,
                     xlabel='Vertical Reaction', ylabel='Load Ratio λ',
                     title='Load Ratio vs Vertical Reaction', filename=filename)
+            plt.close('all')
 
             # --- Plot 4: λ vs max tensile strain ---
             filename = os.path.join(analysis_folder, f'load_ratio_vs_strain_{frame_number}_{analysis_type}_V.png')
             line_plot(results.absolute_maximum_strain, results.load_ratio,
                     xlabel='Maximum Tensile Strain', ylabel='Load Ratio λ',
                     title='Load Ratio vs Tensile Strain', filename=filename)
+            plt.close('all')
 
             # --- Plot 5: eigenvalue vs λ ---
             filename = os.path.join(analysis_folder, f'load_ratio_vs_eigenvalue_{frame_number}_{analysis_type}_V.png')
             line_plot(results.load_ratio, results.lowest_eigenvalue,
                     xlabel='Load Ratio λ', ylabel='Lowest Eigenvalue',
                     title='Eigenvalue vs Load Ratio', filename=filename)
+            plt.close('all')
 
             # --- Plot 6: λ vs P_M_M_interaction ---
             filename = os.path.join(analysis_folder, f'load_ratio_vs_P_M_M_interaction_{frame_number}_{analysis_type}_V.png')
             line_plot(results.load_ratio, results.max_P_M_M_interaction,
                     xlabel='Load Ratio λ', ylabel='max_P_M_M_interaction',
                     title='P_M_M_interaction vs Load Ratio', filename=filename)
+            plt.close('all')
 
             # --- Record max load ratio ---
             max_load_ratio.append(results.maximum_load_ratio_at_limit_point)
@@ -143,6 +156,7 @@ def Bar_plot_comparison(Frame_number,Analysis_type):
                         x_labels=analysis_type_labels,
                         title=f'{frame_number}: Comparison of Load Ratio',
                         ylabel='Load Ratio',title_fontsize=16, label_fontsize=14, tick_fontsize=14, legend_fontsize=12,value_fontsize=12)
+        plt.close('all')
 
 def Interaction_Plots(Frame_number,Analysis_type,proportional=False):
     ##non proportional
@@ -219,64 +233,64 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False):
                             )
                             plt.close(fig_pmm_i)
 
-                # # --- Sweep vertical loads (0.8–1.0) ---
-                # for i in np.arange(0.2, 0.9, 0.1):
-                #     print(f"Running vertical load scale {i:.2f}")
-                #     results, frame_id, fail_during_LCA = MF_2D_runner(
-                #         Frame_number=frame_number,
-                #         Analysis_type=analysis_type,
-                #         vertical_load_scale=i * ALR_V_max,
-                #         control_dir='L',
-                #         ops_anlaysis='non_proportional_limit_point'
-                #     )
-                #     if fail_during_LCA:
-                #         break
-                #     else:
-                #         ALR_H.insert(-1, results.maximum_load_ratio_at_limit_point)
-                #         ALR_V.insert(-1, i * ALR_V_max)
+                # --- Sweep vertical loads (0.8–1.0) ---
+                for i in np.arange(0.5, 0.9, 0.1):
+                    print(f"Running vertical load scale {i:.2f}")
+                    results, frame_id, fail_during_LCA = MF_2D_runner(
+                        Frame_number=frame_number,
+                        Analysis_type=analysis_type,
+                        vertical_load_scale=i * ALR_V_max,
+                        control_dir='L',
+                        ops_anlaysis='non_proportional_limit_point'
+                    )
+                    if fail_during_LCA:
+                        break
+                    else:
+                        ALR_H.insert(-1, results.maximum_load_ratio_at_limit_point)
+                        ALR_V.insert(-1, i * ALR_V_max)
 
-                #         if int(i * 10) % 2 == 0:
-                #             fig_pmm_i, ax_pmm_i = plotting.plot_PMM_Interaction_values(
-                #                 results.P_M_M_interaction_all_elements[-1],
-                #                 show=False
-                #             )
-                #             fig_pmm_i.savefig(
-                #                 os.path.join(
-                #                     analysis_folder,
-                #                     f"PMM_{analysis_type}_ALRH_{ALR_H[-2]:.2f}_ALRV_{ALR_V[-2]:.2f}.png"
-                #                 ),
-                #                 dpi=600
-                #             )
-                #             plt.close(fig_pmm_i)
+                        if int(i * 10) % 2 == 0:
+                            fig_pmm_i, ax_pmm_i = plotting.plot_PMM_Interaction_values(
+                                results.P_M_M_interaction_all_elements[-1],
+                                show=False
+                            )
+                            fig_pmm_i.savefig(
+                                os.path.join(
+                                    analysis_folder,
+                                    f"PMM_{analysis_type}_ALRH_{ALR_H[-2]:.2f}_ALRV_{ALR_V[-2]:.2f}.png"
+                                ),
+                                dpi=600
+                            )
+                            plt.close(fig_pmm_i)
 
-                # for i in np.arange(0.9, 1.01, 0.01):
-                #     print(f"Running vertical load scale {i:.2f}")
-                #     results, frame_id, fail_during_LCA = MF_2D_runner(
-                #         Frame_number=frame_number,
-                #         Analysis_type=analysis_type,
-                #         vertical_load_scale=i * ALR_V_max,
-                #         control_dir='L',
-                #         ops_anlaysis='non_proportional_limit_point'
-                #     )
-                #     if fail_during_LCA:
-                #         break
-                #     else:
-                #         ALR_H.insert(-1, results.maximum_load_ratio_at_limit_point)
-                #         ALR_V.insert(-1, i * ALR_V_max)
+                for i in np.arange(0.9, 1.01, 0.01):
+                    print(f"Running vertical load scale {i:.2f}")
+                    results, frame_id, fail_during_LCA = MF_2D_runner(
+                        Frame_number=frame_number,
+                        Analysis_type=analysis_type,
+                        vertical_load_scale=i * ALR_V_max,
+                        control_dir='L',
+                        ops_anlaysis='non_proportional_limit_point'
+                    )
+                    if fail_during_LCA:
+                        break
+                    else:
+                        ALR_H.insert(-1, results.maximum_load_ratio_at_limit_point)
+                        ALR_V.insert(-1, i * ALR_V_max)
 
-                #         if int(i * 10) % 2 == 0:
-                #             fig_pmm_i, ax_pmm_i = plotting.plot_PMM_Interaction_values(
-                #                 results.P_M_M_interaction_all_elements[-1],
-                #                 show=False
-                #             )
-                #             fig_pmm_i.savefig(
-                #                 os.path.join(
-                #                     analysis_folder,
-                #                     f"PMM_{analysis_type}_ALRH_{ALR_H[-2]:.2f}_ALRV_{ALR_V[-2]:.2f}.png"
-                #                 ),
-                #                 dpi=600
-                #             )
-                #             plt.close(fig_pmm_i)
+                        if int(i * 10) % 2 == 0:
+                            fig_pmm_i, ax_pmm_i = plotting.plot_PMM_Interaction_values(
+                                results.P_M_M_interaction_all_elements[-1],
+                                show=False
+                            )
+                            fig_pmm_i.savefig(
+                                os.path.join(
+                                    analysis_folder,
+                                    f"PMM_{analysis_type}_ALRH_{ALR_H[-2]:.2f}_ALRV_{ALR_V[-2]:.2f}.png"
+                                ),
+                                dpi=600
+                            )
+                            plt.close(fig_pmm_i)
 
                 # Convert to arrays for intersection math
                 ALR_H_arr = np.array(ALR_H, dtype=float)
@@ -398,7 +412,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False):
                 plt.close(fig_pmm)
 
                 # --- Sweep vertical loads: fine steps near 0 ---
-                for i in np.arange(0, 0.1, 0.005):
+                for i in np.arange(0, 0.1, 0.05):
                     print(f"Running vertical load scale {i:.3f}")
                     results, frame_id, fail_during_LCA = MF_2D_runner(
                         Frame_number=frame_number,
@@ -462,7 +476,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False):
                             plt.close(fig_pmm_i)
 
                 # --- Sweep vertical loads: 1.0 to 4.0 ---
-                for i in np.arange(1.0, 4.0, 0.02):
+                for i in np.arange(1.0, 4.0, 0.2):
                     print(f"Running vertical load scale {i:.2f}")
                     results, frame_id, fail_during_LCA = MF_2D_runner(
                         Frame_number=frame_number,
@@ -575,5 +589,5 @@ Analysis_type= [ 'GMNIA']
 
 
 # Bar_plot_comparison(Frame_number=Frame_number,Analysis_type=Analysis_type)
-Interaction_Plots(Frame_number=Frame_number,Analysis_type=Analysis_type,proportional=False)
+Interaction_Plots(Frame_number=Frame_number,Analysis_type=Analysis_type,proportional=True)
 

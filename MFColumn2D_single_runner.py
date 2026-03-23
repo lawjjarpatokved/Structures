@@ -7,6 +7,7 @@ import opsvis as opsv
 Frame_number='Trial_Col'
 Analysis_type='GMNIA'
 analysis_folder = os.path.join(Frame_number, Analysis_type)
+os.makedirs(analysis_folder, exist_ok=True)
 Frame_dict=Frame_Info[str(Frame_number)]
 Frame_details=convert_dict_items_to_class_attributes(Frame_dict)
 if Frame_details.geometric_imperfection_ratio>0:
@@ -45,6 +46,20 @@ Frame=MFColumn_2D(Frame_details.bay_width, Frame_details.story_height, Frame_det
                     Leaning_column_offset=Frame_details.Leaning_column_offset,
                     Leaning_column_floor_load=Frame_details.Leaning_column_floor_load,
                     Leaning_column_roof_load=Frame_details.Leaning_column_roof_load)
+Frame.get_lateral_loading_direction()
+print(Frame.wind_load_dirn)
+input('Lateral loading figured out')
+a=Frame.get_del2_over_del1(lateral_load_scale=0.01,vertical_load_scale=1)
+print(a)
+input()
+
+# Frame=Frame2.rebuild_with_overrides(storey_height=[40 * ft, 28 * ft],                Residual_Stress=False,
+#                 Elastic_analysis=True,
+#                 Second_order_effects=True,
+#                 stiffness_reduction=0.8,
+#                 strength_reduction=1,
+#                 Geometric_Imperfection=True,
+#                 Notional_load=False)
 
 # print(Frame.get_del2_over_del1())
 Frame.generate_Nodes_and_Element_Connectivity()
@@ -75,21 +90,26 @@ Frame.generate_Nodes_and_Element_Connectivity()
 
 
 
+
 # Frame.plot_model()
 Frame.create_distorted_nodes_and_element_connectivity()
 # print(Frame.all_nodes)
 # print(Frame.Main_Nodes)
 Frame.build_ops_model()
 # disp=Frame.run_load_controlled_analysis(steps=100,plot_defo=False)
-
+print(Frame.all_element_connectivity_section_and_bending_axes_detail)
+input()
 opsv.plot_model()
 Frame.plot_model()
 # Frame.build_ops_model()
 # Frame.add_dead_live_wind_wall_loads()
 # target_disp=-10 if disp<0 else 10
-results,_ =Frame.run_displacement_controlled_analysis(plot_defo=True,analysis='non_proportional_limit_point',vertical_load_scale=1,lateral_load_scale=1,control_dir='L')
+results,_ =Frame.run_displacement_controlled_analysis(plot_defo=True,analysis='proportional_limit_point',vertical_load_scale=1,lateral_load_scale=0.001,control_dir='L')
 Frame.plot_model()
 # --- Plot 1: λ vs displacement ---
+print(results.load_ratio)
+# print(results.control_node_displacement)
+input()
 
 filename = os.path.join(analysis_folder, f'load_ratio_vs_disp_{Frame_number}_{Analysis_type}_V.png')
 line_plot(results.control_node_displacement, results.load_ratio,
@@ -125,6 +145,9 @@ filename = os.path.join(analysis_folder, f'load_ratio_vs_P_M_M_interaction_{Fram
 line_plot(results.load_ratio, results.max_P_M_M_interaction,
         xlabel='Load Ratio λ', ylabel='max_P_M_M_interaction',
         title='P_M_M_interaction vs Load Ratio', filename=filename)
+
+
+
 # Frame.save_moments_by_member()
 
 # Frame.plot_all_fiber_section_in_the_model()

@@ -3,7 +3,7 @@ from Ziemian_database import Frame_Info, convert_dict_items_to_class_attributes,
 from libdenavit.OpenSees.get_fiber_data import *
 import opsvis as opsv 
 
-Frame_number='SP36H'
+Frame_number='SF36H'
 Analysis_type='GMNIA'
 Frame_dict=Frame_Info[str(Frame_number)]
 Frame_details=convert_dict_items_to_class_attributes(Frame_dict)
@@ -91,7 +91,7 @@ input()
 # Frame.build_ops_model()
 # Frame.add_dead_live_wind_wall_loads()
 # target_disp=-10 if disp<0 else 10
-Frame.run_displacement_controlled_analysis(plot_defo=True,analysis='non_proportional_limit_point',vertical_load_scale=0.0,lateral_load_scale=1.0)
+Frame.run_displacement_controlled_analysis(plot_defo=True,analysis='proportional_limit_point',vertical_load_scale=3,lateral_load_scale=1.0)
 Frame.plot_model()
 # Frame.save_moments_by_member()
 

@@ -43,14 +43,14 @@ Analysis_Info= {
                 'Geometric_Imperfection':False,
                 'Notional_load':True
                 },
-    'No_Second_order_effects':{
+    '1st_order_elastic':{
                 'Residual_Stress':False,
                 'Elastic_analysis':True,
                 'Second_order_effects':False,
                 'stiffness_reduction':0.8,
                 'strength_reduction':1,
                 'Geometric_Imperfection':False,
-                'Notional_load':True
+                'Notional_load':False
                 },
     'GNA':{
                 'Residual_Stress':False,
@@ -107,7 +107,7 @@ Frame_Info={
         'Trial_Col': {
         'Frame_id':'Trial_Col',
         'bay_width': [],
-        'story_height': [20 * ft, 15 * ft],
+        'story_height': [28 * ft],
         'column_no_of_ele': 2,   ## change to 2
         'beam_no_of_ele': 4,     ## change to 4
         'beam_section':
@@ -133,13 +133,13 @@ Frame_Info={
             }
         },
         'support': 'f',
-        'load_comb_multipliers': [1, 0, 0, 0],
-        'D_floor_intensity': 7.5  * kip,
-        'D_roof_intensity': 3.5 * kip,
+        'load_comb_multipliers': [1, 0, 0, 1],
+        'D_floor_intensity': 7.5*10  * KN,
+        'D_roof_intensity': 133.5 *KN ,
         'L_floor_intensity': 0 * kip / ft,
         'L_roof_intensity': 0 * kip / ft,
-        'Wind_load_floor': 6.56*10*kip,
-        'Wind_load_roof': 2.81*10*kip,
+        'Wind_load_floor': 6.56*3*KN,
+        'Wind_load_roof': 4.45*3*KN,
         'Wall_load':0,
         'geometric_imperfection_ratio':1/500,
         'Leaning_column':False,
@@ -147,6 +147,51 @@ Frame_Info={
         'Leaning_column_floor_load':2,
         'Leaning_column_roof_load':1
          },
+
+        'Trial_Col_2': {
+        'Frame_id':'Trial_Col_2',
+        'bay_width': [],
+        'story_height': [40 * ft, 28 * ft],
+        'column_no_of_ele': 2,   ## change to 2
+        'beam_no_of_ele': 4,     ## change to 4
+        'beam_section':
+          {
+            'common_and_exceptions': 
+            {
+                'common': 'W27X84',
+                '(2,1)': 'W36X170',
+                '(1,2)': 'W21X44',
+                '(2,2)': 'W27X102',
+             }
+         },
+        'column_section':
+         {
+            'common_and_exceptions': 
+            {
+                'common': ('W8X15', 'x'),
+                '(2,1)': ('W14X132', 'x'),
+                '(3,1)': ('W14X120', 'x'),
+                '(1,2)': ('W8X13', 'x'),
+                '(2,2)': ('W14X120', 'x'),
+                '(3,2)': ('W14X109', 'x'),
+            }
+        },
+        'support': 'f',
+        'load_comb_multipliers': [1, 0, 0, 1],
+        'D_floor_intensity': 7.5*10  * KN,
+        'D_roof_intensity': 133.5 *KN ,
+        'L_floor_intensity': 0 * kip / ft,
+        'L_roof_intensity': 0 * kip / ft,
+        'Wind_load_floor': 6.56*3*KN,
+        'Wind_load_roof': 4.45*3*KN,
+        'Wall_load':0,
+        'geometric_imperfection_ratio':1/500,
+        'Leaning_column':False,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load':2,
+        'Leaning_column_roof_load':1
+         },
+
 ##########################################################################
         '100': {
         'Frame_id':'Test_Frame',
@@ -521,7 +566,7 @@ Frame_Info={
         'Wind_load_floor': 6.56*kip,
         'Wind_load_roof': 2.81*kip,
         'Wall_load':0,
-        'geometric_imperfection_ratio': 0,
+        'geometric_imperfection_ratio': 1/500,
         'Leaning_column':False,
         'Leaning_column_offset': 2,
         'Leaning_column_floor_load':2,
