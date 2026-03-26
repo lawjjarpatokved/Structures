@@ -3,20 +3,23 @@ from Plots import line_plot
 from Ziemian_database import Frame_Info, convert_dict_items_to_class_attributes,Analysis_Info
 from libdenavit.OpenSees.get_fiber_data import *
 import opsvis as opsv 
+json_wind_dirn_path="wind_load_dirn_data.json"
 
-Frame_number='Trial_Col'
+Frame_number='Trial_Col_2'
+frame_key=str(Frame_number)
 Analysis_type='GMNIA'
 analysis_folder = os.path.join(Frame_number, Analysis_type)
 os.makedirs(analysis_folder, exist_ok=True)
-Frame_dict=Frame_Info[str(Frame_number)]
+Frame_dict=Frame_Info[frame_key]
 Frame_details=convert_dict_items_to_class_attributes(Frame_dict)
-if Frame_details.geometric_imperfection_ratio>0:
-    wind_load_dirn='right'
-else:
-    wind_load_dirn='left'
+
 
 Analysis_dict=Analysis_Info[str(Analysis_type)]
 Analysis_details=convert_dict_items_to_class_attributes(Analysis_dict)
+
+wind_data=load_wind_dirn_data(json_wind_dirn_path=json_wind_dirn_path)
+wind_data=ensure_frame_entry_exists(frame_key=frame_key,data=wind_data,json_wind_dirn_path=json_wind_dirn_path)
+wind_load_dirn=wind_data[frame_key]["wind_load_dirn"]
 
 Frame=MFColumn_2D(Frame_details.bay_width, Frame_details.story_height, Frame_details.column_no_of_ele, Frame_details.beam_no_of_ele,
                     beam_section=Frame_details.beam_section,
@@ -46,12 +49,17 @@ Frame=MFColumn_2D(Frame_details.bay_width, Frame_details.story_height, Frame_det
                     Leaning_column_offset=Frame_details.Leaning_column_offset,
                     Leaning_column_floor_load=Frame_details.Leaning_column_floor_load,
                     Leaning_column_roof_load=Frame_details.Leaning_column_roof_load)
-Frame.get_lateral_loading_direction()
-print(Frame.wind_load_dirn)
-input('Lateral loading figured out')
-a=Frame.get_del2_over_del1(lateral_load_scale=0.01,vertical_load_scale=1)
-print(a)
-input()
+if Frame.wind_load_dirn is None:
+        calculated_wind_load_dirn=Frame.get_lateral_loading_direction()   
+        wind_data[frame_key]["wind_load_dirn"]=calculated_wind_load_dirn
+        wind_data[frame_key]["wind_load_dirn_source"] = "analysis"
+        save_wind_dirn_data(data=wind_data,json_wind_dirn_path=json_wind_dirn_path)
+
+# print(Frame.wind_load_dirn)
+# input('Lateral loading figured out')
+a=Frame.get_del2_over_del1(lateral_load_scale=0,vertical_load_scale=0.87)
+# print(a)
+# input()
 
 # Frame=Frame2.rebuild_with_overrides(storey_height=[40 * ft, 28 * ft],                Residual_Stress=False,
 #                 Elastic_analysis=True,
@@ -104,7 +112,7 @@ Frame.plot_model()
 # Frame.build_ops_model()
 # Frame.add_dead_live_wind_wall_loads()
 # target_disp=-10 if disp<0 else 10
-results,_ =Frame.run_displacement_controlled_analysis(plot_defo=True,analysis='proportional_limit_point',vertical_load_scale=1,lateral_load_scale=0.001,control_dir='L')
+results,_ =Frame.run_displacement_controlled_analysis(plot_defo=True,analysis='non_proportional_limit_point',vertical_load_scale=1,lateral_load_scale=0,control_dir='L')
 Frame.plot_model()
 # --- Plot 1: λ vs displacement ---
 print(results.load_ratio)

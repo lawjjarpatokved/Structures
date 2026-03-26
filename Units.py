@@ -12,6 +12,9 @@ ksi = kip / inch**2
 
 import libdenavit.section.database.aisc as section
 import libdenavit.section.wide_flange as database
+import os
+import json
+
 class wf_Database:
     def __init__(self,Section_name,unit=inch):
 
@@ -46,3 +49,35 @@ class WF_Database:
             self.rts = db.rts * unit
             self.ho  = db.ho  * unit
 ########################################################################################################################
+
+def load_wind_dirn_data(json_wind_dirn_path):
+    if not os.path.exists(json_wind_dirn_path):
+        return {}
+
+    try:
+        with open(json_wind_dirn_path, "r") as f:
+            content = f.read().strip()
+
+            if content == "":
+                return {}
+
+            return json.loads(content)
+
+    except json.JSONDecodeError:
+        return {}
+
+def save_wind_dirn_data(data,json_wind_dirn_path):
+    with open(json_wind_dirn_path, "w") as f:
+        json.dump(data, f, indent=4)
+
+
+def ensure_frame_entry_exists(frame_key,data,json_wind_dirn_path):
+    if frame_key not in data:
+        data[frame_key]={
+            "wind_load_dirn": None,
+            "wind_load_dirn_source": "unknown"
+        }
+
+        save_wind_dirn_data(data,json_wind_dirn_path=json_wind_dirn_path)
+    return data
+     

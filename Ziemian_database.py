@@ -1,6 +1,5 @@
 from Units import *
 
-
 class convert_dict_items_to_class_attributes:
     def __init__(self,config):
         for k, v in config.items():
@@ -145,9 +144,9 @@ Frame_Info={
         'Leaning_column':False,
         'Leaning_column_offset': 2,
         'Leaning_column_floor_load':2,
-        'Leaning_column_roof_load':1
+        'Leaning_column_roof_load':1,
          },
-
+###########################################################################
         'Trial_Col_2': {
         'Frame_id':'Trial_Col_2',
         'bay_width': [],
@@ -168,7 +167,7 @@ Frame_Info={
          {
             'common_and_exceptions': 
             {
-                'common': ('W8X15', 'x'),
+                'common': ('W14X132', 'x'),
                 '(2,1)': ('W14X132', 'x'),
                 '(3,1)': ('W14X120', 'x'),
                 '(1,2)': ('W8X13', 'x'),

@@ -4,24 +4,31 @@ from Ziemian_database import Frame_Info,Analysis_Info
 from Ziemian_database import convert_dict_items_to_class_attributes
 from libdenavit.OpenSees.get_fiber_data import *
 from libdenavit.OpenSees import plotting
-import gc
 from Plots import plot_single_bar,line_plot
 import os
 import seaborn as sns
-import opsvis
 from typing import List, Optional, Tuple
+from Units import load_wind_dirn_data,save_wind_dirn_data,ensure_frame_entry_exists
+
+json_wind_dirn_path="wind_load_dirn_data.json"
+
 
 def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1,vertical_load_scale=1,ops_anlaysis='proportional_limit_point'):
     # try:
-    Frame_dict=Frame_Info[str(Frame_number)]
+    frame_key=str(Frame_number)
+    Frame_dict=Frame_Info[frame_key]
     Frame_details=convert_dict_items_to_class_attributes(Frame_dict)
-    if Frame_details.geometric_imperfection_ratio>0:
-        wind_load_dirn='right'
-    else:
-        wind_load_dirn='left'
+    # if Frame_details.geometric_imperfection_ratio>0:
+    #     wind_load_dirn='right'
+    # else:
+    #     wind_load_dirn='left'
 
     Analysis_dict=Analysis_Info[str(Analysis_type)]
     Analysis_details=convert_dict_items_to_class_attributes(Analysis_dict)
+
+    wind_data=load_wind_dirn_data(json_wind_dirn_path=json_wind_dirn_path)
+    wind_data=ensure_frame_entry_exists(frame_key=frame_key,data=wind_data,json_wind_dirn_path=json_wind_dirn_path)
+    wind_load_dirn=wind_data[frame_key]["wind_load_dirn"]
 
 
     Frame=MFColumn_2D(Frame_details.bay_width, Frame_details.story_height, Frame_details.column_no_of_ele, Frame_details.beam_no_of_ele,
@@ -52,6 +59,12 @@ def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1
                     Leaning_column_offset=Frame_details.Leaning_column_offset,
                     Leaning_column_floor_load=Frame_details.Leaning_column_floor_load,
                     Leaning_column_roof_load=Frame_details.Leaning_column_roof_load)
+    if Frame.wind_load_dirn is None:
+        calculated_wind_load_dirn=Frame.get_lateral_loading_direction()   
+        wind_data[frame_key]["wind_load_dirn"]=calculated_wind_load_dirn
+        wind_data[frame_key]["wind_load_dirn_source"] = "analysis"
+        save_wind_dirn_data(data=wind_data,json_wind_dirn_path=json_wind_dirn_path)
+
 
     Frame.generate_Nodes_and_Element_Connectivity()
     Frame.create_distorted_nodes_and_element_connectivity()
@@ -665,15 +678,21 @@ def write_interaction_results(
             )
             curves[analysis] = (ALR_H, ALR_V)
         print(theta_list)
-        for theta in theta_list:
-            for analysis in analysis_list:
+        for analysis in analysis_list:
+            for theta in theta_list:
                 ALR_H, ALR_V = curves[analysis]
+
                 pt = intersection_with_ray_from_origin(ALR_H, ALR_V, theta)
                 print(theta)
                 print(pt)
                 # input()
                 vertical_load_scale = pt[1] if pt is not None else None
-                lateral_load_scale = pt[0]+0.00001 if pt[0]==0 else pt[0] if pt is not None else None
+                if vertical_load_scale==0:
+                    ult_lat_load_for_V0=pt[0]
+                    print(vertical_load_scale)
+                    print(ult_lat_load_for_V0)
+                    input()
+                lateral_load_scale = ult_lat_load_for_V0*0.0001 if pt[0]==0 else pt[0] if pt is not None else None
                 # lateral_load_scale = pt[0]
                 del2_over_del1=duplicate_frame.get_del2_over_del1(vertical_load_scale=vertical_load_scale, lateral_load_scale=lateral_load_scale)
 
@@ -864,60 +883,60 @@ def plot_theta_vs_Radial_Errors(
     else:
         plt.close()
 
+if __name__ == "__main__":
+    new_analysis_run=True
+    Frame_number= ['Trial_Col_2']      # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
+    Analysis_type= ['GMNA'  ,  'GMNIA'  ,'GNA', 'GNIA', 'GNA_Notional_Loads']
 
-new_analysis_run=True
-Frame_number= ['Trial_Col']      # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
-Analysis_type= ['GMNA'  ,  'GMNIA'  ,'GNA', 'GNIA', 'GNA_Notional_Loads']
-
-# Analysis_type= [  'GMNA']
-csv_path = "Column_Results/interaction_results.csv"
+    Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']
+    csv_path = "Column_Results/interaction_results.csv"
 
 
-Radial_errors=['Error(GNIA<GNA_Notional_Loads)',
-               'Error(GNIA<GNA)',
-               'Error(GNA_Notional_Loads<GNA)',
-               'Error(GNA<GMNIA)',
-               'Error(GNA_Notional_Loads<GMNIA)',
-               'Error(GNIA<GMNIA)',
-               'Error(GMNA<GMNIA)']
+    Radial_errors=['Error(GNIA<GNA_Notional_Loads)',
+                'Error(GNIA<GNA)',
+                'Error(GNA_Notional_Loads<GNA)',
+                'Error(GNA<GMNIA)',
+                'Error(GNA_Notional_Loads<GMNIA)',
+                'Error(GNIA<GMNIA)',
+                'Error(GMNA<GMNIA)']
 
-if new_analysis_run:
-    # Interaction_Plots(
-    #     Frame_number=Frame_number,
-    #     Analysis_type=Analysis_type,
-    #     proportional=False,
-    #     plot=True)
-    
-    theta_list = np.linspace(0, 90,91)  
-    
-    df = write_interaction_results(
-        "Column_Results/interaction_results.csv",
-        frame_list=Frame_number,
-        analysis_list=Analysis_type,
-        theta_list=theta_list,
-        proportional=False
-    )
-    
-    plot_theta_vs_del2_over_del1(
+    if new_analysis_run:
+        # Interaction_Plots(
+        #     Frame_number=Frame_number,
+        #     Analysis_type=Analysis_type,
+        #     proportional=False,
+        #     plot=True)
+        # input('Plots Created')    
+        theta_list = np.linspace(0, 90,91)  
+        
+        df = write_interaction_results(
+            "Column_Results/interaction_results.csv",
+            frame_list=Frame_number,
+            analysis_list=Analysis_type,
+            theta_list=theta_list,
+            proportional=False
+        )
+        
+        plot_theta_vs_del2_over_del1(
+            csv_path=csv_path,
+            frame_list=Frame_number,
+            analyses_to_plot=Analysis_type,
+        )
+
+        # plot_theta_vs_Radial_Errors(
+        # csv_path=csv_path,
+        # frame_list=Frame_number,
+        # errors_to_plot=Radial_errors)
+
+
+    else:
+        plot_theta_vs_del2_over_del1(
+            csv_path=csv_path,
+            frame_list=Frame_number,
+            analyses_to_plot=Analysis_type,
+        )
+
+        plot_theta_vs_Radial_Errors(
         csv_path=csv_path,
         frame_list=Frame_number,
-        analyses_to_plot=Analysis_type,
-    )
-
-    # plot_theta_vs_Radial_Errors(
-    # csv_path=csv_path,
-    # frame_list=Frame_number,
-    # errors_to_plot=Radial_errors)
-
-
-else:
-    plot_theta_vs_del2_over_del1(
-        csv_path=csv_path,
-        frame_list=Frame_number,
-        analyses_to_plot=Analysis_type,
-    )
-
-    plot_theta_vs_Radial_Errors(
-    csv_path=csv_path,
-    frame_list=Frame_number,
-    errors_to_plot=Radial_errors)
+        errors_to_plot=Radial_errors)
