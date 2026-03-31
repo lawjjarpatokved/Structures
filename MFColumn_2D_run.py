@@ -433,7 +433,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                     
                     print(f'{analysis_type}')
                     print(f"Running vertical load scale {i:.2f}")
-                    input()
+                    # input()
 
     
                     
@@ -691,7 +691,7 @@ def write_interaction_results(
                     ult_lat_load_for_V0=pt[0]
                     print(vertical_load_scale)
                     print(ult_lat_load_for_V0)
-                    input()
+                    # input()
                 lateral_load_scale = ult_lat_load_for_V0*0.0001 if pt[0]==0 else pt[0] if pt is not None else None
                 # lateral_load_scale = pt[0]
                 del2_over_del1=duplicate_frame.get_del2_over_del1(vertical_load_scale=vertical_load_scale, lateral_load_scale=lateral_load_scale)
@@ -884,21 +884,30 @@ def plot_theta_vs_Radial_Errors(
         plt.close()
 
 if __name__ == "__main__":
-    new_analysis_run=False
-    Frame_number= ['Trial_Col']      # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
+    new_analysis_run=True
+    Frame_number= ['W14X132_x_1X12','W14X132_x_1X15','W14X132_x_1X18','W14X132_x_1X30','W14X132_x_1X36'] 
+    Frame_number= ['W27X84_x_1X12','W27X84_x_1X18','W27X84_x_1X30']     # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
+    # Frame_number= ['W27X84_x_1X30']
     Analysis_type= ['GMNA'  ,  'GMNIA'  ,'GNA', 'GNIA', 'GNA_Notional_Loads']
 
     Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']
     csv_path = "Column_Results/interaction_results.csv"
 
 
-    Radial_errors=['Error(GNIA<GNA_Notional_Loads)',
-                'Error(GNIA<GNA)',
-                'Error(GNA_Notional_Loads<GNA)',
-                'Error(GNA<GMNIA)',
-                'Error(GNA_Notional_Loads<GMNIA)',
-                'Error(GNIA<GMNIA)',
-                'Error(GMNA<GMNIA)']
+    # Radial_errors=['Error(GNIA<GNA_Notional_Loads)',
+    #             'Error(GNIA<GNA)',
+    #             'Error(GNA_Notional_Loads<GNA)',
+    #             'Error(GNA<GMNIA)',
+    #             'Error(GNA_Notional_Loads<GMNIA)',
+    #             'Error(GNIA<GMNIA)',
+    #             'Error(GMNA<GMNIA)']
+    Radial_errors=[
+           
+            'Error(GNA_Notional_Loads<GNA)',
+            'Error(GNA<GMNIA)',
+            'Error(GNA_Notional_Loads<GMNIA)',
+            
+            ]
 
     if new_analysis_run:
         # Interaction_Plots(
@@ -906,7 +915,7 @@ if __name__ == "__main__":
         #     Analysis_type=Analysis_type,
         #     proportional=False,
         #     plot=True)
-        # input('Plots Created')    
+            
         theta_list = np.linspace(0, 90,91)  
         
         df = write_interaction_results(
@@ -923,10 +932,10 @@ if __name__ == "__main__":
             analyses_to_plot=Analysis_type,
         )
 
-        # plot_theta_vs_Radial_Errors(
-        # csv_path=csv_path,
-        # frame_list=Frame_number,
-        # errors_to_plot=Radial_errors)
+        plot_theta_vs_Radial_Errors(
+        csv_path=csv_path,
+        frame_list=Frame_number,
+        errors_to_plot=Radial_errors)
 
 
     else:

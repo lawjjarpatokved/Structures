@@ -1194,7 +1194,7 @@ class Structures_2D:
 
             print(dummy_results.control_node_displacement)
             print(dummy_results.lowest_eigenvalue)
-            input()
+            # input()
             if displacement_to_check>=0:
                 self.wind_load_dirn='right'
             else:
@@ -1255,7 +1255,8 @@ class Structures_2D:
         First_order_frame.create_distorted_nodes_and_element_connectivity()
         First_order_frame.build_ops_model()
         drift_with_first_order_effects,results,fail_during_LCA=First_order_frame.run_load_controlled_anlaysis(vertical_load_scale=vertical_load_scale,lateral_load_scale=lateral_load_scale,plot=False)
-        
+        if results.lowest_eigenvalue[-1]<0:
+            raise Exception('Warning: Got negative eigenvalue for 1st order elastic analysis while calculating del2_over_del1.')        
         print('drift_with_first_order_effects',drift_with_first_order_effects)
         # input('Press Enter to continue...')
 
