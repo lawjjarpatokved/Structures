@@ -1169,7 +1169,7 @@ class Structures_2D:
 
     def get_lateral_loading_direction(self):
         print('I am inside get_lateral_loading_direction method')
-        input()
+        # input()
         # if self.geometric_imperfection_ratio>0:
         #     self.wind_load_dirn='right'
         # elif self.geometric_imperfection_ratio<0:
@@ -1186,11 +1186,11 @@ class Structures_2D:
                                                         Notional_load=False)
             Dummy_Frame.generate_Nodes_and_Element_Connectivity()
             Dummy_Frame.build_ops_model()
-            _,dummy_results,_=Dummy_Frame.run_load_controlled_anlaysis(lateral_load_scale=0.001,plot=True)
-            if dummy_results.lowest_eigenvalue[-1]<0:
-                displacement_to_check=dummy_results.control_node_displacement[-2]
-            else:
-                displacement_to_check=dummy_results.control_node_displacement[-1]
+            _,dummy_results,_=Dummy_Frame.run_load_controlled_anlaysis(lateral_load_scale=0.001,vertical_load_scale=0.1,plot=False)
+            # if dummy_results.lowest_eigenvalue[-1]<0:
+            #     displacement_to_check=dummy_results.control_node_displacement[-2]
+            # else:
+            displacement_to_check=dummy_results.control_node_displacement[-1]
 
             print(dummy_results.control_node_displacement)
             print(dummy_results.lowest_eigenvalue)
@@ -1226,8 +1226,12 @@ class Structures_2D:
         Second_order_frame.generate_Nodes_and_Element_Connectivity()
         Second_order_frame.create_distorted_nodes_and_element_connectivity()
         Second_order_frame.build_ops_model()
-        drift_with_second_order_effects,_,fail_during_LCA=Second_order_frame.run_load_controlled_anlaysis(vertical_load_scale=vertical_load_scale,lateral_load_scale=lateral_load_scale,plot=False)
+        drift_with_second_order_effects,results,fail_during_LCA=Second_order_frame.run_load_controlled_anlaysis(vertical_load_scale=vertical_load_scale,lateral_load_scale=lateral_load_scale,plot=False)
+        if results.lowest_eigenvalue[-1]<0:
+            print('Warning: The lowest eigenvalue is negative, which indicates that the structure has gone past elastic critical buckling limit. So the drift is treated as infinite.')
+            drift_with_second_order_effects = [float('inf')] * len(drift_with_second_order_effects)
         print('drift_with_second_order_effects',drift_with_second_order_effects)
+        # input('Press Enter to continue...')
         print('First order Frame')
         First_order_frame=self.rebuild_with_overrides(Second_order_effects=False,
                                                        Residual_Stress=False,
@@ -1250,8 +1254,10 @@ class Structures_2D:
         First_order_frame.generate_Nodes_and_Element_Connectivity()
         First_order_frame.create_distorted_nodes_and_element_connectivity()
         First_order_frame.build_ops_model()
-        drift_with_first_order_effects,_,fail_during_LCA=First_order_frame.run_load_controlled_anlaysis(vertical_load_scale=vertical_load_scale,lateral_load_scale=lateral_load_scale,plot=False)
+        drift_with_first_order_effects,results,fail_during_LCA=First_order_frame.run_load_controlled_anlaysis(vertical_load_scale=vertical_load_scale,lateral_load_scale=lateral_load_scale,plot=False)
+        
         print('drift_with_first_order_effects',drift_with_first_order_effects)
+        # input('Press Enter to continue...')
 
         del2_over_del1=[]
         for i in range(len(drift_with_first_order_effects)):

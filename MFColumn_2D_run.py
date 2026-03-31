@@ -799,8 +799,8 @@ def plot_theta_vs_del2_over_del1(
 
     if show:
         plt.show()
-    else:
-        plt.close()
+    # else:
+    #     plt.close()
 
 def plot_theta_vs_Radial_Errors(
     csv_path: str,
@@ -884,8 +884,8 @@ def plot_theta_vs_Radial_Errors(
         plt.close()
 
 if __name__ == "__main__":
-    new_analysis_run=True
-    Frame_number= ['Trial_Col_2']      # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
+    new_analysis_run=False
+    Frame_number= ['Trial_Col']      # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
     Analysis_type= ['GMNA'  ,  'GMNIA'  ,'GNA', 'GNIA', 'GNA_Notional_Loads']
 
     Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']

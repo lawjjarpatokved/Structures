@@ -5,7 +5,7 @@ from libdenavit.OpenSees.get_fiber_data import *
 import opsvis as opsv 
 json_wind_dirn_path="wind_load_dirn_data.json"
 
-Frame_number='Trial_Col_2'
+Frame_number='Trial_Col'
 frame_key=str(Frame_number)
 Analysis_type='GMNIA'
 analysis_folder = os.path.join(Frame_number, Analysis_type)
@@ -56,10 +56,10 @@ if Frame.wind_load_dirn is None:
         save_wind_dirn_data(data=wind_data,json_wind_dirn_path=json_wind_dirn_path)
 
 # print(Frame.wind_load_dirn)
-# input('Lateral loading figured out')
-a=Frame.get_del2_over_del1(lateral_load_scale=0,vertical_load_scale=0.87)
+input('Lateral loading figured out')
+a=Frame.get_del2_over_del1(lateral_load_scale=0.001,vertical_load_scale=0.87)
 # print(a)
-# input()
+input()
 
 # Frame=Frame2.rebuild_with_overrides(storey_height=[40 * ft, 28 * ft],                Residual_Stress=False,
 #                 Elastic_analysis=True,
