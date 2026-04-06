@@ -167,7 +167,8 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
             palette = sns.color_palette("tab10", len(Analysis_type))
             linestyles = ['-', '-', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 1))]
 
-            fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
+            if plot:
+                fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
 
             # store intersection points for optional later use
             intersections = []   # list of (x, y, color)
@@ -313,6 +314,39 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                         show=False
                     )
 
+            # Save figure for this frame in non-proportional case
+            if plot:
+                (x_cross,y_cross) = intersection_with_ray_from_origin(x=ALR_H, y=ALR_V, theta_deg=45)
+
+                ax_alr.scatter(
+                    x_cross, y_cross,
+                    s=15,
+                    facecolors='none',
+                    edgecolors=palette[j % len(palette)],
+                    linewidths=0.8,
+                    zorder=5
+                )
+
+                ax_alr.plot(
+                    [0, 1], [0, 1],
+                    color='black',
+                    linestyle='--',
+                    linewidth=0.8,
+                    alpha=0.7,
+                    label='ALR_H = ALR_V'
+                )
+
+                ax_alr.set_xlim(left=0)
+                ax_alr.set_ylim(bottom=0)
+
+                ax_alr.set_title(f'Frame {frame_number}: ALR_V vs ALR_H ({code})')
+                ax_alr.legend()
+                fig_alr.tight_layout()
+                fig_alr.savefig(
+                    os.path.join(frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}.png'),
+                    dpi=600
+                )
+                plt.close(fig_alr)
 
     else:
     ### proportional
@@ -321,7 +355,8 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
             palette = sns.color_palette("tab10", len(Analysis_type))
             linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 1))]
 
-            fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
+            if plot:
+                fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
 
             # NEW: store intersections if you want them later (optional)
             intersections = []
@@ -486,38 +521,39 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                         show=False
                     )
 
-    if plot:
-        (x_cross,y_cross) = intersection_with_ray_from_origin(x=ALR_H, y=ALR_V, theta_deg=45)
+            # Save figure for this frame in proportional case
+            if plot:
+                (x_cross,y_cross) = intersection_with_ray_from_origin(x=ALR_H, y=ALR_V, theta_deg=45)
 
-        ax_alr.scatter(
-            x_cross, y_cross,
-            s=15,
-            facecolors='none',
-            edgecolors=palette[j % len(palette)],
-            linewidths=0.8,
-            zorder=5
-        )
+                ax_alr.scatter(
+                    x_cross, y_cross,
+                    s=15,
+                    facecolors='none',
+                    edgecolors=palette[j % len(palette)],
+                    linewidths=0.8,
+                    zorder=5
+                )
 
-        ax_alr.plot(
-            [0, 1], [0, 1],
-            color='black',
-            linestyle='--',
-            linewidth=0.8,
-            alpha=0.7,
-            label='ALR_H = ALR_V'
-        )
+                ax_alr.plot(
+                    [0, 1], [0, 1],
+                    color='black',
+                    linestyle='--',
+                    linewidth=0.8,
+                    alpha=0.7,
+                    label='ALR_H = ALR_V'
+                )
 
-        ax_alr.set_xlim(left=0)
-        ax_alr.set_ylim(bottom=0)
+                ax_alr.set_xlim(left=0)
+                ax_alr.set_ylim(bottom=0)
 
-        ax_alr.set_title(f'Frame {frame_number}: ALR_V vs ALR_H ({code})')
-        ax_alr.legend()
-        fig_alr.tight_layout()
-        fig_alr.savefig(
-            os.path.join(frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}.png'),
-            dpi=600
-        )
-        plt.close(fig_alr)
+                ax_alr.set_title(f'Frame {frame_number}: ALR_V vs ALR_H ({code})')
+                ax_alr.legend()
+                fig_alr.tight_layout()
+                fig_alr.savefig(
+                    os.path.join(frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}.png'),
+                    dpi=600
+                )
+                plt.close(fig_alr)
 
     # plotting.plot_sfd()
     # plotting.plot_bmd()
@@ -794,13 +830,11 @@ def plot_theta_vs_del2_over_del1(
     plt.grid(True, alpha=0.3)
     plt.legend()
 
-    if save_path is not None:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    folder = os.path.join("Column_Results", "theta_vs_del2_over_del1")
+    os.makedirs(folder, exist_ok=True)
 
-    if show:
-        plt.show()
-    # else:
-    #     plt.close()
+    save_path = os.path.join(folder, f"Theta_vs_del2_over_del1.png")
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
 def plot_theta_vs_Radial_Errors(
     csv_path: str,
@@ -883,11 +917,109 @@ def plot_theta_vs_Radial_Errors(
     else:
         plt.close()
 
+def parametric_h_min_radial_error(csv_path,column_section_name,bending_axes,no_of_stories,config_col='Frame'):
+
+    df = pd.read_csv(csv_path)
+
+    ## Compute radial errors for all desired comparisons
+    Radial_errors=[
+           
+            'Error(GNA_Notional_Loads<GNA)',
+            'Error(GNA<GMNIA)',
+            'Error(GNA_Notional_Loads<GMNIA)',
+            
+            ]
+    # Compute error columns from the error names provided
+    for error_name in Radial_errors:
+        print(error_name)
+        start = error_name.find('(') + 1
+        mid = error_name.find('<')
+        first = error_name[start:mid]
+    
+        # Find text between < and )
+        end = error_name.find(')')
+        second = error_name[mid+1:end]
+
+
+        col_name = f"Error({first}<{second})"
+        df[col_name] = return_radial_error_betn_analyses(df, first, second)
+
+        # build prefix like W27X84_x_1X fromm the provided inputs
+        prefix = f"{column_section_name}_{bending_axes}_{no_of_stories}X"    
+
+        # --- filter matching rows ---
+        df_sub = df[df[config_col].astype(str).str.startswith(prefix)].copy()
+
+        if df_sub.empty:
+            raise ValueError(f"No rows found matching prefix: {prefix}")
+
+        # --- extract h from names like W27X84_x_1X18 ---
+        df_sub["h"] = (
+            df_sub[config_col]
+            .astype(str)
+            .str[len(prefix):]
+        )
+        df_sub["h"] = pd.to_numeric(df_sub["h"], errors="coerce")
+
+        df_sub = df_sub.dropna(subset=["h"])
+
+        if df_sub.empty:
+            raise ValueError(f"Could not extract h values from {config_col} using prefix: {prefix}")
+
+        plt.figure()
+
+        for error_name in Radial_errors:
+            if error_name not in df_sub.columns:
+                print(f"Warning: {error_name} not found. Skipping.")
+                continue
+
+            y = pd.to_numeric(df_sub[error_name], errors="coerce")
+
+            # ignore inf when taking minimum
+            y = y.replace([np.inf, -np.inf], np.nan)
+
+            temp = pd.DataFrame({
+                "h": df_sub["h"],
+                "error": y
+            }).dropna()
+
+            if temp.empty:
+                print(f"Warning: No finite values found for {error_name}")
+                continue
+
+            grouped = temp.groupby("h", as_index=False)["error"].min()
+            grouped = grouped.sort_values("h")
+
+            plt.plot(
+                grouped["h"],
+                grouped["error"],
+                marker=".",
+                linewidth=0.7,
+                label=error_name
+            )
+
+        plt.xlabel("h")
+        plt.ylabel("Minimum radial error")
+        plt.title(f"h vs Minimum Radial Error ({prefix}*)")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+
+        folder = os.path.join("Column_Results", "parametric h vs min radial error")
+        os.makedirs(folder, exist_ok=True)
+
+        save_path = os.path.join(folder, f"{prefix}_h_vs_min_radial_error.png")
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+
+
+
+
+
+
 if __name__ == "__main__":
-    new_analysis_run=True
-    Frame_number= ['W14X132_x_1X12','W14X132_x_1X15','W14X132_x_1X18','W14X132_x_1X30','W14X132_x_1X36'] 
-    Frame_number= ['W27X84_x_1X12','W27X84_x_1X18','W27X84_x_1X30']     # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
-    # Frame_number= ['W27X84_x_1X30']
+    new_analysis_run=False
+    Frame_number= ['W27X84_x_1X9','W14X132_x_1X12','W14X132_x_1X15','W14X132_x_1X18','W27X84_x_1X21','W14X132_x_1X30','W14X132_x_1X36'] 
+    Frame_number= ['W27X84_x_1X9','W27X84_x_1X27','W27X84_x_1X15','W27X84_x_1X24']     # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
+    Frame_number= ['W27X84_x_1X24','W27X84_x_1X30']
     Analysis_type= ['GMNA'  ,  'GMNIA'  ,'GNA', 'GNIA', 'GNA_Notional_Loads']
 
     Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']
@@ -910,11 +1042,11 @@ if __name__ == "__main__":
             ]
 
     if new_analysis_run:
-        # Interaction_Plots(
-        #     Frame_number=Frame_number,
-        #     Analysis_type=Analysis_type,
-        #     proportional=False,
-        #     plot=True)
+        Interaction_Plots(
+            Frame_number=Frame_number,
+            Analysis_type=Analysis_type,
+            proportional=False,
+            plot=True)
             
         theta_list = np.linspace(0, 90,91)  
         
@@ -949,3 +1081,10 @@ if __name__ == "__main__":
         csv_path=csv_path,
         frame_list=Frame_number,
         errors_to_plot=Radial_errors)
+
+        parametric_h_min_radial_error(
+            csv_path=csv_path,
+            column_section_name="W27X84",
+            bending_axes="x",
+            no_of_stories=1
+        )
