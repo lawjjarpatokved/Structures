@@ -7,7 +7,7 @@ import opsvis as opsv
 from libdenavit.OpenSees.plotting import *
 from libdenavit.OpenSees.get_fiber_data import *
 from Structures_2D import Structures_2D
-from Units import *
+from helpers import *
 from math import pi, ceil
 from libdenavit.section.wide_flange import *
 from libdenavit.OpenSees import AnalysisResults
@@ -168,8 +168,3 @@ class MFColumn_2D(Structures_2D):
             control_dof = 2  # vertical displacement    
 
         return control_node,control_dof    
-
-
-
-
-    

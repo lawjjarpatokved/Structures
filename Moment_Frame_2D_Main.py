@@ -7,7 +7,7 @@ import opsvis as opsv
 from Structures_2D import Structures_2D
 from libdenavit.OpenSees.plotting import *
 from libdenavit.OpenSees.get_fiber_data import *
-from Units import *
+from helpers import *
 from math import pi, ceil
 from libdenavit.section.wide_flange import *
 from libdenavit.OpenSees import AnalysisResults

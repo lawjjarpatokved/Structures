@@ -1,6 +1,6 @@
 from Moment_Frame_2D_Main import *
-from Ziemian_database import Frame_Info,Analysis_Info
-from Ziemian_database import convert_dict_items_to_class_attributes
+from Columns_config import Frame_Info,Analysis_Info
+from Columns_config import convert_dict_items_to_class_attributes
 from libdenavit.OpenSees.get_fiber_data import *
 from libdenavit.OpenSees import plotting
 import gc

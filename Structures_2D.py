@@ -7,7 +7,7 @@ import opsvis as opsv
 from libdenavit.OpenSees.plotting import *
 from libdenavit.OpenSees.get_fiber_data import *
 from Plots import line_plot
-from Units import *
+from helpers import *
 from math import pi, ceil
 from libdenavit.section.wide_flange import *
 from libdenavit.OpenSees import AnalysisResults
@@ -19,22 +19,22 @@ from matplotlib.animation import FuncAnimation
 import inspect
 
 #################################################
-density_of_steel=7850*kg/(m**3)
-g=9.81*m/(sec**2)
-E=29000*ksi
-G=77221*Mpa
-Fy=36*ksi
-Hk = 0.001*E           # Kinematic hardening modulus
+# density_of_steel=7850*kg/(m**3)
+# g=9.81*m/(sec**2)
+# E=29000*ksi
+# G=77221*Mpa
+# Fy=36*ksi
+# Hk = 0.001*E           # Kinematic hardening modulus
 
-class Steel_Material:
-    def __init__(self,mat_tag,E,Fy,G,Hk,density):
-        self.mat_tag=mat_tag
-        self.E=E
-        self.Fy=Fy
-        self.G=G
-        self.Hk=Hk
-        self.density=density
-        self.b=Hk / (E + Hk) 
+# class Steel_Material:
+#     def __init__(self,mat_tag,E,Fy,G,Hk,density):
+#         self.mat_tag=mat_tag
+#         self.E=E
+#         self.Fy=Fy
+#         self.G=G
+#         self.Hk=Hk
+#         self.density=density
+#         self.b=Hk / (E + Hk) 
 
 class Structures_2D:
 
@@ -43,7 +43,7 @@ class Structures_2D:
 
     def __init__(self,width_of_bay,storey_height,
                 no_of_elements_column, no_of_elements_beam,
-                 beam_section,column_section,load_combination_multipliers,Frame_id,
+                 beam_section,column_section,load_combination_multipliers,Frame_id,Material_obj,
                  **kwargs):
         # ---- Save a "constructor snapshot" for later cloning ---- This is useful for resetting or duplicating the model. Eg. Calculation of del2_over_del1
         self._init_spec = copy.deepcopy({k: v for k, v in locals().items() if k != "self"})
@@ -74,6 +74,7 @@ class Structures_2D:
         self.L_r_multiplier=load_combination_multipliers[2]    ### Roof Live Load multiplier
         self.W_multiplier=load_combination_multipliers[3]      ### Wind Load multiplier
         self.Frame_id=Frame_id
+        self.Material_obj=Material_obj
         self.make_beam_section_detail_uniform()
         self.make_column_section_detail_uniform()
         self.load_timeseries_counter = 1
@@ -505,8 +506,6 @@ class Structures_2D:
             ops.fix(base_leaning_node_tag,1,1,1)          # Pinned support for leaning column base node
 
 
-        Steel=Steel_Material(1,E=E,Fy=Fy,G=G,Hk=Hk,density=density_of_steel)
-
         col_and_beam_TransTag = 1
 
         if self.Elastic_analysis:
@@ -514,7 +513,7 @@ class Structures_2D:
             frc = 0
         else:
             mat_type = self.mat_type
-            frc = -0.3 * Steel.Fy if self.Residual_Stress else 0
+            frc = -0.3 * self.Material_obj.Fy if self.Residual_Stress else 0
 
     
 
@@ -522,19 +521,19 @@ class Structures_2D:
         for beam_section_name, beam_section_tag in self.beam_section_tags.items():
             beam_data = WF_Database(beam_section_name)
             beam = I_shape(beam_data.d, beam_data.tw, beam_data.bf, beam_data.tf,   
-                        Fy=Steel.Fy, E=Steel.E,
+                        Fy=self.Material_obj.Fy, E=self.Material_obj.E,
                         A=beam_data.A, 
                         Ix=beam_data.Ix,Zx=beam_data.Zx,Sx=beam_data.Sx,rx=beam_data.rx,
                         Iy=beam_data.Iy,Zy=beam_data.Zy,Sy=beam_data.Sy,ry=beam_data.ry,
                         J=beam_data.J,Cw=beam_data.Cw,rts=beam_data.rts,ho=beam_data.ho)
             beam.build_ops_fiber_section(beam_section_tag,
-                                        start_material_id=Steel.mat_tag,
+                                        start_material_id=self.Material_obj.mat_tag,
                                         mat_type=mat_type,
                                         nfy=self.nfy, nfx=self.nfx,
                                         frc=frc,num_regions=self.num_regions,
                                         stiffness_reduction=self.stiffness_reduction,strength_reduction=self.strength_reduction,
                                         axis='x')
-            Steel.mat_tag += 2 * self.num_regions + 2
+            self.Material_obj.mat_tag += 2 * self.num_regions + 2
             ops.beamIntegration("Lobatto", beam_section_tag, beam_section_tag, self.nip)
             setattr(self, beam_section_name, beam)
 
@@ -542,19 +541,19 @@ class Structures_2D:
         for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():
             column_data = WF_Database(column_section_name)
             column = I_shape(column_data.d, column_data.tw, column_data.bf, column_data.tf,
-                            Fy=Steel.Fy, E=Steel.E,
+                            Fy=self.Material_obj.Fy, E=self.Material_obj.E,
                             A=column_data.A,
                             Ix=column_data.Ix, Zx=column_data.Zx, Sx=column_data.Sx, rx=column_data.rx,
                             Iy=column_data.Iy, Zy=column_data.Zy, Sy=column_data.Sy, ry=column_data.ry,
                             J=column_data.J, Cw=column_data.Cw, rts=column_data.rts, ho=column_data.ho)
             column.build_ops_fiber_section(column_section_tag,
-                                        start_material_id=Steel.mat_tag,
+                                        start_material_id=self.Material_obj.mat_tag,
                                         mat_type=mat_type,
                                         nfy=self.nfy, nfx=self.nfx,
                                         frc=frc,num_regions=self.num_regions,
                                         stiffness_reduction=self.stiffness_reduction,strength_reduction=self.strength_reduction,
                                         axis=axis)
-            Steel.mat_tag += 2 * self.num_regions + 2
+            self.Material_obj.mat_tag += 2 * self.num_regions + 2
             ops.beamIntegration("Lobatto", column_section_tag, column_section_tag, self.nip)
             setattr(self, column_section_name, column)
 
@@ -1083,7 +1082,7 @@ class Structures_2D:
         control_node,control_dof=self.get_control_node_and_dof(control_dir='L')
         ops.initialize()
         # Create output folder
-        os.makedirs(self.Frame_id, exist_ok=True)
+        os.makedirs(os.path.join("Column_Results", self.Frame_id), exist_ok=True)
 
         # ops.constraints('Plain')
         ops.constraints('Transformation')
@@ -1353,7 +1352,7 @@ class Structures_2D:
             control_node,control_dof=self.get_control_node_and_dof(control_dir=control_dir)
             ops.initialize()
             # Create output folder
-            os.makedirs(self.Frame_id, exist_ok=True)
+            os.makedirs(os.path.join("Column_Results", self.Frame_id), exist_ok=True)
 
             # ops.constraints('Plain')
             ops.constraints('Transformation')
@@ -1568,7 +1567,7 @@ class Structures_2D:
 
             ops.initialize()
             # Create output folder
-            os.makedirs(self.Frame_id, exist_ok=True)
+            os.makedirs(os.path.join("Column_Results", self.Frame_id), exist_ok=True)
 
             # ops.constraints('Plain')
             ops.constraints('Transformation')

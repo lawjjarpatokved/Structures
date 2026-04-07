@@ -1,21 +1,33 @@
 from MFColumn2D import *
 from Plots import line_plot
-from Ziemian_database import Frame_Info, convert_dict_items_to_class_attributes,Analysis_Info
+from Columns_config import Frame_Info
+from Analysis_config import Analysis_Info
+from Materials_config import Material_Info
 from libdenavit.OpenSees.get_fiber_data import *
 import opsvis as opsv 
+from helpers import Steel_Material,convert_dict_items_to_class_attributes
+
 json_wind_dirn_path="wind_load_dirn_data.json"
 
 Frame_number='Trial_Col'
-frame_key=str(Frame_number)
 Analysis_type='GMNIA'
-analysis_folder = os.path.join(Frame_number, Analysis_type)
+Material='50_ksi'  # Options: '36_ksi', '50_ksi'
+
+analysis_folder = os.path.join('Column_Results', Frame_number, Analysis_type)
 os.makedirs(analysis_folder, exist_ok=True)
+
+frame_key=str(Frame_number)
 Frame_dict=Frame_Info[frame_key]
 Frame_details=convert_dict_items_to_class_attributes(Frame_dict)
 
 
 Analysis_dict=Analysis_Info[str(Analysis_type)]
 Analysis_details=convert_dict_items_to_class_attributes(Analysis_dict)
+
+Material_dict=Material_Info[str(Material)]
+Material_details=convert_dict_items_to_class_attributes(Material_dict)
+Steel=Steel_Material(mat_tag=1,E=Material_details.E,Fy=Material_details.Fy)
+
 
 wind_data=load_wind_dirn_data(json_wind_dirn_path=json_wind_dirn_path)
 wind_data=ensure_frame_entry_exists(frame_key=frame_key,data=wind_data,json_wind_dirn_path=json_wind_dirn_path)
@@ -34,6 +46,7 @@ Frame=MFColumn_2D(Frame_details.bay_width, Frame_details.story_height, Frame_det
                     Wall_load=Frame_details.Wall_load,
                     load_combination_multipliers=Frame_details.load_comb_multipliers,
                     Frame_id=Frame_details.Frame_id,
+                    Material_obj=Steel,
                     Residual_Stress=Analysis_details.Residual_Stress,
                     Elastic_analysis=Analysis_details.Elastic_analysis,
                     Second_order_effects=Analysis_details.Second_order_effects,

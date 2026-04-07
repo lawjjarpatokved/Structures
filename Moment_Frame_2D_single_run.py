@@ -1,5 +1,5 @@
 from Moment_Frame_2D_Main import *
-from Ziemian_database import Frame_Info, convert_dict_items_to_class_attributes,Analysis_Info
+from Frames_config import Frame_Info, convert_dict_items_to_class_attributes,Analysis_Info
 from libdenavit.OpenSees.get_fiber_data import *
 import opsvis as opsv 
 

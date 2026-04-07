@@ -1,19 +1,19 @@
 from Moment_Frame_2D_Main import *
 from MFColumn2D import *
-from Ziemian_database import Frame_Info,Analysis_Info
-from Ziemian_database import convert_dict_items_to_class_attributes
+from Columns_config import Frame_Info
+from Analysis_config import Analysis_Info
+from Materials_config import Material_Info
 from libdenavit.OpenSees.get_fiber_data import *
 from libdenavit.OpenSees import plotting
 from Plots import plot_single_bar,line_plot
 import os
 import seaborn as sns
 from typing import List, Optional, Tuple
-from Units import load_wind_dirn_data,save_wind_dirn_data,ensure_frame_entry_exists
-
+from helpers import load_wind_dirn_data,save_wind_dirn_data,ensure_frame_entry_exists,convert_dict_items_to_class_attributes,Steel_Material,ft
 json_wind_dirn_path="wind_load_dirn_data.json"
 
 
-def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1,vertical_load_scale=1,ops_anlaysis='proportional_limit_point'):
+def MF_2D_runner(Frame_number,Analysis_type,Material_type,control_dir='L',lateral_load_scale=1,vertical_load_scale=1,ops_anlaysis='proportional_limit_point'):
     # try:
     frame_key=str(Frame_number)
     Frame_dict=Frame_Info[frame_key]
@@ -25,6 +25,10 @@ def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1
 
     Analysis_dict=Analysis_Info[str(Analysis_type)]
     Analysis_details=convert_dict_items_to_class_attributes(Analysis_dict)
+
+    Material_dict=Material_Info[str(Material_type)]
+    Material_details=convert_dict_items_to_class_attributes(Material_dict)
+    Steel=Steel_Material(mat_tag=1,E=Material_details.E,Fy=Material_details.Fy)
 
     wind_data=load_wind_dirn_data(json_wind_dirn_path=json_wind_dirn_path)
     wind_data=ensure_frame_entry_exists(frame_key=frame_key,data=wind_data,json_wind_dirn_path=json_wind_dirn_path)
@@ -44,6 +48,7 @@ def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1
                     Wall_load=Frame_details.Wall_load,
                     load_combination_multipliers=Frame_details.load_comb_multipliers,
                     Frame_id=Frame_details.Frame_id,
+                    Material_obj=Steel,
                     Residual_Stress=Analysis_details.Residual_Stress,
                     Elastic_analysis=Analysis_details.Elastic_analysis,
                     Second_order_effects=Analysis_details.Second_order_effects,
@@ -83,7 +88,7 @@ def MF_2D_runner(Frame_number,Analysis_type,control_dir='L',lateral_load_scale=1
     #         del Frame          # delete Python object
     #     gc.collect()
 
-def Bar_plot_comparison(Frame_number,Analysis_type):
+def Bar_plot_comparison(Frame_number,Analysis_type,Material_type):
     for frame_number in Frame_number:
         max_load_ratio = []
         analysis_type_labels = []
@@ -96,12 +101,13 @@ def Bar_plot_comparison(Frame_number,Analysis_type):
             results, frame_id, fail_during_LCA,_ = MF_2D_runner(
                 Frame_number=frame_number,
                 Analysis_type=analysis_type,
+                Material_type=Material_type,
                 control_dir='L',
                 ops_anlaysis='proportional_limit_point'
             )
             # --- Create folder structure ---
             # frame_id is usually like "Frame_1"
-            analysis_folder = os.path.join(frame_id, analysis_type)
+            analysis_folder = os.path.join("Column_Results", frame_id, analysis_type)
             os.makedirs(analysis_folder, exist_ok=True)
             
             # ---make animation of PMM evolution throught the analysis
@@ -152,14 +158,14 @@ def Bar_plot_comparison(Frame_number,Analysis_type):
             max_load_ratio.append(results.maximum_load_ratio_at_limit_point)
 
         # --- Barplot comparing all analysis types for this frame ---
-        os.makedirs(frame_id, exist_ok=True)
-        barplot_filename = os.path.join(frame_id, f"{frame_number}_Barplot.png")
+        os.makedirs(os.path.join("Column_Results", frame_id), exist_ok=True)
+        barplot_filename = os.path.join("Column_Results", frame_id, f"{frame_number}_Barplot.png")
         plot_single_bar(max_load_ratio, filename=barplot_filename,
                         x_labels=analysis_type_labels,
                         title=f'{frame_number}: Comparison of Load Ratio',
                         ylabel='Load Ratio',title_fontsize=16, label_fontsize=14, tick_fontsize=14, legend_fontsize=12,value_fontsize=12)
 
-def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'):
+def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=False,plot='False'):
     ##non proportional
     if not proportional:
         code="Non_Proportional"
@@ -167,8 +173,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
             palette = sns.color_palette("tab10", len(Analysis_type))
             linestyles = ['-', '-', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 1))]
 
-            if plot:
-                fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
+            fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
 
             # store intersection points for optional later use
             intersections = []   # list of (x, y, color)
@@ -179,12 +184,13 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                 results, frame_id, fail_during_LCA,Frame = MF_2D_runner(
                     Frame_number=frame_number,
                     Analysis_type=analysis_type,
+                    Material_type=Material_type,
                     lateral_load_scale=0,
                     control_dir='V',
                     ops_anlaysis='proportional_limit_point'
                 )
 
-                analysis_folder = os.path.join(frame_id, analysis_type)
+                analysis_folder = os.path.join("Column_Results", frame_id, analysis_type)
                 os.makedirs(analysis_folder, exist_ok=True)
 
                 # --- Initialize ALR values ---
@@ -212,6 +218,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                     results, frame_id, fail_during_LCA,_ = MF_2D_runner(
                         Frame_number=frame_number,
                         Analysis_type=analysis_type,
+                        Material_type=Material_type,
                         vertical_load_scale=i * ALR_V_max,
                         control_dir='L',
                         ops_anlaysis='non_proportional_limit_point'
@@ -242,6 +249,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                     results, frame_id, fail_during_LCA,_ = MF_2D_runner(
                         Frame_number=frame_number,
                         Analysis_type=analysis_type,
+                        Material_type=Material_type,
                         vertical_load_scale=i * ALR_V_max,
                         control_dir='L',
                         ops_anlaysis='non_proportional_limit_point'
@@ -271,6 +279,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                     results, frame_id, fail_during_LCA,_ = MF_2D_runner(
                         Frame_number=frame_number,
                         Analysis_type=analysis_type,
+                        Material_type=Material_type,
                         vertical_load_scale=i * ALR_V_max,
                         control_dir='L',
                         ops_anlaysis='non_proportional_limit_point'
@@ -355,8 +364,8 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
             palette = sns.color_palette("tab10", len(Analysis_type))
             linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 1))]
 
-            if plot:
-                fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
+
+            fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
 
             # NEW: store intersections if you want them later (optional)
             intersections = []
@@ -368,12 +377,13 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                 results, frame_id, fail_during_LCA,Frame = MF_2D_runner(
                     Frame_number=frame_number,
                     Analysis_type=analysis_type,
+                    Material_type=Material_type,
                     lateral_load_scale=0,
                     control_dir='V',
                     ops_anlaysis='proportional_limit_point'
                 )
 
-                analysis_folder = os.path.join(frame_id, analysis_type)
+                analysis_folder = os.path.join("Column_Results", frame_id, analysis_type)
                 os.makedirs(analysis_folder, exist_ok=True)
 
                 # --- Initialize ALR values ---
@@ -403,6 +413,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                     results, frame_id, fail_during_LCA,_ = MF_2D_runner(
                         Frame_number=frame_number,
                         Analysis_type=analysis_type,
+                        Material_type=Material_type,
                         vertical_load_scale=i * ALR_V_max,
                         control_dir='L',
                         ops_anlaysis='proportional_limit_point'
@@ -438,6 +449,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                     results, frame_id, fail_during_LCA,_ = MF_2D_runner(
                         Frame_number=frame_number,
                         Analysis_type=analysis_type,
+                        Material_type=Material_type,
                         vertical_load_scale=i * ALR_V_max,
                         control_dir='L',
                         ops_anlaysis='proportional_limit_point'
@@ -475,6 +487,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                     results, frame_id, fail_during_LCA,_ = MF_2D_runner(
                         Frame_number=frame_number,
                         Analysis_type=analysis_type,
+                        Material_type=Material_type,
                         vertical_load_scale=i * ALR_V_max,
                         control_dir='L',
                         ops_anlaysis='proportional_limit_point'
@@ -550,9 +563,9 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot='False'
                 ax_alr.legend()
                 fig_alr.tight_layout()
                 fig_alr.savefig(
-                    os.path.join(frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}.png'),
+                    os.path.join("Column_Results", frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}.png'),
                     dpi=600
-                )
+)
                 plt.close(fig_alr)
 
     # plotting.plot_sfd()
@@ -830,11 +843,13 @@ def plot_theta_vs_del2_over_del1(
     plt.grid(True, alpha=0.3)
     plt.legend()
 
-    folder = os.path.join("Column_Results", "theta_vs_del2_over_del1")
-    os.makedirs(folder, exist_ok=True)
+    if save_path is not None:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
-    save_path = os.path.join(folder, f"Theta_vs_del2_over_del1.png")
-    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    # else:
+    #     plt.close()
 
 def plot_theta_vs_Radial_Errors(
     csv_path: str,
@@ -1010,19 +1025,119 @@ def parametric_h_min_radial_error(csv_path,column_section_name,bending_axes,no_o
         save_path = os.path.join(folder, f"{prefix}_h_vs_min_radial_error.png")
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
+def check_and_create_new_entries_in_column_config_file(column_section_name,story_height,no_of_stories,bending_axes,**kwargs):
+    
+    
+    defaults={
+        'bay_width': [],
+        'column_no_of_ele': 2,
+        'beam_no_of_ele': 4,
+        'beam_section': {
+            'common_and_exceptions': {
+                'common': 'W27X84'
+            }},
+        'support': 'f',
+        'load_comb_multipliers': [1, 0, 0, 1],
+        'D_floor_intensity': 7.5 * 10 * KN,
+        'D_roof_intensity': 133.5 * KN,
+        'L_floor_intensity': 0 * kip / ft,
+        'L_roof_intensity': 0 * kip / ft,
+        'Wind_load_floor': 6.56 * 3 * KN,
+        'Wind_load_roof': 4.45 * 3 * KN,
+        'Wall_load': 0,
+        'geometric_imperfection_ratio': 1 / 500,
+        'Leaning_column': False,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load': 2,
+        'Leaning_column_roof_load': 1
+    }
+    code = f"{column_section_name}_{bending_axes}_{no_of_stories}X{story_height}"
+    if code not in Frame_Info:
+        config = {}
+        config['Frame_id']=code
+        config['story_height']=[story_height*ft]*no_of_stories
+        config['column_section']={
+                    'common_and_exceptions': {
+                        'common': (column_section_name, bending_axes),
+                    }}
+        for key, value in defaults.items():
+            config[key] = kwargs.get(key, value)
+        Frame_Info[code]=config
+        
+        # Write to Columns_config.py as a proper dict entry within Frame_Info
+        _write_frame_entry_to_config(code, config)
+    print(Frame_Info)
+
+def _format_frame_entry(code, config):
+    """Format a frame configuration entry with proper multi-line indentation"""
+    
+    lines = [f"        '{code}': {{"]
+    
+    items = list(config.items())
+    for idx, (key, value) in enumerate(items):
+        is_last = (idx == len(items) - 1)
+        comma = '' if is_last else ','
+        
+        if isinstance(value, dict):
+            # Handle nested dictionary
+            lines.append(f"        '{key}':")
+            lines.append("          {")
+            sub_items = list(value.items())
+            for sub_idx, (sub_key, sub_value) in enumerate(sub_items):
+                is_sub_last = (sub_idx == len(sub_items) - 1)
+                sub_comma = '' if is_sub_last else ','
+                lines.append(f"              '{sub_key}': {repr(sub_value)}{sub_comma}")
+            lines.append("          },")
+        else:
+            lines.append(f"        '{key}': {repr(value)}{comma}")
+    
+    lines.append("        }")
+    return '\n'.join(lines)
 
 
+def _write_frame_entry_to_config(code, config):
+    """Write a new frame entry into the Frame_Info dictionary in Columns_config.py"""
+    with open('Columns_config.py', 'r') as f:
+        content = f.read()
+    
+    # Format the entry with proper indentation
+    formatted_entry = _format_frame_entry(code, config)
+    
+    # Format as a dictionary entry with comma, separator, and new entry
+    entry_str = f",\n###########################################################################\n{formatted_entry}"
+    
+    # Find the last closing } of Frame_Info and insert before it
+    closing_brace_index = content.rfind('}')
+    if closing_brace_index != -1:
+        # Remove trailing whitespace before the final }, so comma goes right after previous entry's }
+        content = content[:closing_brace_index].rstrip() + entry_str + '\n' + content[closing_brace_index:]
+    
+    # Write back to file
+    with open('Columns_config.py', 'w') as f:
+        f.write(content)
 
+column_section_names=['W8X31']
+story_heights=[3,4,5,6,7]
+No_of_stories=[1,2]
+bending_axes=['x','y']
 
+for column_section_name in column_section_names:
+    for story_height in story_heights:
+        for no_of_story in No_of_stories:
+            for bending_axis in bending_axes:
+
+                check_and_create_new_entries_in_column_config_file(column_section_name,story_height,no_of_story,bending_axis)
+                input()
 
 if __name__ == "__main__":
     new_analysis_run=False
-    Frame_number= ['W27X84_x_1X9','W14X132_x_1X12','W14X132_x_1X15','W14X132_x_1X18','W27X84_x_1X21','W14X132_x_1X30','W14X132_x_1X36'] 
-    Frame_number= ['W27X84_x_1X9','W27X84_x_1X27','W27X84_x_1X15','W27X84_x_1X24']     # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
-    Frame_number= ['W27X84_x_1X24','W27X84_x_1X30']
+    Frame_number= ['W14X132_x_1X12','W14X132_x_1X15','W14X132_x_1X18','W14X132_x_1X30','W14X132_x_1X36'] 
+    Frame_number= ['W27X84_x_1X12','W27X84_x_1X18','W27X84_x_1X30']     # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
+    Frame_number= ['W27X84_x_1X30']
     Analysis_type= ['GMNA'  ,  'GMNIA'  ,'GNA', 'GNIA', 'GNA_Notional_Loads']
 
     Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']
+    Material_type="36_ksi"
     csv_path = "Column_Results/interaction_results.csv"
 
 
@@ -1045,24 +1160,25 @@ if __name__ == "__main__":
         Interaction_Plots(
             Frame_number=Frame_number,
             Analysis_type=Analysis_type,
+            Material_type=Material_type,
             proportional=False,
             plot=True)
             
         theta_list = np.linspace(0, 90,91)  
         
-        df = write_interaction_results(
-            "Column_Results/interaction_results.csv",
-            frame_list=Frame_number,
-            analysis_list=Analysis_type,
-            theta_list=theta_list,
-            proportional=False
-        )
+        # df = write_interaction_results(
+        #     "Column_Results/interaction_results.csv",
+        #     frame_list=Frame_number,
+        #     analysis_list=Analysis_type,
+        #     theta_list=theta_list,
+        #     proportional=False
+        # )
         
-        plot_theta_vs_del2_over_del1(
-            csv_path=csv_path,
-            frame_list=Frame_number,
-            analyses_to_plot=Analysis_type,
-        )
+        # plot_theta_vs_del2_over_del1(
+        #     csv_path=csv_path,
+        #     frame_list=Frame_number,
+        #     analyses_to_plot=Analysis_type,
+        # )
 
         plot_theta_vs_Radial_Errors(
         csv_path=csv_path,
