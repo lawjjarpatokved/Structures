@@ -9,7 +9,8 @@ from Plots import plot_single_bar,line_plot
 import os
 import seaborn as sns
 from typing import List, Optional, Tuple
-from helpers import load_wind_dirn_data,save_wind_dirn_data,ensure_frame_entry_exists,convert_dict_items_to_class_attributes,Steel_Material,ft
+import re
+from helpers import load_wind_dirn_data,save_wind_dirn_data,ensure_frame_entry_exists,convert_dict_items_to_class_attributes,Steel_Material,ft,kip,WF_Database
 json_wind_dirn_path="wind_load_dirn_data.json"
 
 
@@ -351,8 +352,11 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                 ax_alr.set_title(f'Frame {frame_number}: ALR_V vs ALR_H ({code})')
                 ax_alr.legend()
                 fig_alr.tight_layout()
+                
+                # Ensure directory exists before saving
+                os.makedirs(os.path.join("Column_Results", frame_id), exist_ok=True)
                 fig_alr.savefig(
-                    os.path.join(frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}.png'),
+                    os.path.join("Column_Results", frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}.png'),
                     dpi=600
                 )
                 plt.close(fig_alr)
@@ -562,17 +566,19 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                 ax_alr.set_title(f'Frame {frame_number}: ALR_V vs ALR_H ({code})')
                 ax_alr.legend()
                 fig_alr.tight_layout()
+                
+                # Ensure directory exists before saving
+                os.makedirs(os.path.join("Column_Results", frame_id), exist_ok=True)
                 fig_alr.savefig(
                     os.path.join("Column_Results", frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}.png'),
                     dpi=600
-)
+                )
                 plt.close(fig_alr)
 
     # plotting.plot_sfd()
     # plotting.plot_bmd()
     # plotting.plot_afd(scale=0.001)
     return ALR_H,ALR_V,Frame
-
 
 def intersection_with_ray_from_origin(
     x: List[float],
@@ -649,15 +655,15 @@ def intersection_with_ray_from_origin(
 
     return best_pt
 
-
 def write_interaction_results(
     csv_path: str,
     frame_list,
     analysis_list,
+    Material_type,
     theta_list,
     proportional: bool = False,
     theta_round: int = 6
-) -> pd.DataFrame:
+    ) -> pd.DataFrame:
     """
     Upsert interaction results into a CSV keyed by (Frame, Theta).
 
@@ -722,6 +728,7 @@ def write_interaction_results(
             ALR_H, ALR_V,duplicate_frame = Interaction_Plots(
                 Frame_number=[frame],
                 Analysis_type=[analysis],
+                Material_type=Material_type,
                 proportional=proportional,
                 plot=False
             )
@@ -767,28 +774,42 @@ def write_interaction_results(
 
     return df
 
-
-def return_radial_error_betn_analyses(df: pd.DataFrame, analysis1: str, analysis2: str) -> pd.Series:
+def return_radial_error_betn_analyses(df: pd.DataFrame, analysis1: str, analysis2: str, tolerance=0.05) -> pd.Series:
     """
-    Calculate the radial error between two analyses for each row in the DataFrame.
-    The radial error is defined as the Manhattan distance between the two analyses
+    Compare analysis1 against a tolerance-expanded analysis2.
+
+    Positive value means analysis1 is within the expanded analysis2 overall.
+    Negative value means analysis1 exceeds the expanded analysis2 overall.
+
+    Here, analysis2 is enlarged by (1 + tolerance).
     """
     ana1_ALR_H = f"{analysis1}_ALR_H"
     ana1_ALR_V = f"{analysis1}_ALR_V"
     ana2_ALR_H = f"{analysis2}_ALR_H"
     ana2_ALR_V = f"{analysis2}_ALR_V"
 
-    if ana1_ALR_H not in df.columns or ana2_ALR_H not in df.columns or ana1_ALR_V not in df.columns or ana2_ALR_V not in df.columns:
-        raise ValueError(f"Columns '{ana1_ALR_H}' and/or '{ana2_ALR_H}' and/or '{ana1_ALR_V}' and/or '{ana2_ALR_V}' not found in DataFrame.")
+    if (
+        ana1_ALR_H not in df.columns or
+        ana2_ALR_H not in df.columns or
+        ana1_ALR_V not in df.columns or
+        ana2_ALR_V not in df.columns
+    ):
+        raise ValueError(
+            f"Columns '{ana1_ALR_H}', '{ana2_ALR_H}', '{ana1_ALR_V}', and/or '{ana2_ALR_V}' not found in DataFrame."
+        )
 
     val1_H = pd.to_numeric(df[ana1_ALR_H], errors="coerce")
-    val2_H = pd.to_numeric(df[ana2_ALR_H], errors="coerce")
     val1_V = pd.to_numeric(df[ana1_ALR_V], errors="coerce")
+    val2_H = pd.to_numeric(df[ana2_ALR_H], errors="coerce")
     val2_V = pd.to_numeric(df[ana2_ALR_V], errors="coerce")
 
-    radial_error_H = (val2_H - val1_H) 
-    radial_error_V = (val2_V - val1_V)
-    radial_error = (radial_error_H + radial_error_V)
+    val2_H_tol = (1 + tolerance) * val2_H
+    val2_V_tol = (1 + tolerance) * val2_V
+
+    delta_H = val2_H_tol - val1_H
+    delta_V = val2_V_tol - val1_V
+
+    radial_error = delta_H + delta_V
     return radial_error
 
 def plot_theta_vs_del2_over_del1(
@@ -932,10 +953,28 @@ def plot_theta_vs_Radial_Errors(
     else:
         plt.close()
 
-def parametric_h_min_radial_error(csv_path,column_section_name,bending_axes,no_of_stories,config_col='Frame'):
-
+def parametric_h_min_radial_error(csv_path, column_section_name, bending_axes, no_of_stories, config_col='Frame', plot_slenderness=True):
+    """
+    Plot h vs min radial error or h/r vs min radial error.
+    
+    Parameters:
+    -----------
+    csv_path : str
+        Path to the CSV file with results
+    column_section_name : str
+        Column section name (e.g., 'W27X84')
+    bending_axes : str
+        'x' or 'y' - which axis is being analyzed
+    no_of_stories : int
+        Number of stories
+    config_col : str
+        Column name in DataFrame to match
+    plot_slenderness : bool
+        If True, plot h/r (slenderness ratio). If False, plot h.
+    """
+    
     df = pd.read_csv(csv_path)
-
+    plt.figure()
     ## Compute radial errors for all desired comparisons
     Radial_errors=[
            
@@ -981,7 +1020,27 @@ def parametric_h_min_radial_error(csv_path,column_section_name,bending_axes,no_o
         if df_sub.empty:
             raise ValueError(f"Could not extract h values from {config_col} using prefix: {prefix}")
 
-        plt.figure()
+        # --- Get radius of gyration if plotting slenderness ratio ---
+        if plot_slenderness:
+            try:
+                wf_db = WF_Database(column_section_name)
+                r = wf_db.rx if bending_axes.lower() == 'x' else wf_db.ry
+                df_sub["h_over_r"] = df_sub["h"] / r
+                x_col = "h_over_r"
+                x_label = f"h/r (Slenderness Ratio) [{column_section_name}, bending axis {bending_axes}]"
+                filename_suffix = "h_over_r"
+            except Exception as e:
+                print(f"Warning: Could not fetch section properties: {e}")
+                print(f"Falling back to h instead of h/r")
+                x_col = "h"
+                x_label = "h"
+                filename_suffix = "h"
+        else:
+            x_col = "h"
+            x_label = "h"
+            filename_suffix = "h"
+
+        
 
         for error_name in Radial_errors:
             if error_name not in df_sub.columns:
@@ -994,7 +1053,7 @@ def parametric_h_min_radial_error(csv_path,column_section_name,bending_axes,no_o
             y = y.replace([np.inf, -np.inf], np.nan)
 
             temp = pd.DataFrame({
-                "h": df_sub["h"],
+                x_col: df_sub[x_col],
                 "error": y
             }).dropna()
 
@@ -1002,28 +1061,183 @@ def parametric_h_min_radial_error(csv_path,column_section_name,bending_axes,no_o
                 print(f"Warning: No finite values found for {error_name}")
                 continue
 
-            grouped = temp.groupby("h", as_index=False)["error"].min()
-            grouped = grouped.sort_values("h")
+            grouped = temp.groupby(x_col, as_index=False)["error"].min()
+            grouped = grouped.sort_values(x_col)
 
             plt.plot(
-                grouped["h"],
+                grouped[x_col],
                 grouped["error"],
                 marker=".",
                 linewidth=0.7,
                 label=error_name
             )
 
-        plt.xlabel("h")
+        plt.xlabel(x_label)
         plt.ylabel("Minimum radial error")
-        plt.title(f"h vs Minimum Radial Error ({prefix}*)")
+        plt.title(f"{x_label} vs Minimum Radial Error ({prefix}*)")
         plt.grid(True, alpha=0.3)
         plt.legend()
 
         folder = os.path.join("Column_Results", "parametric h vs min radial error")
         os.makedirs(folder, exist_ok=True)
 
-        save_path = os.path.join(folder, f"{prefix}_h_vs_min_radial_error.png")
+        save_path = os.path.join(folder, f"{prefix}_{filename_suffix}_vs_min_radial_error.png")
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
+
+def parametric_slenderness_ratio_vs_min_radial_error(
+    csv_path,
+    config_col="Frame",
+    save_folder=os.path.join("Column_Results", "parametric slenderness ratio vs min radial error")
+):
+    """
+    Plot slenderness ratio (h/r) vs minimum radial error for all entries in the CSV.
+
+    Expected frame naming format:
+        SECTION_AXIS_STORIESXH
+    Example:
+        W27X84_x_1X18
+
+    Meaning:
+        section = W27X84
+        axis = x
+        no_of_stories = 1
+        h = 18
+
+    Parameters
+    ----------
+    csv_path : str
+        Path to CSV file containing the results.
+    config_col : str, optional
+        Column name containing frame identifiers, by default "Frame".
+    save_folder : str, optional
+        Folder where the plot will be saved.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with parsed frame information and computed h/r.
+    """
+
+    df = pd.read_csv(csv_path)
+
+    radial_errors = [
+        "Error(GNA_Notional_Loads<GNA)",
+        "Error(GNA<GMNIA)",
+        "Error(GNA_Notional_Loads<GMNIA)",
+    ]
+
+    # --------------------------------------------------
+    # 1. Compute radial error columns if needed
+    # --------------------------------------------------
+    for error_name in radial_errors:
+        start = error_name.find("(") + 1
+        mid = error_name.find("<")
+        end = error_name.find(")")
+
+        first = error_name[start:mid]
+        second = error_name[mid + 1:end]
+
+        df[error_name] = return_radial_error_betn_analyses(df, first, second)
+
+    # --------------------------------------------------
+    # 2. Parse frame names
+    # --------------------------------------------------
+    # Expected pattern: SECTION_AXIS_STORIESXH
+    # Example: W27X84_x_1X18
+    pattern = re.compile(r"^(?P<section>.+?)_(?P<axis>[xyXY])_(?P<stories>\d+)X(?P<h>[-+]?\d*\.?\d+)$")
+
+    parsed_rows = []
+
+    for idx, frame_name in df[config_col].astype(str).items():
+        match = pattern.match(frame_name.strip())
+        if not match:
+            print(f"Warning: Could not parse frame name: {frame_name}")
+            continue
+
+        section = match.group("section")
+        axis = match.group("axis").lower()
+        stories = int(match.group("stories"))
+        h = float(match.group("h"))
+
+        # Get radius of gyration
+        try:
+            wf_db = WF_Database(section)
+            r = wf_db.rx if axis == "x" else wf_db.ry
+        except Exception as e:
+            print(f"Warning: Could not fetch WF properties for section {section}: {e}")
+            continue
+
+        if r is None or r == 0:
+            print(f"Warning: Invalid radius of gyration for section {section}")
+            continue
+
+        row_dict = df.loc[idx].to_dict()
+        row_dict["section"] = section
+        row_dict["axis"] = axis
+        row_dict["no_of_stories"] = stories
+        row_dict["h"] = h
+        row_dict["r"] = r
+        row_dict["h_over_r"] = h / r
+
+        parsed_rows.append(row_dict)
+
+    if not parsed_rows:
+        raise ValueError("No valid rows found after parsing frame names and section properties.")
+
+    df_parsed = pd.DataFrame(parsed_rows)
+
+    # --------------------------------------------------
+    # 3. Plot min radial error vs h/r
+    # --------------------------------------------------
+    plt.figure()
+
+    for error_name in radial_errors:
+        if error_name not in df_parsed.columns:
+            print(f"Warning: {error_name} not found in parsed DataFrame. Skipping.")
+            continue
+
+        y = pd.to_numeric(df_parsed[error_name], errors="coerce")
+        y = y.replace([np.inf, -np.inf], np.nan)
+
+        temp = pd.DataFrame({
+            "h_over_r": pd.to_numeric(df_parsed["h_over_r"], errors="coerce"),
+            "error": y
+        }).dropna()
+
+        if temp.empty:
+            print(f"Warning: No finite values found for {error_name}")
+            continue
+
+        grouped = temp.groupby("h_over_r", as_index=False)["error"].min()
+        grouped = grouped.sort_values("h_over_r")
+
+        # plt.plot(
+        #     grouped["h_over_r"],
+        #     grouped["error"],
+        #     marker=".",
+        #     linewidth=0.7,
+        #     label=error_name
+        # )
+
+        plt.scatter(
+            grouped["h_over_r"],
+            grouped["error"],
+            label=error_name
+        )
+
+    plt.xlabel("h/r (Slenderness Ratio)")
+    plt.ylabel("Minimum radial error")
+    plt.title("Slenderness Ratio vs Minimum Radial Error")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+
+    os.makedirs(save_folder, exist_ok=True)
+    save_path = os.path.join(save_folder, "slenderness_ratio_vs_min_radial_error.png")
+    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.show()
+
+    return df_parsed
+
 
 def check_and_create_new_entries_in_column_config_file(column_section_name,story_height,no_of_stories,bending_axes,**kwargs):
     
@@ -1055,7 +1269,7 @@ def check_and_create_new_entries_in_column_config_file(column_section_name,story
     if code not in Frame_Info:
         config = {}
         config['Frame_id']=code
-        config['story_height']=[story_height*ft]*no_of_stories
+        config['story_height']=[story_height]*no_of_stories
         config['column_section']={
                     'common_and_exceptions': {
                         'common': (column_section_name, bending_axes),
@@ -1066,7 +1280,7 @@ def check_and_create_new_entries_in_column_config_file(column_section_name,story
         
         # Write to Columns_config.py as a proper dict entry within Frame_Info
         _write_frame_entry_to_config(code, config)
-    print(Frame_Info)
+    return code
 
 def _format_frame_entry(code, config):
     """Format a frame configuration entry with proper multi-line indentation"""
@@ -1094,7 +1308,6 @@ def _format_frame_entry(code, config):
     lines.append("        }")
     return '\n'.join(lines)
 
-
 def _write_frame_entry_to_config(code, config):
     """Write a new frame entry into the Frame_Info dictionary in Columns_config.py"""
     with open('Columns_config.py', 'r') as f:
@@ -1116,29 +1329,31 @@ def _write_frame_entry_to_config(code, config):
     with open('Columns_config.py', 'w') as f:
         f.write(content)
 
-column_section_names=['W8X31']
-story_heights=[3,4,5,6,7]
-No_of_stories=[1,2]
-bending_axes=['x','y']
+def add_structural_parameters_to_results(csv_path,config_col='Frame'):
 
-for column_section_name in column_section_names:
-    for story_height in story_heights:
-        for no_of_story in No_of_stories:
-            for bending_axis in bending_axes:
+    df = pd.read_csv(csv_path)
 
-                check_and_create_new_entries_in_column_config_file(column_section_name,story_height,no_of_story,bending_axis)
-                input()
+
 
 if __name__ == "__main__":
-    new_analysis_run=False
-    Frame_number= ['W14X132_x_1X12','W14X132_x_1X15','W14X132_x_1X18','W14X132_x_1X30','W14X132_x_1X36'] 
-    Frame_number= ['W27X84_x_1X12','W27X84_x_1X18','W27X84_x_1X30']     # 'SP36H'  ,  'UP36H'  ,  'SP36L'  ,  'UP36L'
-    Frame_number= ['W27X84_x_1X30']
-    Analysis_type= ['GMNA'  ,  'GMNIA'  ,'GNA', 'GNIA', 'GNA_Notional_Loads']
+    new_analysis_run=True
+    column_section_names=['W14X43','W14X120','W14X311','W21X62','W40X392','W14X730']
+    story_heights=[7*ft,7.5*ft,8*ft,8.5*ft,9*ft,9.5*ft,10*ft,10.5*ft,11*ft,11.5*ft,12*ft,12.5*ft,13*ft,13.5*ft,14*ft,14.5*ft,15*ft,15.5*ft,16*ft,16.5*ft,17*ft,17.5*ft,18*ft,18.5*ft,19	*ft,19.5*ft,20*ft]
+    No_of_stories=[1]
+    bending_axes=['x']
 
     Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']
-    Material_type="36_ksi"
+    Material_type="50_ksi"
     csv_path = "Column_Results/interaction_results.csv"
+
+    Frame_number=[]
+    for column_section_name in column_section_names:
+        for story_height in story_heights:
+            for no_of_story in No_of_stories:
+                for bending_axis in bending_axes:
+
+                    frame_name=check_and_create_new_entries_in_column_config_file(column_section_name,story_height,no_of_story,bending_axis)
+                    Frame_number.append(frame_name)
 
 
     # Radial_errors=['Error(GNIA<GNA_Notional_Loads)',
@@ -1157,34 +1372,42 @@ if __name__ == "__main__":
             ]
 
     if new_analysis_run:
-        Interaction_Plots(
-            Frame_number=Frame_number,
-            Analysis_type=Analysis_type,
-            Material_type=Material_type,
-            proportional=False,
-            plot=True)
+        # Interaction_Plots(
+        #     Frame_number=Frame_number,
+        #     Analysis_type=Analysis_type,
+        #     Material_type=Material_type,
+        #     proportional=False,
+        #     plot=True)
             
         theta_list = np.linspace(0, 90,91)  
         
-        # df = write_interaction_results(
-        #     "Column_Results/interaction_results.csv",
-        #     frame_list=Frame_number,
-        #     analysis_list=Analysis_type,
-        #     theta_list=theta_list,
-        #     proportional=False
-        # )
+        df = write_interaction_results(
+            "Column_Results/interaction_results.csv",
+            frame_list=Frame_number,
+            analysis_list=Analysis_type,
+            Material_type=Material_type,
+            theta_list=theta_list,
+            proportional=False
+        )
         
-        # plot_theta_vs_del2_over_del1(
-        #     csv_path=csv_path,
-        #     frame_list=Frame_number,
-        #     analyses_to_plot=Analysis_type,
-        # )
+        plot_theta_vs_del2_over_del1(
+            csv_path=csv_path,
+            frame_list=Frame_number,
+            analyses_to_plot=Analysis_type,
+        )
 
         plot_theta_vs_Radial_Errors(
         csv_path=csv_path,
         frame_list=Frame_number,
         errors_to_plot=Radial_errors)
 
+        parametric_h_min_radial_error(
+            csv_path=csv_path,
+            column_section_name="W8X31",
+            bending_axes="x",
+            no_of_stories=1,
+            plot_slenderness=True  
+        )
 
     else:
         plot_theta_vs_del2_over_del1(
@@ -1200,7 +1423,11 @@ if __name__ == "__main__":
 
         parametric_h_min_radial_error(
             csv_path=csv_path,
-            column_section_name="W27X84",
+            column_section_name="W8X31",
             bending_axes="x",
-            no_of_stories=1
+            no_of_stories=1,
+            plot_slenderness=False  
         )
+
+        parametric_slenderness_ratio_vs_min_radial_error(
+            csv_path=csv_path)
