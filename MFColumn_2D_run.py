@@ -869,8 +869,7 @@ def plot_theta_vs_del2_over_del1(
 
     if show:
         plt.show()
-    # else:
-    #     plt.close()
+    plt.close()
 
 def plot_theta_vs_Radial_Errors(
     csv_path: str,
@@ -950,8 +949,7 @@ def plot_theta_vs_Radial_Errors(
 
     if show:
         plt.show()
-    else:
-        plt.close()
+    plt.close()
 
 def parametric_h_min_radial_error(csv_path, column_section_name, bending_axes, no_of_stories, config_col='Frame', plot_slenderness=True):
     """
@@ -1336,8 +1334,9 @@ def add_structural_parameters_to_results(csv_path,config_col='Frame'):
 
 
 if __name__ == "__main__":
-    new_analysis_run=True
-    column_section_names=['W14X43','W14X120','W14X311','W21X62','W40X392','W14X730']
+    new_analysis_run=False
+    column_section_names=['W14X43','W14X120','W14X311','W14X730','W18X311','W21X62','W40X264','W40X392','W40X593']
+    column_section_names=['W14X311']
     story_heights=[7*ft,7.5*ft,8*ft,8.5*ft,9*ft,9.5*ft,10*ft,10.5*ft,11*ft,11.5*ft,12*ft,12.5*ft,13*ft,13.5*ft,14*ft,14.5*ft,15*ft,15.5*ft,16*ft,16.5*ft,17*ft,17.5*ft,18*ft,18.5*ft,19	*ft,19.5*ft,20*ft]
     No_of_stories=[1]
     bending_axes=['x']
@@ -1390,24 +1389,25 @@ if __name__ == "__main__":
             proportional=False
         )
         
-        plot_theta_vs_del2_over_del1(
-            csv_path=csv_path,
-            frame_list=Frame_number,
-            analyses_to_plot=Analysis_type,
-        )
+        # plot_theta_vs_del2_over_del1(
+        #     csv_path=csv_path,
+        #     frame_list=Frame_number,
+        #     analyses_to_plot=Analysis_type,
+        # )
 
-        plot_theta_vs_Radial_Errors(
-        csv_path=csv_path,
-        frame_list=Frame_number,
-        errors_to_plot=Radial_errors)
+        # plot_theta_vs_Radial_Errors(
+        # csv_path=csv_path,
+        # frame_list=Frame_number,
+        # errors_to_plot=Radial_errors)
 
-        parametric_h_min_radial_error(
-            csv_path=csv_path,
-            column_section_name="W8X31",
-            bending_axes="x",
-            no_of_stories=1,
-            plot_slenderness=True  
-        )
+        # parametric_h_min_radial_error(
+        #     csv_path=csv_path,
+        #     column_section_name="W8X31",
+        #     bending_axes="x",
+        #     no_of_stories=1,
+        #     plot_slenderness=True  
+        # )
+
 
     else:
         plot_theta_vs_del2_over_del1(

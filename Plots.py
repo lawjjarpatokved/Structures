@@ -209,6 +209,7 @@ def plot_grouped_bars(*datasets, labels=None, x_labels=None, title=None, ylabel=
     plt.legend()
     plt.tight_layout()
     plt.show()
+    plt.close()
 
 
 
