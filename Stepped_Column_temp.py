@@ -333,15 +333,11 @@ class Stepped_Column(Structures_2D):
                     return results
                     # break
             # Check for maximum PMM interaction value    
-            if self.Elastic_analysis:
-                # @todo - Why only if Elastic_analysis?
-                if P_M_M_interaction_limit is not None:
-                    # if Structures_2D.print_ops_status:
-                    #     print(f'Checking PMM Interaction')
-                    if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
-                        results.exit_message = 'P_M_M interaction Limit Reached'
-                        find_limit_point()
-                        return results
+            if P_M_M_interaction_limit is not None:
+                if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+                    results.exit_message = 'P_M_M interaction Limit Reached'
+                    find_limit_point()
+                    return results
         find_limit_point()
         return results
 
