@@ -25,9 +25,6 @@ class Stepped_Column(Structures_2D):
         self.top_column_section_name = top_column_section_name 
         self.offset1 = offset_1  ## dist from top of bottom column to right node where point load is applied for bottom column
         self.offset3 = offset_3  ## dist from top of top column to right node where load is applied for top column
-        self.length_of_single_bottom_column_element = height_of_bottom_column/number_of_elements # @todo - this would be better as a computed property
-        self.length_of_single_top_column_element = height_of_top_column/number_of_elements # @todo - this would be better as a computed property
-        self.total_height = height_of_bottom_column + height_of_top_column # @todo - this would be better as a computed property
         self.all_element_connectivity_section_and_bending_axes_detail = []
         defaults={'nip':3,
                   'mat_type':'Steel01',
@@ -53,6 +50,10 @@ class Stepped_Column(Structures_2D):
             setattr(self,key,kwargs.get(key,value))
 
 
+    @property
+    def total_height(self):
+        return self.height_of_bottom_column + self.height_of_top_column
+
     def build_stepped_column(self):
 
         ops.wipe()
@@ -73,7 +74,7 @@ class Stepped_Column(Structures_2D):
         ## Create nodes along bottom column
         for i in range(self.no_of_elements_column):
             x=0.0
-            y=(i+1)*self.length_of_single_bottom_column_element
+            y=(i+1)*self.height_of_bottom_column/self.number_of_elements
             x_imp = self.geometric_imperfection_ratio * np.sin(np.pi * y / self.total_height)
             ops.node(i+2,x + x_imp,y)
         self.bottom_column_top_node_tag=self.no_of_elements_column+1
@@ -92,7 +93,7 @@ class Stepped_Column(Structures_2D):
         x_imp = self.geometric_imperfection_ratio * np.sin(np.pi * y / self.total_height)
         ops.node(self.top_column_bottom_node_tag,-self.offset2 + x_imp,self.height_of_bottom_column)
         for j in range(self.no_of_elements_column):
-            y = self.height_of_bottom_column+(j+1)*self.length_of_single_top_column_element
+            y = self.height_of_bottom_column+(j+1)*self.height_of_top_column/self.number_of_elements
             x_imp = self.geometric_imperfection_ratio * np.sin(np.pi * y / self.total_height)
             ops.node(self.top_column_bottom_node_tag+j+1,-self.offset2 + x_imp, y)
         self.top_column_top_node_tag=self.top_column_bottom_node_tag+self.no_of_elements_column
