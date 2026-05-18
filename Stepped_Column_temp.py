@@ -6,6 +6,7 @@ import numpy as np
 
 from libdenavit import find_limit_point_in_list, interpolate_list
 from libdenavit.section import I_shape
+from libdenavit.section.wide_flange import WideFlangeMember_AISC2022
 from libdenavit.section.database import wide_flange_database
 from libdenavit.OpenSees import AnalysisResults,plot_deformed_2d,plot_undeformed_2d
 
@@ -588,9 +589,6 @@ if __name__ == "__main__":
                                     Geometric_Imperfection=False,
                                     geometric_imperfection_ratio=1/500,
                                     plot_model=True)
-                                    plot_model=False,
-                                    try_smaller_steps=False,
-                                    nip=3)
 
     Stepped_Column.build_stepped_column()
     #print(Stepped_Column.all_element_connectivity_section_and_bending_axes_detail)
