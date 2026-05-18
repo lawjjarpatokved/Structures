@@ -8680,5 +8680,35 @@ Frame_Info={
         'Leaning_column_offset': 2,
         'Leaning_column_floor_load': 2,
         'Leaning_column_roof_load': 1
+        },
+###########################################################################
+        '8X31_x_1X2.1335999999999995': {
+        'Frame_id': '8X31_x_1X2.1335999999999995',
+        'story_height': [2.1335999999999995],
+        'column_section':
+          {
+              'common_and_exceptions': {'common': ('8X31', 'x')}
+          },
+        'bay_width': [],
+        'column_no_of_ele': 2,
+        'beam_no_of_ele': 4,
+        'beam_section':
+          {
+              'common_and_exceptions': {'common': 'W27X84'}
+          },
+        'support': 'f',
+        'load_comb_multipliers': [1, 0, 0, 1],
+        'D_floor_intensity': 75.0,
+        'D_roof_intensity': 133.5,
+        'L_floor_intensity': 0.0,
+        'L_roof_intensity': 0.0,
+        'Wind_load_floor': 19.68,
+        'Wind_load_roof': 13.350000000000001,
+        'Wall_load': 0,
+        'geometric_imperfection_ratio': 0.002,
+        'Leaning_column': False,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load': 2,
+        'Leaning_column_roof_load': 1
         }
 }

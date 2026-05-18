@@ -1198,6 +1198,7 @@ class Structures_2D:
                 self.wind_load_dirn='right'
             else:
                 self.wind_load_dirn='left'
+            ops.wipe()
 
         return self.wind_load_dirn
         
