@@ -246,12 +246,14 @@ class Stepped_Column(Structures_2D):
         control_dof = 1   # Horizontal displacement is the control DOF
 
         # Initialize analysis results
-        # @todo update AnalysisResults() to create the lists
-        results = AnalysisResults()
-        attributes = ['load_ratio','control_node_displacement',
-                      'lowest_eigenvalue','vertical_reaction','lateral_reaction','absolute_maximum_strain','max_P_M_M_interaction']
-        for attr in attributes:
-            setattr(results, attr, [])
+        results = AnalysisResults(initialize_empty_lists = ['load_ratio',
+                                                            'control_node_displacement',
+                                                            'lowest_eigenvalue',
+                                                            'vertical_reaction',
+                                                            'lateral_reaction',
+                                                            'absolute_maximum_strain',
+                                                            'max_P_M_M_interaction',
+                                                            ])
 
         # Define function to find limit point
         def find_limit_point():
@@ -353,16 +355,14 @@ class Stepped_Column(Structures_2D):
         control_dof = 1   # Horizontal displacement is the control DOF
 
         # Initialize analysis results
-        results = AnalysisResults()
-        attributes =['load_ratio',
-                     'control_node_displacement',
-                     'lowest_eigenvalue',
-                     'vertical_reaction',
-                     'lateral_reaction',
-                     'absolute_maximum_strain',
-                     'max_P_M_M_interaction']
-        for attr in attributes:
-            setattr(results, attr, [])
+        results = AnalysisResults(initialize_empty_lists = ['load_ratio',
+                                                            'control_node_displacement',
+                                                            'lowest_eigenvalue',
+                                                            'vertical_reaction',
+                                                            'lateral_reaction',
+                                                            'absolute_maximum_strain',
+                                                            'max_P_M_M_interaction',
+                                                            ])
 
         # Define function to find limit point
         def find_limit_point():
