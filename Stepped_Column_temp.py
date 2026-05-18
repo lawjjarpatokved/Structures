@@ -1,12 +1,13 @@
 import openseespy.opensees as ops
-from libdenavit.section.wide_flange import I_shape
-from libdenavit.OpenSees import AnalysisResults
 import helpers as U
 import opsvis as opsv
-from libdenavit.OpenSees.plotting import plot_undeformed_2d,get_element_nodes,get_node_coords
-from libdenavit import find_limit_point_in_list, interpolate_list
 import matplotlib.pyplot as plt
 import numpy as np
+
+from libdenavit import find_limit_point_in_list, interpolate_list
+from libdenavit.section import I_shape
+from libdenavit.OpenSees import AnalysisResults,plot_undeformed_2d
+
 from Structures_2D import Structures_2D
 
 class Stepped_Column(Structures_2D):
@@ -221,13 +222,6 @@ class Stepped_Column(Structures_2D):
             opsv.plot_load()
 
     def show_model(self):
-        # show quick model diagnostics then plot using libdenavit's plotting
-        try:
-            node_coords = get_node_coords()
-            element_nodes = get_element_nodes()
-            print(f"Plotting model: {len(node_coords)} nodes, {len(element_nodes)} elements")
-        except Exception:
-            print("Unable to read node/element info for diagnostics")
         plot_undeformed_2d(axis_equal=True)
 
     def run_load_controlled_analysis(self, **kwargs):
