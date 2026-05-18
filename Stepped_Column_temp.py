@@ -568,44 +568,71 @@ if __name__ == "__main__":
                                     Elastic_analysis=False,
                                     Second_order_effects=True,
                                     Residual_Stress=True,
+                                    stiffness_reduction=0.9,
+                                    strength_reduction=0.9,
                                     Geometric_Imperfection=True,
                                     geometric_imperfection_ratio=1/500,
                                     plot_model=False)
 
+    
+    # Run GMNIA
     Stepped_Column.build_stepped_column()
-    #results= Stepped_Column.run_load_controlled_analysis(target_load_factor=3.0, steps=100)
-    results = Stepped_Column.run_displacement_controlled_analysis(target_disp=1, steps=1000)
-    print(results.exit_message)
+    results1 = Stepped_Column.run_displacement_controlled_analysis(target_disp=1, steps=1000)
+    #plot_deformed_2d(scale_factor=100,axis_equal=True)
 
-    plot_deformed_2d(scale_factor=100,axis_equal=True)
+    
+    # Run GNIA
+    Stepped_Column.Elastic_analysis = True
+    Stepped_Column.stiffness_reduction = 0.8
+    Stepped_Column.build_stepped_column()
+    results2 = Stepped_Column.run_load_controlled_analysis(target_load_factor=3.0, steps=100)
+    #plot_deformed_2d(scale_factor=100,axis_equal=True)
 
+    
+    
+    # Print Results
+    print('===== GMNIA ======')
+    print(results1.exit_message)
+    print(f'Max Load Ratio: {results1.maximum_load_ratio_at_limit_point}')
+    print('===== GNIA ======')
+    print(results2.exit_message)    
+    print(f'Max Load Ratio: {results2.maximum_load_ratio_at_limit_point}')
+    
+    
+    # Make Plots
     fig, ax = plt.subplots()
-    plt.plot(results.load_ratio,results.control_node_displacement, marker = 'o', markersize=5)
+    plt.plot(results1.load_ratio,results1.control_node_displacement, marker = 'o', markersize=5, label='GMNIA')
+    plt.plot(results2.load_ratio,results2.control_node_displacement, marker = 'o', markersize=5, label='GNIA')
     plt.xlabel('Load Ratio λ')
     plt.ylabel('Displacement at Control Node')
 
     fig, ax = plt.subplots()
-    plt.plot(results.load_ratio,results.lowest_eigenvalue, marker = 'o', markersize=5)
+    plt.plot(results1.load_ratio,results1.lowest_eigenvalue, marker = 'o', markersize=5, label='GMNIA')
+    plt.plot(results2.load_ratio,results2.lowest_eigenvalue, marker = 'o', markersize=5, label='GNIA')
     plt.xlabel('Load Ratio λ')
     plt.ylabel('Lowest Eigenvalue')
     
     fig, ax = plt.subplots()
-    plt.plot(results.load_ratio,results.vertical_reaction, marker = 'o', markersize=5)
+    plt.plot(results1.load_ratio,results1.vertical_reaction, marker = 'o', markersize=5, label='GMNIA')
+    plt.plot(results2.load_ratio,results2.vertical_reaction, marker = 'o', markersize=5, label='GNIA')
     plt.xlabel('Load Ratio λ')
     plt.ylabel('Vertical Reaction')
     
     fig, ax = plt.subplots()
-    plt.plot(results.load_ratio,results.lateral_reaction, marker = 'o', markersize=5)
+    plt.plot(results1.load_ratio,results1.lateral_reaction, marker = 'o', markersize=5, label='GMNIA')
+    plt.plot(results2.load_ratio,results2.lateral_reaction, marker = 'o', markersize=5, label='GNIA')
     plt.xlabel('Load Ratio λ')
     plt.ylabel('Lateral Reaction')
     
     fig, ax = plt.subplots()
-    plt.plot(results.load_ratio,results.absolute_maximum_strain, marker = 'o', markersize=5)
+    plt.plot(results1.load_ratio,results1.absolute_maximum_strain, marker = 'o', markersize=5, label='GMNIA')
+    plt.plot(results2.load_ratio,results2.absolute_maximum_strain, marker = 'o', markersize=5, label='GNIA')
     plt.xlabel('Load Ratio λ')
     plt.ylabel('Absolute Maximum Strain')
     
     fig, ax = plt.subplots()
-    plt.plot(results.load_ratio,results.max_P_M_M_interaction, marker = 'o', markersize=5)
+    plt.plot(results1.load_ratio,results1.max_P_M_M_interaction, marker = 'o', markersize=5, label='GMNIA')
+    plt.plot(results2.load_ratio,results2.max_P_M_M_interaction, marker = 'o', markersize=5, label='GNIA')
     plt.xlabel('Load Ratio λ')
     plt.ylabel('Max P-M-M Interaction')
 
