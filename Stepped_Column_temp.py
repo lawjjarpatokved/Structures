@@ -208,16 +208,17 @@ class Stepped_Column(Structures_2D):
         ops.fix(self.top_column_top_node_tag,1,0,0)
 
 
+        # Define loads
+        ops.timeSeries('Linear',1)
+        ops.pattern('Plain',1,1)
+        ops.load(self.right_offset1_node_tag,0.0,-self.load_on_bottom_column,0.0)
+        ops.load(self.right_offset3_node_tag,0.0,-self.load_on_top_column,0.0)
+        ops.load(self.bottom_column_top_node_tag,self.lateral_load,0,0)
+
+        # Display model if requested
         if self.plot_model: 
             opsv.plot_model()
             opsv.plot_load()
-
-    def add_vertical_load(self) :
-        ops.load(self.right_offset1_node_tag,0.0,-self.load_on_bottom_column,0.0)  ## Apply vertical downward load
-        ops.load(self.right_offset3_node_tag,0.0,-self.load_on_top_column,0.0)  ## Apply vertical downward load
-
-    def add_lateral_load(self):
-        ops.load(self.bottom_column_top_node_tag,self.lateral_load,0,0)  ## Apply horizontal load
 
     def show_model(self):
         # show quick model diagnostics then plot using libdenavit's plotting
@@ -291,13 +292,7 @@ class Stepped_Column(Structures_2D):
         ops.numberer('RCM')
         ops.system('UmfPack')
         ops.test('NormUnbalance', 1e-3, 10, 1)
-        ops.algorithm('Newton')
-    
-        ops.timeSeries('Linear',1)
-        ops.pattern('Plain',1,1)
-        self.add_vertical_load()
-        self.add_lateral_load()
-
+        ops.algorithm('Newton')   
         ops.integrator('LoadControl', 1/num_steps_LCA)  
         ops.analysis('Static')
         record()
@@ -412,12 +407,6 @@ class Stepped_Column(Structures_2D):
         # Run one step with no load
         ok = ops.analyze(1)
         record()
-        
-        # Apply load
-        ops.timeSeries('Linear', 2)
-        ops.pattern('Plain',2,2)
-        self.add_vertical_load()
-        self.add_lateral_load()
 
         # Run Displacement Control Analysis
         i=1
