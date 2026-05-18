@@ -5,7 +5,7 @@ import helpers as U
 import opsvis as opsv
 from libdenavit.OpenSees.plotting import plot_undeformed_2d,get_element_nodes,get_node_coords
 from libdenavit import find_limit_point_in_list, interpolate_list
-from Plots import line_plot
+import matplotlib.pyplot as plt
 import numpy as np
 from Structures_2D import Structures_2D
 
@@ -486,26 +486,34 @@ if __name__ == "__main__":
     results = Stepped_Column.run_displacement_controlled_analysis(target_disp=1, steps=10000, P_M_M_interaction_limit=None)
     print(results.exit_message)
 
-    line_plot( results.load_ratio,results.control_node_displacement,
-            xlabel='Load Ratio λ', ylabel='Displacement at Control Node', marker = 'o', markersize=5,
-            title='Load Ratio vs Displacement')
+    fig, ax = plt.subplots()
+    plt.plot(results.load_ratio,results.control_node_displacement, marker = 'o', markersize=5)
+    plt.xlabel('Load Ratio λ')
+    plt.ylabel('Displacement at Control Node')
 
-    line_plot( results.load_ratio,results.lowest_eigenvalue, marker = 'o',markersize=5,
-            xlabel='Load Ratio λ', ylabel='Lowest Eigenvalue',
-            title='Load Ratio vs Lowest Eigenvalue')
+    fig, ax = plt.subplots()
+    plt.plot(results.load_ratio,results.lowest_eigenvalue, marker = 'o', markersize=5)
+    plt.xlabel('Load Ratio λ')
+    plt.ylabel('Lowest Eigenvalue')
+    
+    fig, ax = plt.subplots()
+    plt.plot(results.load_ratio,results.vertical_reaction, marker = 'o', markersize=5)
+    plt.xlabel('Load Ratio λ')
+    plt.ylabel('Vertical Reaction')
+    
+    fig, ax = plt.subplots()
+    plt.plot(results.load_ratio,results.lateral_reaction, marker = 'o', markersize=5)
+    plt.xlabel('Load Ratio λ')
+    plt.ylabel('Lateral Reaction')
+    
+    fig, ax = plt.subplots()
+    plt.plot(results.load_ratio,results.absolute_maximum_strain, marker = 'o', markersize=5)
+    plt.xlabel('Load Ratio λ')
+    plt.ylabel('Absolute Maximum Strain')
+    
+    fig, ax = plt.subplots()
+    plt.plot(results.load_ratio,results.max_P_M_M_interaction, marker = 'o', markersize=5)
+    plt.xlabel('Load Ratio λ')
+    plt.ylabel('Max P-M-M Interaction')
 
-    line_plot( results.load_ratio,results.vertical_reaction, marker = 'o',markersize=5,
-            xlabel='Load Ratio λ', ylabel='Vertical Reaction',
-            title='Load Ratio vs Vertical Reaction')
-
-    line_plot( results.load_ratio,results.lateral_reaction, marker = 'o',markersize=5,
-            xlabel='Load Ratio λ', ylabel='Lateral Reaction',
-            title='Load Ratio vs Lateral Reaction') 
-
-    line_plot( results.load_ratio,results.absolute_maximum_strain, marker = 'o',markersize=5,
-            xlabel='Load Ratio λ', ylabel='Absolute Maximum Strain',
-            title='Load Ratio vs Absolute Maximum Strain') 
-
-    line_plot( results.load_ratio,results.max_P_M_M_interaction, marker = 'o',markersize=5,
-            xlabel='Load Ratio λ', ylabel='Max P-M-M Interaction',
-            title='Load Ratio vs Max P-M-M Interaction',show=True) 
+    plt.show()
