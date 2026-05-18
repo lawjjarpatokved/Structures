@@ -1,3 +1,5 @@
+from matplotlib.pyplot import plot
+
 from Moment_Frame_2D_Main import *
 from MFColumn2D import *
 from Columns_config import Frame_Info
@@ -5,6 +7,7 @@ from Analysis_config import Analysis_Info
 from Materials_config import Material_Info
 from libdenavit.OpenSees.get_fiber_data import *
 from libdenavit.OpenSees import plotting
+from libdenavit.interaction_diagram_2d import InteractionDiagram2d,cart2pol
 from Plots import plot_single_bar,line_plot
 import os
 import seaborn as sns
@@ -166,7 +169,30 @@ def Bar_plot_comparison(Frame_number,Analysis_type,Material_type):
                         title=f'{frame_number}: Comparison of Load Ratio',
                         ylabel='Load Ratio',title_fontsize=16, label_fontsize=14, tick_fontsize=14, legend_fontsize=12,value_fontsize=12)
 
-def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=False,plot='False'):
+def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=False,plot=False,
+                      save_pmm_plots=False, pmm_plot_dpi=300):
+    def save_pmm_plot(pmm_values, filename):
+        if not save_pmm_plots:
+            return
+        fig_pmm, _ = plotting.plot_PMM_Interaction_values(
+            pmm_values,
+            show=False
+        )
+        try:
+            fig_pmm.savefig(filename, dpi=pmm_plot_dpi)
+        finally:
+            plt.close(fig_pmm)
+
+
+    exit_msg_color_map = {
+        'Analysis Failed': "green",
+        'Eigenvalue Limit Reached': "red",
+        'Extreme Steel Fiber Strain Limit Reached': "orange",
+        'P_M_M interaction Limit Reached': "purple",
+        'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading': "blue",
+        'Moving to Displacement Controlled Analysis': "cyan",
+    }
+
     ##non proportional
     if not proportional:
         code="Non_Proportional"
@@ -174,13 +200,17 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
             palette = sns.color_palette("tab10", len(Analysis_type))
             linestyles = ['-', '-', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 1))]
 
-            fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
+            fig_alr, ax_alr = None, None
+
+            if plot:
+                fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
 
             # store intersection points for optional later use
             intersections = []   # list of (x, y, color)
 
             for j, analysis_type in enumerate(Analysis_type):
                 ALR_H, ALR_V = [], []
+                exit_message=[]
 
                 results, frame_id, fail_during_LCA,Frame = MF_2D_runner(
                     Frame_number=frame_number,
@@ -198,20 +228,16 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                 ALR_V_max = results.maximum_load_ratio_at_limit_point
                 ALR_V.append(ALR_V_max)
                 ALR_H.append(0)
+                exit_message.append(results.exit_message)
 
                 # --- Plot PMM interaction for base case ---
-                fig_pmm, ax_pmm = plotting.plot_PMM_Interaction_values(
+                save_pmm_plot(
                     results.P_M_M_interaction_all_elements[-1],
-                    show=False
-                )
-                fig_pmm.savefig(
                     os.path.join(
                         analysis_folder,
                         f"PMM_{analysis_type}_ALRH_{ALR_H[0]:.2f}_ALRV_{ALR_V[0]:.2f}.png"
-                    ),
-                    dpi=600
+                    )
                 )
-                plt.close(fig_pmm)
 
                 # --- Sweep vertical loads (0–0.8) ---
                 for i in np.arange(0, 0.2, 0.05):
@@ -229,20 +255,16 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                     else:
                         ALR_H.insert(-1, results.maximum_load_ratio_at_limit_point)
                         ALR_V.insert(-1, i * ALR_V_max)
+                        exit_message.append(results.exit_message)
 
                         if int(i * 10) % 2 == 0:
-                            fig_pmm_i, ax_pmm_i = plotting.plot_PMM_Interaction_values(
+                            save_pmm_plot(
                                 results.P_M_M_interaction_all_elements[-1],
-                                show=False
-                            )
-                            fig_pmm_i.savefig(
                                 os.path.join(
                                     analysis_folder,
                                     f"PMM_{analysis_type}_ALRH_{ALR_H[-2]:.2f}_ALRV_{ALR_V[-2]:.2f}.png"
-                                ),
-                                dpi=600
+                                )
                             )
-                            plt.close(fig_pmm_i)
 
                 # --- Sweep vertical loads (0.8–1.0) ---
                 for i in np.arange(0.2, 0.9, 0.1):
@@ -260,20 +282,15 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                     else:
                         ALR_H.insert(-1, results.maximum_load_ratio_at_limit_point)
                         ALR_V.insert(-1, i * ALR_V_max)
-
+                        exit_message.append(results.exit_message)
                         if int(i * 10) % 2 == 0:
-                            fig_pmm_i, ax_pmm_i = plotting.plot_PMM_Interaction_values(
+                            save_pmm_plot(
                                 results.P_M_M_interaction_all_elements[-1],
-                                show=False
-                            )
-                            fig_pmm_i.savefig(
                                 os.path.join(
                                     analysis_folder,
                                     f"PMM_{analysis_type}_ALRH_{ALR_H[-2]:.2f}_ALRV_{ALR_V[-2]:.2f}.png"
-                                ),
-                                dpi=600
+                                )
                             )
-                            plt.close(fig_pmm_i)
 
                 for i in np.arange(0.9, 1.01, 0.01):
                     print(f"Running vertical load scale {i:.2f}")
@@ -290,20 +307,15 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                     else:
                         ALR_H.insert(-1, results.maximum_load_ratio_at_limit_point)
                         ALR_V.insert(-1, i * ALR_V_max)
-
+                        exit_message.append(results.exit_message)
                         if int(i * 10) % 2 == 0:
-                            fig_pmm_i, ax_pmm_i = plotting.plot_PMM_Interaction_values(
+                            save_pmm_plot(
                                 results.P_M_M_interaction_all_elements[-1],
-                                show=False
-                            )
-                            fig_pmm_i.savefig(
                                 os.path.join(
                                     analysis_folder,
                                     f"PMM_{analysis_type}_ALRH_{ALR_H[-2]:.2f}_ALRV_{ALR_V[-2]:.2f}.png"
-                                ),
-                                dpi=600
+                                )
                             )
-                            plt.close(fig_pmm_i)
 
                 # Convert to arrays for intersection math
                 ALR_H_arr = np.array(ALR_H, dtype=float)
@@ -324,8 +336,20 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                         show=False
                     )
 
+                    for x, y, msg in zip(ALR_H_arr, ALR_V_arr, exit_message):
+                        ax_alr.scatter(
+                            x, y,
+                            color=exit_msg_color_map.get(msg, "gray"),
+                            s=15,
+                            alpha=0.40,          
+                            edgecolors='black',  
+                            linewidths=0.25,
+                            zorder=5
+                        )
+
             # Save figure for this frame in non-proportional case
             if plot:
+                
                 (x_cross,y_cross) = intersection_with_ray_from_origin(x=ALR_H, y=ALR_V, theta_deg=45)
 
                 ax_alr.scatter(
@@ -369,13 +393,15 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
             linestyles = ['-', '--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 1))]
 
 
-            fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
-
+            fig_alr, ax_alr = None, None       
+            if plot:
+                fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
             # NEW: store intersections if you want them later (optional)
             intersections = []
 
             for j, analysis_type in enumerate(Analysis_type):
                 ALR_H, ALR_V = [], []
+                exit_message=[]
 
                 # --- Base case: vertical-controlled analysis ---
                 results, frame_id, fail_during_LCA,Frame = MF_2D_runner(
@@ -394,20 +420,16 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                 ALR_V_max = results.maximum_load_ratio_at_limit_point
                 ALR_V.append(ALR_V_max)
                 ALR_H.append(0)
+                exit_message.append(results.exit_message)
 
                 # --- Plot PMM interaction for base case ---
-                fig_pmm, ax_pmm = plotting.plot_PMM_Interaction_values(
+                save_pmm_plot(
                     results.P_M_M_interaction_all_elements[-1],
-                    show=False
-                )
-                fig_pmm.savefig(
                     os.path.join(
                         analysis_folder,
                         f"PMM_{analysis_type}_ALRH_{ALR_H[0]:.2f}_ALRV_{ALR_V[0]:.2f}.png"
-                    ),
-                    dpi=600
+                    )
                 )
-                plt.close(fig_pmm)
 
                 # --- Sweep vertical loads: fine steps near 0 ---
                 for i in np.arange(0, 0.1, 0.05):
@@ -429,21 +451,17 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                         ALR_H.insert(-1, results.maximum_load_ratio_at_limit_point)
                         # proportional case: both scaled by the same factor λ
                         ALR_V.insert(-1, i * ALR_V_max * results.maximum_load_ratio_at_limit_point)
+                        exit_message.append(results.exit_message)
 
                         # --- Plot PMM every 2nd step ---
                         if int(i * 10) % 2 == 0:
-                            fig_pmm_i, ax_pmm_i = plotting.plot_PMM_Interaction_values(
+                            save_pmm_plot(
                                 results.P_M_M_interaction_all_elements[-1],
-                                show=False
-                            )
-                            fig_pmm_i.savefig(
                                 os.path.join(
                                     analysis_folder,
                                     f"PMM_{analysis_type}_proportional_ALRH_{ALR_H[-2]:.2f}_ALRV_{ALR_V[-2]:.2f}.png"
-                                ),
-                                dpi=600
+                                )
                             )
-                            plt.close(fig_pmm_i)
 
                 # --- Sweep vertical loads: 0.1 to 1.0 ---
                 for i in np.arange(0.1, 1.0, 0.1):
@@ -464,20 +482,15 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                     else:
                         ALR_H.insert(-1, results.maximum_load_ratio_at_limit_point)
                         ALR_V.insert(-1, i * ALR_V_max * results.maximum_load_ratio_at_limit_point)
-
+                        exit_message.append(results.exit_message)
                         if int(i * 10) % 2 == 0:
-                            fig_pmm_i, ax_pmm_i = plotting.plot_PMM_Interaction_values(
+                            save_pmm_plot(
                                 results.P_M_M_interaction_all_elements[-1],
-                                show=False
-                            )
-                            fig_pmm_i.savefig(
                                 os.path.join(
                                     analysis_folder,
                                     f"PMM_{analysis_type}_proportional_ALRH_{ALR_H[-2]:.2f}_ALRV_{ALR_V[-2]:.2f}.png"
-                                ),
-                                dpi=600
+                                )
                             )
-                            plt.close(fig_pmm_i)
 
                 # --- Sweep vertical loads: 1.0 to 4.0 ---
                 for i in np.arange(1.0, 6.0, 0.1):
@@ -502,20 +515,15 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                     else:
                         ALR_H.insert(-1, results.maximum_load_ratio_at_limit_point)
                         ALR_V.insert(-1, i * ALR_V_max * results.maximum_load_ratio_at_limit_point)
-
+                        exit_message.append(results.exit_message)
                         if int(i * 10) % 2 == 0:
-                            fig_pmm_i, ax_pmm_i = plotting.plot_PMM_Interaction_values(
+                            save_pmm_plot(
                                 results.P_M_M_interaction_all_elements[-1],
-                                show=False
-                            )
-                            fig_pmm_i.savefig(
                                 os.path.join(
                                     analysis_folder,
                                     f"PMM_{analysis_type}_proportional_ALRH_{ALR_H[-2]:.2f}_ALRV_{ALR_V[-2]:.2f}.png"
-                                ),
-                                dpi=600
+                                )
                             )
-                            plt.close(fig_pmm_i)
 
                 # ============================================================
                 #   PLOTTING ALR_H vs ALR_V FOR THIS ANALYSIS TYPE
@@ -537,6 +545,17 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                         linestyle=linestyles[j % len(linestyles)],
                         show=False
                     )
+
+                    for x, y, msg in zip(ALR_H_arr, ALR_V_arr, exit_message):
+                        ax_alr.scatter(
+                            x, y,
+                            color=exit_msg_color_map.get(msg, "gray"),
+                            s=28,
+                            alpha=0.40,          # makes markers faint
+                            edgecolors='black',  # helps visibility
+                            linewidths=0.25,
+                            zorder=5
+                        )
 
             # Save figure for this frame in proportional case
             if plot:
@@ -709,10 +728,13 @@ def write_interaction_results(
     for analysis in analysis_list:
         hcol = f"{analysis}_ALR_H"
         vcol = f"{analysis}_ALR_V"
+        dcol = f"{analysis}_del2_over_del1"
         if hcol not in df.columns:
-            df[hcol] = np.nan
+            df[hcol] = pd.Series(dtype='float64')
         if vcol not in df.columns:
-            df[vcol] = np.nan
+            df[vcol] = pd.Series(dtype='float64')
+        if dcol not in df.columns:
+            df[dcol] = pd.Series(dtype='float64')
 
     # --- Index for updates ---
     df.set_index(["Frame", "Theta"], inplace=True)
@@ -725,30 +747,72 @@ def write_interaction_results(
         curves = {}
         for analysis in analysis_list:
             print(f"Running {analysis} for {frame}")
-            ALR_H, ALR_V,duplicate_frame = Interaction_Plots(
-                Frame_number=[frame],
-                Analysis_type=[analysis],
-                Material_type=Material_type,
-                proportional=proportional,
-                plot=False
-            )
+            try:
+                ALR_H, ALR_V,duplicate_frame = Interaction_Plots(
+                    Frame_number=[frame],
+                    Analysis_type=[analysis],
+                    Material_type=Material_type,
+                    proportional=proportional,
+                    plot=False,
+                    save_pmm_plots=False
+                )
+            finally:
+                plt.close("all")
             curves[analysis] = (ALR_H, ALR_V)
         print(theta_list)
+        print(curves)
+        # input()
         for analysis in analysis_list:
-            for theta in theta_list:
-                ALR_H, ALR_V = curves[analysis]
+            ALR_H, ALR_V = curves[analysis]
+            print(f"ALR_H: {ALR_H}")
+            print(f"ALR_V: {ALR_V}")
+            print(f"Plotting interaction diagram for {frame} - {analysis}")
+            interaction_curve=InteractionDiagram2d(ALR_H, ALR_V)
+            interaction_curve.plot()
+            plt.legend()
+            plt.title(f'Interaction Diagram for Frame {frame}')
+            plt.xlabel('ALR_H')
+            plt.ylabel('ALR_V')
+            plt.grid()
+            interaction_diagram_save_path=os.path.join("Column_Results", f"{frame}")
+            os.makedirs(interaction_diagram_save_path, exist_ok=True)
+            plt.savefig(os.path.join(interaction_diagram_save_path, f'interaction_diagram_before_writing_to_file_{frame}.png'))
+            plt.close()
+            # input()
 
-                pt = intersection_with_ray_from_origin(ALR_H, ALR_V, theta)
+            
+            for theta in theta_list:
+                
                 print(theta)
+
+                
+                if theta==90:
+                    pathX=(0,0)
+                    pathY=(0,1)
+                else:
+                    pathX=(0,1)
+                    pathY=(0,math.tan(math.radians(theta)))
+                print(pathY)
+                pt=interaction_curve.find_intersection(pathX,pathY)
                 print(pt)
+                # input()
+
+                # pt = intersection_with_ray_from_origin(ALR_H, ALR_V, theta)
+                # print(theta)
+                # print(pt)
                 # input()
                 vertical_load_scale = pt[1] if pt is not None else None
                 if vertical_load_scale==0:
                     ult_lat_load_for_V0=pt[0]
+                    no_of_digits = len(str(int(abs(ult_lat_load_for_V0)))) if ult_lat_load_for_V0!=0 else 1
                     print(vertical_load_scale)
                     print(ult_lat_load_for_V0)
                     # input()
-                lateral_load_scale = ult_lat_load_for_V0*0.0001 if pt[0]==0 else pt[0] if pt is not None else None
+                print(ult_lat_load_for_V0)
+                print(no_of_digits)
+                print(10**(-no_of_digits - 2))
+                # input(  )
+                lateral_load_scale = ult_lat_load_for_V0*(10**(-no_of_digits - 2)) if pt[0]<10e-6 else pt[0] if pt is not None else None
                 # lateral_load_scale = pt[0]
                 del2_over_del1=duplicate_frame.get_del2_over_del1(vertical_load_scale=vertical_load_scale, lateral_load_scale=lateral_load_scale)
 
@@ -769,6 +833,12 @@ def write_interaction_results(
     # --- Save ---
     df.reset_index(inplace=True)
     df.sort_values(["Frame", "Theta"], inplace=True)
+    
+    # Convert all numeric columns to float to avoid text formatting warnings in Excel
+    for col in df.columns:
+        if col not in ['Frame', 'Theta']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    
     os.makedirs(os.path.dirname(csv_path) or ".", exist_ok=True)
     df.to_csv(csv_path, index=False)
 
@@ -869,8 +939,7 @@ def plot_theta_vs_del2_over_del1(
 
     if show:
         plt.show()
-    # else:
-    #     plt.close()
+    plt.close()
 
 def plot_theta_vs_Radial_Errors(
     csv_path: str,
@@ -950,8 +1019,7 @@ def plot_theta_vs_Radial_Errors(
 
     if show:
         plt.show()
-    else:
-        plt.close()
+    plt.close()
 
 def parametric_h_min_radial_error(csv_path, column_section_name, bending_axes, no_of_stories, config_col='Frame', plot_slenderness=True):
     """
@@ -1337,12 +1405,14 @@ def add_structural_parameters_to_results(csv_path,config_col='Frame'):
 
 if __name__ == "__main__":
     new_analysis_run=True
-    column_section_names=['W14X43','W14X120','W14X311','W21X62','W40X392','W14X730']
-    story_heights=[7*ft,7.5*ft,8*ft,8.5*ft,9*ft,9.5*ft,10*ft,10.5*ft,11*ft,11.5*ft,12*ft,12.5*ft,13*ft,13.5*ft,14*ft,14.5*ft,15*ft,15.5*ft,16*ft,16.5*ft,17*ft,17.5*ft,18*ft,18.5*ft,19	*ft,19.5*ft,20*ft]
+    column_section_names=['W8X31','W14X43','W14X120','W14X311','W14X730','W18X311','W21X62','W40X264','W40X392','W40X593']
+    column_section_names=['W8X31']
+    story_heights=[7*ft,7.5*ft,8*ft,8.5*ft,9*ft,9.5*ft,10*ft,10.5*ft,11*ft,11.5*ft,12*ft,12.5*ft,13*ft,13.5*ft,14*ft,14.5*ft,15*ft,15.5*ft,16*ft,16.5*ft,17*ft,17.5*ft,18*ft,18.5*ft,19*ft,19.5*ft,20*ft]
+    story_heights=[7*ft,7.5*ft,8*ft,8.5*ft,9*ft]
     No_of_stories=[1]
     bending_axes=['x']
 
-    Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']
+    Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']  
     Material_type="50_ksi"
     csv_path = "Column_Results/interaction_results.csv"
 
@@ -1390,24 +1460,25 @@ if __name__ == "__main__":
             proportional=False
         )
         
-        plot_theta_vs_del2_over_del1(
-            csv_path=csv_path,
-            frame_list=Frame_number,
-            analyses_to_plot=Analysis_type,
-        )
+        # plot_theta_vs_del2_over_del1(
+        #     csv_path=csv_path,
+        #     frame_list=Frame_number,
+        #     analyses_to_plot=Analysis_type,
+        # )
 
-        plot_theta_vs_Radial_Errors(
-        csv_path=csv_path,
-        frame_list=Frame_number,
-        errors_to_plot=Radial_errors)
+        # plot_theta_vs_Radial_Errors(
+        # csv_path=csv_path,
+        # frame_list=Frame_number,
+        # errors_to_plot=Radial_errors)
 
-        parametric_h_min_radial_error(
-            csv_path=csv_path,
-            column_section_name="W8X31",
-            bending_axes="x",
-            no_of_stories=1,
-            plot_slenderness=True  
-        )
+        # parametric_h_min_radial_error(
+        #     csv_path=csv_path,
+        #     column_section_name="W8X31",
+        #     bending_axes="x",
+        #     no_of_stories=1,
+        #     plot_slenderness=True  
+        # )
+
 
     else:
         plot_theta_vs_del2_over_del1(
@@ -1423,7 +1494,7 @@ if __name__ == "__main__":
 
         parametric_h_min_radial_error(
             csv_path=csv_path,
-            column_section_name="W8X31",
+            column_section_name="W14X120",
             bending_axes="x",
             no_of_stories=1,
             plot_slenderness=False  
