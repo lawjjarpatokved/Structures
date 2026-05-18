@@ -1,5 +1,6 @@
+import math
 import openseespy.opensees as ops
-from libdenavit.section.wide_flange import I_shape
+from libdenavit.section.wide_flange import I_shape, WideFlangeMember_AISC2022
 from libdenavit.OpenSees import AnalysisResults
 import Units as U
 import opsvis as opsv
@@ -9,7 +10,99 @@ from Plots import line_plot
 import numpy as np
 from Structures_2D import Structures_2D
 
-class Stepped_Column(Structures_2D):
+def return_strength_ratio(ele_dict):
+### The ele_dict contains the details like the section object, bending axes, Lcx, Lcy, Lb etc for each element. We can use this to compute the strength ratio for each element and return the maximum strength ratio among all elements.
+        P_M_M_interaction_all_elements = []
+        Element_Forces=[]
+        for key,value in ele_dict.items():
+            ele_tag = key
+            section_obj = value['section']
+            ele_bending_axis = value['bending_axes']
+            Lcx = value['Lcx']
+            Lcy = value['Lcy']
+            Lb = value['Lb']
+            L = value['L']
+
+            member_obj = WideFlangeMember_AISC2022(
+                section_obj,
+                Fy=section_obj.Fy,
+                E=section_obj.E,
+                L=L
+            )
+
+            # Element forces
+            forces = ops.eleResponse(ele_tag, 'localForce')
+            Pr = abs(forces[0])
+            Mr_i = forces[2]
+            Mr_j = forces[5]
+            max_Mr = max(abs(Mr_i), abs(Mr_j))
+
+            Mrx = Mry = 0
+            Mcx = member_obj.Mnx(Lb=0, Cb=1)
+            Mcy = member_obj.Mny()
+
+            if ele_bending_axis == 'x':
+                Mrx = max_Mr
+
+            elif ele_bending_axis == 'y':
+                Mry = max_Mr
+
+            Pcc = member_obj.Pnc(Lcx=Lcx, Lcy=Lcy)
+            # Interaction Eqn H1-1a or H1-1b
+            if Pr / Pcc >= 0.2:
+                P_M_M_interaction = Pr / Pcc + (8 / 9) * ((Mrx / Mcx) + (Mry / Mcy))
+            else:
+                P_M_M_interaction = Pr / (2 * Pcc) + ((Mrx / Mcx) + (Mry / Mcy))
+
+            # Store as tuple
+            P_M_M_interaction_all_elements.append((ele_tag, P_M_M_interaction))
+            Element_Forces.append((ele_tag,forces))
+
+        # Find max interaction and its element tag
+        max_ele_tag, max_PMM = max(P_M_M_interaction_all_elements, key=lambda x: x[1])
+
+        return max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces    
+
+
+def return_max_of_fiber_strain_in_all_elements(ele_dict):
+    ## returns the maximum strain from among all elements in the Frame
+    maximum_compression_strain=[]
+    maximum_tensile_strain=[]
+    for key,value in ele_dict.items():
+        ele_tag = key
+        section_obj = value['section']
+        ele_bending_axis = value['bending_axes']
+        L = value['L']
+
+        compression_strain = []
+        tensile_strain = []
+
+        a=ops.sectionLocation(ele_tag, 1)
+        print(a)
+        nip=len(ops.sectionLocation(ele_tag))
+        print("Number of integration points",nip)
+        for i in range(nip):
+            axial_strain, curvatureX, curvatureY = 0, 0, 0
+            if ele_bending_axis=='x':
+                axial_strain, curvatureX = ops.eleResponse(ele_tag,  # element tag
+                                                            'section', i+1,  # select integration point
+                                                            'deformation')  # response type               
+            elif ele_bending_axis=='y':
+                axial_strain, curvatureY = ops.eleResponse(ele_tag,  # element tag
+                                                            'section', i+1,  # select integration point
+                                                            'deformation')  # response type
+            else:
+                raise ValueError("The axis is not supported.")
+            
+            compression_strain.append(section_obj.maximum_compression_strain(axial_strain,curvatureX,curvatureY))
+            tensile_strain.append(section_obj.maximum_tensile_strain(axial_strain,curvatureX,curvatureY))
+        maximum_compression_strain.append(max(compression_strain,key=lambda x:abs(x)))
+        maximum_tensile_strain.append(max(tensile_strain,key=lambda x:abs(x)))
+    max_abs_compression_strain= max(abs(c) for c in maximum_compression_strain)
+    max_abs_tensile_strain= max(abs(t) for t in maximum_tensile_strain)
+    return max(max_abs_compression_strain,max_abs_tensile_strain)
+
+class Stepped_Column():
     # @todo - there is a lot of extra stuff in Structures_2D that is not necessary here. 
 
     def __init__(self,bottom_column_section_name,height_of_bottom_column,load_on_bottom_column,
@@ -29,6 +122,8 @@ class Stepped_Column(Structures_2D):
         self.length_of_single_top_column_element = height_of_top_column/number_of_elements # @todo - this would be better as a computed property
         self.total_height = height_of_bottom_column + height_of_top_column # @todo - this would be better as a computed property
         self.all_element_connectivity_section_and_bending_axes_detail = []
+        self.element_dict={}
+
         defaults={'nip':3,
                   'mat_type':'Steel01',
                   'nfy':20,
@@ -142,7 +237,12 @@ class Stepped_Column(Structures_2D):
                                     stiffness_reduction=self.stiffness_reduction,strength_reduction=self.strength_reduction,
                                     axis='x')
         setattr(self,self.bottom_column_section_name,bottom_column)  # @todo - what is going on here?
-        
+        print(bottom_column)
+        print(bottom_column.A)
+        print(bottom_column.Ix)
+        print(bottom_column.Iy)
+        print(bottom_column.Fy)
+        # input("Press Enter to continue...")
         
         ## Define bottom column elements
         ops.beamIntegration("Lobatto", bottom_column_section_tag, bottom_column_section_tag, self.nip)
@@ -153,8 +253,22 @@ class Stepped_Column(Structures_2D):
             ops.element('forceBeamColumn',element_tag,node_i_tag,node_j_tag,
                         col_TransTag,
                         bottom_column_section_tag,'-mass', 1)
+            coords_i = ops.nodeCoord(node_i_tag)
+            coords_j = ops.nodeCoord(node_j_tag)
+            L = math.sqrt((coords_j[0] - coords_i[0])**2 + (coords_j[1] - coords_i[1])**2)
+            Leff = L * (self.no_of_elements_column)
+            if self.bottom_column_bending_axes == 'x':
+                Lcx = Leff
+                Lcy = 0
+            elif self.bottom_column_bending_axes == 'y':
+                Lcx = 0
+                Lcy = Leff
+            Lb=0
             self.all_element_connectivity_section_and_bending_axes_detail.append([element_tag,node_i_tag,node_j_tag,self.bottom_column_section_name,self.bottom_column_bending_axes,'col']) # @todo - lets make sure this is necessary
-        
+            self.element_dict[element_tag] = {'section':bottom_column,'bending_axes':self.bottom_column_bending_axes,'Lcx':Lcx,'Lcy':Lcy,'Lb':Lb,'L':L}
+        print(self.element_dict)
+        # input("Press Enter to continue..."  )
+
         ## Define offset beam section
         offset_beam_section_tag=2
         ops.section('Elastic', offset_beam_section_tag, 29000*U.ksi, 1000*(U.inch**2), 1.0e6*(U.inch**4))
@@ -197,7 +311,21 @@ class Stepped_Column(Structures_2D):
             ops.element('forceBeamColumn',element_tag,node_i_tag,node_j_tag,
                         col_TransTag,
                         top_column_section_tag,'-mass', 1)
+            coords_i = ops.nodeCoord(node_i_tag)
+            coords_j = ops.nodeCoord(node_j_tag)
+            L = math.sqrt((coords_j[0] - coords_i[0])**2 + (coords_j[1] - coords_i[1])**2)
+            Leff = L * (self.no_of_elements_column)
+            if self.top_column_bending_axes == 'x':
+                Lcx = Leff
+                Lcy = 0
+            elif self.top_column_bending_axes == 'y':
+                Lcx = 0
+                Lcy = Leff
+            Lb=0
             self.all_element_connectivity_section_and_bending_axes_detail.append([element_tag,node_i_tag,node_j_tag,self.top_column_section_name,self.top_column_bending_axes,'col'])
+            self.element_dict[element_tag] = {'section':top_column,'bending_axes':self.top_column_bending_axes,'Lcx':Lcx,'Lcy':Lcy,'Lb':Lb,'L':L}  
+        print(self.element_dict)
+        # input("Press Enter to continue..."  )                  
         ## Define offset beam element at top of top column
         offset3_element_tag=self.no_of_elements_column+3+self.no_of_elements_column 
         ops.element('forceBeamColumn',offset3_element_tag,self.top_column_top_node_tag,self.right_offset3_node_tag,
@@ -280,9 +408,9 @@ class Stepped_Column(Structures_2D):
             lateral_reaction=ops.nodeReaction(1)[0] + ops.nodeReaction(self.top_column_top_node_tag)[0]
             results.vertical_reaction.append(total_vertical_rxn)
             results.lateral_reaction.append(lateral_reaction)            
-            results.absolute_maximum_strain.append(self.return_max_of_fiber_strain_in_all_elements())
+            results.absolute_maximum_strain.append(return_max_of_fiber_strain_in_all_elements(self.element_dict))
             # results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
-            max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=self.return_P_M_M_interaction_values()
+            max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=return_strength_ratio(self.element_dict)
             results.max_P_M_M_interaction.append(max_PMM)
 
         ops.initialize()   # @todo - what does this do?
@@ -397,9 +525,9 @@ class Stepped_Column(Structures_2D):
             lateral_reaction=ops.nodeReaction(1)[0] + ops.nodeReaction(self.top_column_top_node_tag)[0]
             results.vertical_reaction.append(total_vertical_rxn)
             results.lateral_reaction.append(lateral_reaction)            
-            results.absolute_maximum_strain.append(self.return_max_of_fiber_strain_in_all_elements())
+            results.absolute_maximum_strain.append(return_max_of_fiber_strain_in_all_elements(self.element_dict))
             # results.control_node_displacement.append(ops.nodeDisp(control_node, control_dof))
-            max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=self.return_P_M_M_interaction_values()
+            max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=return_strength_ratio(self.element_dict)
             results.max_P_M_M_interaction.append(max_PMM)
 
 
@@ -458,6 +586,8 @@ class Stepped_Column(Structures_2D):
 
             # Check for strain in extreme steel fiber
             if steel_strain_limit is not None:
+                print(results.absolute_maximum_strain)
+                # input("Check the absolute maximum strain values. Press Enter to continue...")
                 if results.absolute_maximum_strain[-1] > steel_strain_limit:
                     results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
                     break
@@ -490,7 +620,8 @@ if __name__ == "__main__":
                                     Geometric_Imperfection=True,
                                     geometric_imperfection_ratio=1/500,
                                     plot_model=False,
-                                    try_smaller_steps=False)
+                                    try_smaller_steps=False,
+                                    nip=3)
 
     Stepped_Column.build_stepped_column()
     #print(Stepped_Column.all_element_connectivity_section_and_bending_axes_detail)
