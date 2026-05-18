@@ -74,7 +74,7 @@ class Stepped_Column(Structures_2D):
         ## Create nodes along bottom column
         for i in range(self.no_of_elements_column):
             x=0.0
-            y=(i+1)*self.height_of_bottom_column/self.number_of_elements
+            y=(i+1)*self.height_of_bottom_column/self.no_of_elements_column
             x_imp = self.geometric_imperfection_ratio * np.sin(np.pi * y / self.total_height)
             ops.node(i+2,x + x_imp,y)
         self.bottom_column_top_node_tag=self.no_of_elements_column+1
@@ -93,7 +93,7 @@ class Stepped_Column(Structures_2D):
         x_imp = self.geometric_imperfection_ratio * np.sin(np.pi * y / self.total_height)
         ops.node(self.top_column_bottom_node_tag,-self.offset2 + x_imp,self.height_of_bottom_column)
         for j in range(self.no_of_elements_column):
-            y = self.height_of_bottom_column+(j+1)*self.height_of_top_column/self.number_of_elements
+            y = self.height_of_bottom_column+(j+1)*self.height_of_top_column/self.no_of_elements_column
             x_imp = self.geometric_imperfection_ratio * np.sin(np.pi * y / self.total_height)
             ops.node(self.top_column_bottom_node_tag+j+1,-self.offset2 + x_imp, y)
         self.top_column_top_node_tag=self.top_column_bottom_node_tag+self.no_of_elements_column
