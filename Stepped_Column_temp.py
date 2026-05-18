@@ -10,11 +10,6 @@ from libdenavit.section.wide_flange import WideFlangeMember_AISC2022
 from libdenavit.section.database import wide_flange_database
 from libdenavit.OpenSees import AnalysisResults,plot_deformed_2d,plot_undeformed_2d
 
-from Structures_2D import Structures_2D
-
-plt.set_loglevel("warning")
-
-
 plt.set_loglevel("warning")
 
 
@@ -111,7 +106,6 @@ def return_max_of_fiber_strain_in_all_elements(ele_dict):
     return max(max_abs_compression_strain,max_abs_tensile_strain)
 
 class Stepped_Column():
-    # @todo - there is a lot of extra stuff in Structures_2D that is not necessary here. 
 
     def __init__(self,bottom_column_section_name,height_of_bottom_column,load_on_bottom_column,
                  top_column_section_name,height_of_top_column,number_of_elements,load_on_top_column,lateral_load,offset_1,offset_3,**kwargs):
@@ -236,13 +230,7 @@ class Stepped_Column():
                                     frc=frc,num_regions=self.num_regions,
                                     stiffness_reduction=self.stiffness_reduction,strength_reduction=self.strength_reduction,
                                     axis='x')
-        setattr(self,self.bottom_column_section_name,bottom_column)  # @todo - what is going on here?
-        print(bottom_column)
-        print(bottom_column.A)
-        print(bottom_column.Ix)
-        print(bottom_column.Iy)
-        print(bottom_column.Fy)
-        # input("Press Enter to continue...")
+
         
         ## Define bottom column elements
         ops.beamIntegration("Lobatto", bottom_column_section_tag, bottom_column_section_tag, self.nip)
@@ -294,7 +282,6 @@ class Stepped_Column():
                                     frc=frc,num_regions=self.num_regions,
                                     stiffness_reduction=self.stiffness_reduction,strength_reduction=self.strength_reduction,
                                     axis='x')
-        setattr(self,self.top_column_section_name,top_column)
 
         ## Define beam integration for top column section
         ops.beamIntegration("Lobatto", top_column_section_tag, top_column_section_tag, self.nip)       
@@ -585,10 +572,10 @@ if __name__ == "__main__":
                                     E=29000*ksi,
                                     Elastic_analysis=False,
                                     Second_order_effects=True,
-                                    Residual_Stress=False,
-                                    Geometric_Imperfection=False,
+                                    Residual_Stress=True,
+                                    Geometric_Imperfection=True,
                                     geometric_imperfection_ratio=1/500,
-                                    plot_model=True)
+                                    plot_model=False)
 
     Stepped_Column.build_stepped_column()
     #print(Stepped_Column.all_element_connectivity_section_and_bending_axes_detail)
@@ -599,8 +586,6 @@ if __name__ == "__main__":
     print(results.exit_message)
 
     plot_deformed_2d(scale_factor=100,axis_equal=True)
-
-    opsv.plot_defo()
 
     fig, ax = plt.subplots()
     plt.plot(results.load_ratio,results.control_node_displacement, marker = 'o', markersize=5)
