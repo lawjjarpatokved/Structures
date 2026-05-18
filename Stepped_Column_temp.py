@@ -123,7 +123,6 @@ class Stepped_Column():
         self.top_column_section_name = top_column_section_name 
         self.offset1 = offset_1  ## dist from top of bottom column to right node where point load is applied for bottom column
         self.offset3 = offset_3  ## dist from top of top column to right node where load is applied for top column
-        self.all_element_connectivity_section_and_bending_axes_detail = []
         self.element_dict={}
 
         defaults={'nip':3,
@@ -255,10 +254,7 @@ class Stepped_Column():
                 Lcx = 0
                 Lcy = Leff
             Lb=0
-            self.all_element_connectivity_section_and_bending_axes_detail.append([element_tag,node_i_tag,node_j_tag,self.bottom_column_section_name,self.bottom_column_bending_axes,'col']) # @todo - lets make sure this is necessary
             self.element_dict[element_tag] = {'section':bottom_column,'bending_axes':self.bottom_column_bending_axes,'Lcx':Lcx,'Lcy':Lcy,'Lb':Lb,'L':L}
-        print(self.element_dict)
-        # input("Press Enter to continue..."  )
 
         ## Define offset beam section
         offset_beam_section_tag=2
@@ -307,10 +303,8 @@ class Stepped_Column():
                 Lcx = 0
                 Lcy = Leff
             Lb=0
-            self.all_element_connectivity_section_and_bending_axes_detail.append([element_tag,node_i_tag,node_j_tag,self.top_column_section_name,self.top_column_bending_axes,'col'])
             self.element_dict[element_tag] = {'section':top_column,'bending_axes':self.top_column_bending_axes,'Lcx':Lcx,'Lcy':Lcy,'Lb':Lb,'L':L}  
-        print(self.element_dict)
-        # input("Press Enter to continue..."  )                  
+               
         ## Define offset beam element at top of top column
         offset3_element_tag=self.no_of_elements_column+3+self.no_of_elements_column 
         ops.element('forceBeamColumn',offset3_element_tag,self.top_column_top_node_tag,self.right_offset3_node_tag,
@@ -581,9 +575,6 @@ if __name__ == "__main__":
                                     plot_model=False)
 
     Stepped_Column.build_stepped_column()
-    #print(Stepped_Column.all_element_connectivity_section_and_bending_axes_detail)
-    #Stepped_Column.show_model()
-    
     #results= Stepped_Column.run_load_controlled_analysis(target_load_factor=3.0, steps=100)
     results = Stepped_Column.run_displacement_controlled_analysis(target_disp=1, steps=1000)
     print(results.exit_message)
