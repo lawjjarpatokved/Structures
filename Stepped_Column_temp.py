@@ -14,58 +14,65 @@ plt.set_loglevel("warning")
 
 
 def return_strength_ratio(ele_dict):
-### The ele_dict contains the details like the section object, bending axes, Lcx, Lcy, Lb etc for each element. We can use this to compute the strength ratio for each element and return the maximum strength ratio among all elements.
-        P_M_M_interaction_all_elements = []
-        Element_Forces=[]
-        for key,value in ele_dict.items():
-            ele_tag = key
-            section_obj = value['section']
-            ele_bending_axis = value['bending_axes']
-            Lcx = value['Lcx']
-            Lcy = value['Lcy']
-            Lb = value['Lb']
-            L = value['L']
+    ### The ele_dict contains the details like the section object, bending axes, Lcx, Lcy, Lb etc for each element. We can use this to compute the strength ratio for each element and return the maximum strength ratio among all elements.
+    ele_output = dict()
+    max_PMM = 0
+    max_ele_tag = ''
+    
+    for ele_tag,value in ele_dict.items():
+        section_obj = value['section']
+        ele_bending_axis = value['bending_axes']
+        Lcx = value['Lcx']
+        Lcy = value['Lcy']
+        Lb = value['Lb']
+        L = value['L']
 
-            member_obj = WideFlangeMember_AISC2022(
-                section_obj,
-                Fy=section_obj.Fy,
-                E=section_obj.E,
-                L=L
-            )
+        member_obj = WideFlangeMember_AISC2022(
+            section_obj,
+            Fy=section_obj.Fy,
+            E=section_obj.E,
+            L=L
+        )
 
-            # Element forces
-            forces = ops.eleResponse(ele_tag, 'localForce')
-            Pr = abs(forces[0])
-            Mr_i = forces[2]
-            Mr_j = forces[5]
-            max_Mr = max(abs(Mr_i), abs(Mr_j))
+        # Required Strengths
+        forces = ops.eleResponse(ele_tag, 'localForce')
+        Pr = abs(forces[0])
+        Mr_i = forces[2]
+        Mr_j = forces[5]
+        max_Mr = max(abs(Mr_i), abs(Mr_j))
+        if ele_bending_axis == 'x':
+            Mrx = max_Mr
+            Mry = 0
+        elif ele_bending_axis == 'y':
+            Mrx = 0
+            Mry = max_Mr
+        else:
+            raise ValueError("The axis is not supported.")
 
-            Mrx = Mry = 0
-            Mcx = member_obj.Mnx(Lb=0, Cb=1)
-            Mcy = member_obj.Mny()
+        # Available Strengths
+        Pcc = member_obj.Pnc(Lcx=Lcx, Lcy=Lcy)
+        Cb = 1 # @todo - For the future: update this somehow            
+        Mcx = member_obj.Mnx(Lb=Lb, Cb=Cb)
+        Mcy = member_obj.Mny()
 
-            if ele_bending_axis == 'x':
-                Mrx = max_Mr
+        # Interaction Eqn H1-1a or H1-1b
+        # @todo - What is the element is in tension?
+        if Pr / Pcc >= 0.2:
+            P_M_M_interaction = Pr / Pcc + (8 / 9) * ((Mrx / Mcx) + (Mry / Mcy))
+        else:
+            P_M_M_interaction = Pr / (2 * Pcc) + ((Mrx / Mcx) + (Mry / Mcy))
 
-            elif ele_bending_axis == 'y':
-                Mry = max_Mr
+        # Update maximum
+        if P_M_M_interaction > max_PMM:
+            max_PMM = P_M_M_interaction
+            max_ele_tag = ele_tag
 
-            Pcc = member_obj.Pnc(Lcx=Lcx, Lcy=Lcy)
-            # Interaction Eqn H1-1a or H1-1b
-            if Pr / Pcc >= 0.2:
-                P_M_M_interaction = Pr / Pcc + (8 / 9) * ((Mrx / Mcx) + (Mry / Mcy))
-            else:
-                P_M_M_interaction = Pr / (2 * Pcc) + ((Mrx / Mcx) + (Mry / Mcy))
+        # Store element output
+        ele_output[ele_tag] = {'P_M_M_interaction':P_M_M_interaction,
+                               'Element_Forces':forces,
+                              }
 
-            # Store as tuple
-            P_M_M_interaction_all_elements.append((ele_tag, P_M_M_interaction))
-            Element_Forces.append((ele_tag,forces))
-
-        # Find max interaction and its element tag
-        max_ele_tag, max_PMM = max(P_M_M_interaction_all_elements, key=lambda x: x[1])
-
-        return max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces    
-
+    return max_PMM, max_ele_tag, ele_output
 
 def return_max_of_fiber_strain_in_all_elements(ele_dict):
     ## returns the maximum strain from among all elements in the Frame
@@ -75,15 +82,11 @@ def return_max_of_fiber_strain_in_all_elements(ele_dict):
         ele_tag = key
         section_obj = value['section']
         ele_bending_axis = value['bending_axes']
-        L = value['L']
 
         compression_strain = []
         tensile_strain = []
 
-        a=ops.sectionLocation(ele_tag, 1)
-        print(a)
         nip=len(ops.sectionLocation(ele_tag))
-        print("Number of integration points",nip)
         for i in range(nip):
             axial_strain, curvatureX, curvatureY = 0, 0, 0
             if ele_bending_axis=='x':
@@ -384,7 +387,7 @@ class Stepped_Column():
             results.vertical_reaction.append(total_vertical_rxn)
             results.lateral_reaction.append(lateral_reaction)            
             results.absolute_maximum_strain.append(return_max_of_fiber_strain_in_all_elements(self.element_dict))
-            max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=return_strength_ratio(self.element_dict)
+            max_PMM, max_ele_tag,_ = return_strength_ratio(self.element_dict)
             results.max_P_M_M_interaction.append(max_PMM)
 
         # Define analysis options
@@ -492,7 +495,7 @@ class Stepped_Column():
             results.vertical_reaction.append(total_vertical_rxn)
             results.lateral_reaction.append(lateral_reaction)            
             results.absolute_maximum_strain.append(return_max_of_fiber_strain_in_all_elements(self.element_dict))
-            max_PMM, max_ele_tag,P_M_M_interaction_all_elements,Element_Forces=return_strength_ratio(self.element_dict)
+            max_PMM, max_ele_tag,_ = return_strength_ratio(self.element_dict)
             results.max_P_M_M_interaction.append(max_PMM)
 
         # Define analysis options
