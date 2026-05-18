@@ -1,14 +1,17 @@
 import openseespy.opensees as ops
-import helpers as U
 import opsvis as opsv
 import matplotlib.pyplot as plt
 import numpy as np
 
 from libdenavit import find_limit_point_in_list, interpolate_list
 from libdenavit.section import I_shape
-from libdenavit.OpenSees import AnalysisResults,plot_undeformed_2d
+from libdenavit.section.database import wide_flange_database
+from libdenavit.OpenSees import AnalysisResults,plot_deformed_2d,plot_undeformed_2d
 
 from Structures_2D import Structures_2D
+
+plt.set_loglevel("warning")
+
 
 class Stepped_Column(Structures_2D):
     # @todo - there is a lot of extra stuff in Structures_2D that is not necessary here. 
@@ -55,19 +58,18 @@ class Stepped_Column(Structures_2D):
     def total_height(self):
         return self.height_of_bottom_column + self.height_of_top_column
 
+    @property
+    def offset2(self):
+        # Calculate left offset based on section depth of top and bottom column
+        bottom_column_section_data = wide_flange_database[self.bottom_column_section_name]
+        top_column_section_data = wide_flange_database[self.top_column_section_name]
+        return (bottom_column_section_data['d']/2)-(top_column_section_data['d']/2)  
+        
     def build_stepped_column(self):
 
+        # Build model
         ops.wipe()
         ops.model('basic','-ndm',2,'-ndf',3)
-
-        ## Calculate left offset based on section depth of top and bottom column
-        bottom_column_section=U.WF_Database(self.bottom_column_section_name,unit=1) 
-        
-        top_column_section=U.WF_Database(self.top_column_section_name,unit=1)
-        
-        self.offset2= (bottom_column_section.d/2)-(top_column_section.d/2)     
-        #print("Offset2 (Left offset for top column): ",self.offset2)   
-        #input()
 
         ## Bottom node of bottom column
         ops.node(1,0.0,0.0)
@@ -110,7 +112,7 @@ class Stepped_Column(Structures_2D):
         ## Define geometric transformation for columns
         col_TransTag=1
         if self.Second_order_effects:    
-            ops.geomTransf("PDelta", col_TransTag)
+            ops.geomTransf("Corotational", col_TransTag)
 
         else:
             ops.geomTransf("Linear", col_TransTag)
@@ -127,15 +129,7 @@ class Stepped_Column(Structures_2D):
 
         ## Define bottom column section 
         bottom_column_section_tag=1
-        
-        bottom_column = I_shape(bottom_column_section.d, bottom_column_section.tw, bottom_column_section.bf, bottom_column_section.tf,   
-            self.Fy,self.E,
-            A=bottom_column_section.A, 
-            Ix=bottom_column_section.Ix,Zx=bottom_column_section.Zx,Sx=bottom_column_section.Sx,rx=bottom_column_section.rx,
-            Iy=bottom_column_section.Iy,Zy=bottom_column_section.Zy,Sy=bottom_column_section.Sy,ry=bottom_column_section.ry,
-            J=bottom_column_section.J,Cw=bottom_column_section.Cw,rts=bottom_column_section.rts,ho=bottom_column_section.ho)
-        # @todo - it would be nice to simplify this definition something like this: bottom_column = I_shape(bottom_column_section,self.Fy,self.E)
-            
+        bottom_column = I_shape.from_database(self.bottom_column_section_name,self.Fy,self.E)
         bottom_column.build_ops_fiber_section(bottom_column_section_tag,
                                     start_material_id=1,
                                     mat_type=mat_type,
@@ -159,7 +153,7 @@ class Stepped_Column(Structures_2D):
         
         ## Define offset beam section
         offset_beam_section_tag=2
-        ops.section('Elastic', offset_beam_section_tag, 29000*U.ksi, 1000*(U.inch**2), 1.0e6*(U.inch**4))
+        ops.section('Elastic', offset_beam_section_tag, 29000, 1000, 1.0e6)
         ## Define beam integration for offset beam section
         ops.beamIntegration("Lobatto", offset_beam_section_tag, offset_beam_section_tag, self.nip)
         ## Define offset beam element at top of bottom column
@@ -174,13 +168,7 @@ class Stepped_Column(Structures_2D):
         
         ## Define top column section
         top_column_section_tag=3
-
-        top_column = I_shape(top_column_section.d, top_column_section.tw, top_column_section.bf, top_column_section.tf,   
-            self.Fy,self.E,
-            A=top_column_section.A, 
-            Ix=top_column_section.Ix,Zx=top_column_section.Zx,Sx=top_column_section.Sx,rx=top_column_section.rx,
-            Iy=top_column_section.Iy,Zy=top_column_section.Zy,Sy=top_column_section.Sy,ry=top_column_section.ry,
-            J=top_column_section.J,Cw=top_column_section.Cw,rts=top_column_section.rts,ho=top_column_section.ho)
+        top_column = I_shape.from_database(self.top_column_section_name,self.Fy,self.E)
         top_column.build_ops_fiber_section(top_column_section_tag,
                                     start_material_id=200,
                                     mat_type=mat_type,
@@ -189,6 +177,7 @@ class Stepped_Column(Structures_2D):
                                     stiffness_reduction=self.stiffness_reduction,strength_reduction=self.strength_reduction,
                                     axis='x')
         setattr(self,self.top_column_section_name,top_column)
+
         ## Define beam integration for top column section
         ops.beamIntegration("Lobatto", top_column_section_tag, top_column_section_tag, self.nip)       
         ## Define top column elements
@@ -224,11 +213,7 @@ class Stepped_Column(Structures_2D):
     def show_model(self):
         plot_undeformed_2d(axis_equal=True)
 
-    def run_load_controlled_analysis(self, **kwargs):
-        
-        incr_LCA= kwargs.get('incr_LCA', 0.1)          ######### LCA refers to Load Controlled Analysis
-        num_steps_LCA= kwargs.get('num_steps_LCA', 10)            ######### LCA refers to Load Controlled Analysis
-        
+    def run_load_controlled_analysis(self, target_load_factor=1.0, steps=1000, **kwargs):
         steel_strain_limit = kwargs.get('steel_strain_limit', None)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', None)
         P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
@@ -260,6 +245,9 @@ class Stepped_Column(Structures_2D):
                 ind, x = find_limit_point_in_list(results.absolute_maximum_strain, steel_strain_limit)
             elif 'P_M_M interaction Limit Reached' in results.exit_message:
                 ind, x = find_limit_point_in_list(results.max_P_M_M_interaction, P_M_M_interaction_limit)          
+            elif 'Full Load Applied' in results.exit_message:
+                results.maximum_load_ratio_at_limit_point = []
+                return
             else:
                 raise Exception('Unknown limit point')
             
@@ -294,10 +282,10 @@ class Stepped_Column(Structures_2D):
         record()
         
         # Define integrator for main load
-        ops.integrator('LoadControl', 1/num_steps_LCA)         
+        ops.integrator('LoadControl', target_load_factor/steps)         
 
         # Run analysis
-        for i in range(num_steps_LCA):
+        for i in range(steps):
             if print_ops_status:
                 print(f'Running Load Controlled Analysis Step {i}')
 
@@ -336,8 +324,7 @@ class Stepped_Column(Structures_2D):
 
 
 
-    def run_displacement_controlled_analysis(self, target_disp=1, steps=1000,**kwargs):
-        
+    def run_displacement_controlled_analysis(self, target_disp, steps=1000, **kwargs):
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
         P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit', None)
@@ -445,32 +432,41 @@ class Stepped_Column(Structures_2D):
         return results
 
 if __name__ == "__main__":
+    kip = 1
+    inch = 1
+    ft = 12*inch
+    ksi = kip/inch**2
+    
     Stepped_Column = Stepped_Column(bottom_column_section_name='W14X132',
-                                    height_of_bottom_column=8.0*U.ft,
-                                    load_on_bottom_column=100*10*10*100*5*U.KN,
+                                    height_of_bottom_column=8.0*ft,
+                                    load_on_bottom_column=200*kip,
                                     top_column_section_name='W14X90',
-                                    height_of_top_column=8.0*U.ft,
+                                    height_of_top_column=8.0*ft,
                                     number_of_elements=4,
-                                    load_on_top_column=80*10*10*100*5*U.KN,
-                                    lateral_load=20*10*10*100*5*U.KN,
+                                    load_on_top_column=200*kip,
+                                    lateral_load=20*kip,
                                     offset_1=0.3,
                                     offset_3=0.25,
-                                    Fy=36*U.ksi,
-                                    E=29000*U.ksi,
+                                    Fy=36*ksi,
+                                    E=29000*ksi,
                                     Elastic_analysis=False,
                                     Second_order_effects=True,
-                                    Residual_Stress=True,
-                                    Geometric_Imperfection=True,
+                                    Residual_Stress=False,
+                                    Geometric_Imperfection=False,
                                     geometric_imperfection_ratio=1/500,
-                                    plot_model=False)
+                                    plot_model=True)
 
     Stepped_Column.build_stepped_column()
     #print(Stepped_Column.all_element_connectivity_section_and_bending_axes_detail)
     #Stepped_Column.show_model()
     
-    #results= Stepped_Column.run_load_controlled_analysis(incr_LCA=0.02,num_steps_LCA=100)
-    results = Stepped_Column.run_displacement_controlled_analysis(target_disp=1, steps=10000)
+    #results= Stepped_Column.run_load_controlled_analysis(target_load_factor=3.0, steps=100)
+    results = Stepped_Column.run_displacement_controlled_analysis(target_disp=1, steps=1000)
     print(results.exit_message)
+
+    plot_deformed_2d(scale_factor=100,axis_equal=True)
+
+    opsv.plot_defo()
 
     fig, ax = plt.subplots()
     plt.plot(results.load_ratio,results.control_node_displacement, marker = 'o', markersize=5)
