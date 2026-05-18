@@ -390,10 +390,10 @@ class Stepped_Column():
         ops.system('UmfPack')
         ops.test('NormUnbalance', 1e-3, 10, 1)
         ops.algorithm('Newton')   
-        ops.analysis('Static')
 
         # Run one step with no load
         ops.integrator('LoadControl', 0.0)
+        ops.analysis('Static')
         ok = ops.analyze(1)
         record()
         
@@ -498,10 +498,10 @@ class Stepped_Column():
         ops.system('UmfPack')
         ops.test('NormUnbalance', 1e-3, 10, 1)
         ops.algorithm('Newton')   
-        ops.analysis('Static')
         
         # Run one step with no load
         ops.integrator('LoadControl', 0.0)
+        ops.analysis('Static')
         ok = ops.analyze(1)
         record()
 
@@ -531,8 +531,6 @@ class Stepped_Column():
 
             # Check for strain in extreme steel fiber
             if steel_strain_limit is not None:
-                print(results.absolute_maximum_strain)
-                # input("Check the absolute maximum strain values. Press Enter to continue...")
                 if results.absolute_maximum_strain[-1] > steel_strain_limit:
                     results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
                     break
