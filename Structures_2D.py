@@ -134,6 +134,7 @@ class Structures_2D:
             raise ValueError(f"The number of arguments given for supports {self.support} should be equal to the number of columns, {(self.no_of_bays)+1}. ")
   
 
+
     @staticmethod
     def nth_digit(num, n, m=None):
         m=1 if m is None else m
@@ -471,8 +472,6 @@ class Structures_2D:
 
         self.column_section[self.column_case] = updated_nested_dict
 
-
-
     def build_ops_model(self):
         ops.wipe()
         
@@ -694,11 +693,11 @@ class Structures_2D:
             p.name for p in sig.parameters.values()
             if p.name not in ("self",) and p.kind != inspect.Parameter.VAR_KEYWORD
         }
-        print("Explicit parameters:", explicit_params)
+        # print("Explicit parameters:", explicit_params)
     
         # Apply overrides: explicit args stay explicit, everything else goes into **kwargs
 
-        print('Overrides to apply:', overrides)
+        # print('Overrides to apply:', overrides)
         for k, v in overrides.items():
             if k in explicit_params:
                 spec[k] = copy.deepcopy(v)
@@ -707,8 +706,8 @@ class Structures_2D:
 
         #  split the call into explicit args + **kwargs dict
         kwargs_dict = spec.pop("kwargs", {})
-        print("Spec after overrides:", spec)
-        print("Kwargs dict:", kwargs_dict)
+        # print("Spec after overrides:", spec)
+        # print("Kwargs dict:", kwargs_dict)
         
         return self.__class__(**spec, **kwargs_dict)
     
@@ -1205,6 +1204,8 @@ class Structures_2D:
                  
     def get_del2_over_del1(self,vertical_load_scale=1, lateral_load_scale=1):
         print('Second order Frame')
+        # print(self)
+        # input()
         Second_order_frame=self.rebuild_with_overrides(Second_order_effects=True,
                                                        Residual_Stress=False,
                                                        Elastic_analysis=True,
@@ -1231,6 +1232,8 @@ class Structures_2D:
             print('Warning: The lowest eigenvalue is negative, which indicates that the structure has gone past elastic critical buckling limit. So the drift is treated as infinite.')
             drift_with_second_order_effects = [float('inf')] * len(drift_with_second_order_effects)
         print('drift_with_second_order_effects',drift_with_second_order_effects)
+        # print(self)
+        # input()
         # input('Press Enter to continue...')
         print('First order Frame')
         First_order_frame=self.rebuild_with_overrides(Second_order_effects=False,
@@ -1269,7 +1272,7 @@ class Structures_2D:
 
 
 
-    def run_displacement_controlled_analysis(self, target_disp=10, steps=1000, plot_defo=False,**kwargs):
+    def run_displacement_controlled_analysis(self, target_disp=1, steps=1000000, plot_defo=False,**kwargs):
         """
         Runs displacement-controlled analysis and plots load ratio (λ) vs. displacement and vertical reaction.
 
@@ -1278,13 +1281,13 @@ class Structures_2D:
             steps (int): Number of steps to reach target
             plot_defo (bool): Whether to plot deformed shape at end
         """
-
+        
         incr_LCA= kwargs.get('incr_LCA', 0.01)          ######### LCA refers to Load Controlled Analysis
         num_steps_LCA= kwargs.get('num_steps_LCA', 100)            ######### LCA refers to Load Controlled Analysis
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
         P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
-        try_smaller_steps = kwargs.get('try_smaller_steps', True)
+        try_smaller_steps = kwargs.get('try_smaller_steps', False)
         control_dir=kwargs.get('control_dir','L')  # L for lateral and V for Vertical
         ops_analysis=kwargs.get('analysis','proportional_limit_point')
         lateral_load_scale=kwargs.get('lateral_load_scale',1)
@@ -1363,48 +1366,50 @@ class Structures_2D:
             ops.algorithm('Newton')
             ops.integrator('LoadControl',incr_LCA)  ## incr_LCA because, we do not want to apply the entire load during load controlled analysis.
             ops.analysis('Static')
-            record()
-            for i in range(num_steps_LCA):
-                if Structures_2D.print_ops_status:
-                    print(f'Running Load Controlled Analysis Step {i}')
-                    # input()
-                ok = ops.analyze(1)
-                if ok != 0:
-                    print(f'Load controlled analysis failed in step {i}')
-                    results.exit_message = 'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading'
-                    find_limit_point()
-                    return results,fail_during_LCA
-                else:
-                    print('Load controlled analysis PASSED')
-                    results.exit_message='Moving to Displacement Controlled Analysis'
-                record()
+            # record()
+            # for i in range(num_steps_LCA):
+            #     if Structures_2D.print_ops_status:
+            #         print(f'Running Load Controlled Analysis Step {i}')
+            #         # input()
+            #     ok = ops.analyze(1)
+            #     if ok != 0:
+            #         print(f'Load controlled analysis failed in step {i}')
+            #         results.exit_message = 'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading'
+            #         find_limit_point()
+            #         return results,fail_during_LCA
+            #     else:
+            #         print('Load controlled analysis PASSED')
+            #         results.exit_message='Moving to Displacement Controlled Analysis'
+            #     record()
 
-                # Check for lowest eigenvalue less than zero
-                if eigenvalue_limit is not None:
-                    if results.lowest_eigenvalue[-1] < eigenvalue_limit:
-                        results.exit_message = 'Eigenvalue Limit Reached'
-                        find_limit_point()
-                        return results,fail_during_LCA
-                        # break
+            #     # Check for lowest eigenvalue less than zero
+            #     if eigenvalue_limit is not None:
+            #         if results.lowest_eigenvalue[-1] < eigenvalue_limit:
+            #             results.exit_message = 'Eigenvalue Limit Reached'
+            #             find_limit_point()
+            #             return results,fail_during_LCA
+            #             # break
 
-                # Check for strain in extreme steel fiber
-                if steel_strain_limit is not None:
-                    # if Structures_2D.print_ops_status:
-                    #     print(f'Checking Steel Tensile Strain')
-                    if results.absolute_maximum_strain[-1] > steel_strain_limit:
-                        results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
-                        find_limit_point()
-                        return results,fail_during_LCA
-                        # break
-                # Check for maximum PMM interaction value    
-                if self.Elastic_analysis:
-                    if P_M_M_interaction_limit is not None:
-                        # if Structures_2D.print_ops_status:
-                        #     print(f'Checking PMM Interaction')
-                        if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
-                            results.exit_message = 'P_M_M interaction Limit Reached'
-                            find_limit_point()
-                            return results,fail_during_LCA
+            #     # Check for strain in extreme steel fiber
+            #     if steel_strain_limit is not None:
+            #         # if Structures_2D.print_ops_status:
+            #         #     print(f'Checking Steel Tensile Strain')
+            #         if results.absolute_maximum_strain[-1] > steel_strain_limit:
+            #             results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
+            #             find_limit_point()
+            #             return results,fail_during_LCA
+            #             # break
+            #     # Check for maximum PMM interaction value    
+            #     if self.Elastic_analysis:
+            #         if P_M_M_interaction_limit is not None:
+            #             # if Structures_2D.print_ops_status:
+            #             #     print(f'Checking PMM Interaction')
+            #             if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+            #                 results.exit_message = 'P_M_M interaction Limit Reached'
+            #                 find_limit_point()
+            #                 return results,fail_during_LCA
+
+
 
             # print(results.control_node_displacement)
             # input()
@@ -1524,9 +1529,6 @@ class Structures_2D:
                         if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
                             results.exit_message = 'P_M_M interaction Limit Reached'
                             break
-                if i>steps*100000 :
-                    results.exit_message = 'Analysis Failed'
-                    break
 
 
             find_limit_point()
@@ -1767,7 +1769,8 @@ class Structures_2D:
 
 
 
-
+        # print(vars(self))
+        # input()
         return results,fail_during_LCA
 
     def save_moments_by_member(self, filename='max_member_moments.csv'):

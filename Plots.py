@@ -8,7 +8,7 @@ def line_plot(
     xlabel='', ylabel='', title='',
     filename=None,
     ax=None, label=None, show=False,
-    color=None, linestyle='--', marker='.', linewidth=2, markersize=2,
+    color=None, linestyle='--', marker='.', linewidth=2, markersize=7,
     grid=True, grid_style=':', grid_alpha=0.6,
     legend=True, legend_loc='best',
     figsize=(6, 5),

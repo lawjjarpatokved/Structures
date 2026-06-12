@@ -1,7 +1,7 @@
 import openseespy.opensees as ops
 from libdenavit.section.wide_flange import I_shape
 from libdenavit.OpenSees import AnalysisResults
-import Units as U
+import helpers as U
 import opsvis as opsv
 from libdenavit.OpenSees.plotting import plot_undeformed_2d,get_element_nodes,get_node_coords
 from libdenavit import find_limit_point_in_list, interpolate_list

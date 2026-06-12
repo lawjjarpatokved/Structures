@@ -1,4 +1,28 @@
 {
+    "W8X31_x_1X2.7432": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X4.571999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X1.5239999999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X9.143999999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X0.6095999999999999": {
+        "wind_load_dirn": null,
+        "wind_load_dirn_source": "unknown"
+    },
+    "W8X31_x_1X6.095999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
     "W8X31_x_1X2.1335999999999995": {
         "wind_load_dirn": "left",
         "wind_load_dirn_source": "analysis"
@@ -15,7 +39,1327 @@
         "wind_load_dirn": "left",
         "wind_load_dirn_source": "analysis"
     },
-    "W8X31_x_1X2.7432": {
+    "W8X31_x_1X2.8955999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X3.0479999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X3.2003999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X3.3527999999999993": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X3.5051999999999994": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X3.6575999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X3.8099999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X3.9623999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X4.1148": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X4.267199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X2.7432": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X3.0479999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X3.2003999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X3.3527999999999993": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X3.5051999999999994": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X3.6575999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X3.8099999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X3.9623999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X4.1148": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X4.267199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X2.7432": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X3.0479999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X3.2003999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X3.3527999999999993": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X3.5051999999999994": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X3.6575999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X3.8099999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X3.9623999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X4.1148": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X4.267199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X2.7432": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X3.0479999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X3.2003999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X3.3527999999999993": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X3.5051999999999994": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X3.6575999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X3.8099999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X3.9623999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X4.1148": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X4.267199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X2.7432": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X3.0479999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X3.2003999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X3.3527999999999993": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X3.5051999999999994": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X3.6575999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X3.8099999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X3.9623999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X4.1148": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X4.267199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X2.7432": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X2.1335999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X2.2859999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X2.4383999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X2.5907999999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X2.8955999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X2.1335999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X2.2859999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X2.4383999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X2.5907999999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X2.8955999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X2.1335999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X2.2859999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X2.4383999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X2.5907999999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X2.8955999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X2.1335999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X2.2859999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X2.4383999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X2.5907999999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X2.8955999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X2.1335999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X2.2859999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X2.4383999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X2.5907999999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X2.8955999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X3.0479999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X3.2003999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X3.3527999999999993": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X3.5051999999999994": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X3.6575999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X3.8099999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X3.9623999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X4.1148": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X4.267199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X2.1335999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X2.2859999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X2.4383999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X2.5907999999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X2.7432": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X2.8955999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X3.0479999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X3.2003999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X3.3527999999999993": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X3.5051999999999994": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X3.6575999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X3.8099999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X3.9623999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X4.1148": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X4.267199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X2.1335999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X2.2859999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X2.4383999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X2.5907999999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X2.7432": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X2.8955999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X3.0479999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X3.2003999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X3.3527999999999993": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X3.5051999999999994": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X3.6575999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X3.8099999999999996": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X3.9623999999999997": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X4.1148": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X4.267199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X2.1335999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X2.2859999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X2.4383999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X2.5907999999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X2.7432": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X2.8955999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X3.0479999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X3.2003999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X3.3527999999999993": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X3.5051999999999994": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X3.6575999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X3.8099999999999996": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X3.9623999999999997": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X4.1148": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X4.267199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X4.419599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X4.571999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X4.724399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X4.876799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X5.0291999999999994": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X5.1815999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X5.334": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X5.4864": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X5.638799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X5.791199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X5.943599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X6.095999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X4.419599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X4.571999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X4.724399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X4.876799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X5.0291999999999994": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X5.1815999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X5.334": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X5.4864": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X5.638799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X5.791199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X5.943599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X6.095999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X4.419599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X4.571999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X4.724399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X4.876799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X5.0291999999999994": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X5.1815999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X5.334": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X5.4864": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X5.638799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X5.791199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X5.943599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X6.095999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X4.419599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X4.571999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X4.724399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X4.876799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X5.0291999999999994": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X5.1815999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X5.334": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X5.4864": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X5.638799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X5.791199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X5.943599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X6.095999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X4.419599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X4.571999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X4.724399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X4.876799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X5.0291999999999994": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X5.1815999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X5.334": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X5.4864": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X5.638799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X5.791199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X5.943599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X6.095999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X6.248399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X6.400799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X6.705599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X7.010399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X7.315199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X7.619999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X7.924799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X8.2296": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X8.534399999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X8.839199999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X9.143999999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X730_x_1X9.448799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X6.248399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X6.400799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X6.705599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X7.010399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X7.315199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X7.619999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X7.924799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X8.2296": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X8.534399999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X8.839199999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X9.143999999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W18X311_x_1X9.448799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X6.248399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X6.400799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X6.705599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X7.010399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X7.315199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X7.619999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X7.924799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X8.2296": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X8.534399999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X8.839199999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X9.143999999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W21X62_x_1X9.448799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X6.248399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X6.400799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X6.705599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X7.010399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X7.315199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X7.619999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X7.924799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X8.2296": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X8.534399999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X8.839199999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X9.143999999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X264_x_1X9.448799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X6.248399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X6.400799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X6.705599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X7.010399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X7.315199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X7.619999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X7.924799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X8.2296": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X8.534399999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X8.839199999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X9.143999999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W40X392_x_1X9.448799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X6.248399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X6.400799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X6.705599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X7.010399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X7.315199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X7.619999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X7.924799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X8.2296": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X8.534399999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X8.839199999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X9.143999999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X9.448799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X6.248399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X6.400799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X6.705599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X7.010399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X7.315199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X7.619999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X7.924799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X8.2296": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X8.534399999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X8.839199999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X9.143999999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X9.448799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X6.248399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X6.400799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X6.705599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X7.010399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X7.315199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X7.619999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X7.924799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X8.2296": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X8.534399999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X8.839199999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X9.143999999999998": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X311_x_1X9.448799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X6.248399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X6.400799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X6.705599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X7.010399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X7.315199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X7.619999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X7.924799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X8.2296": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X8.534399999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X8.839199999999998": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X9.448799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X4.419599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X4.724399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X4.876799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X5.0291999999999994": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X5.1815999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X5.334": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X5.4864": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X5.638799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X5.791199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W8X31_x_1X5.943599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X4.419599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X4.571999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X4.724399999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X4.876799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X5.0291999999999994": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X5.1815999999999995": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X5.334": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X5.4864": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X5.638799999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X5.791199999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X5.943599999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X43_x_1X6.095999999999999": {
+        "wind_load_dirn": "right",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X4.419599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X4.571999999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X4.724399999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X4.876799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X5.0291999999999994": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X5.1815999999999995": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X5.334": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X5.4864": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X5.638799999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X5.791199999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X5.943599999999999": {
+        "wind_load_dirn": "left",
+        "wind_load_dirn_source": "analysis"
+    },
+    "W14X120_x_1X6.095999999999999": {
         "wind_load_dirn": "left",
         "wind_load_dirn_source": "analysis"
     }

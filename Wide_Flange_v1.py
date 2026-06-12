@@ -4,7 +4,7 @@ from libdenavit.section.geometric_shape import *
 from libdenavit.OpenSees.get_fiber_data import *
 from math import pi, ceil
 import openseespy.opensees as ops
-from Units import *
+from helpers import *
 import matplotlib.pyplot as plt
 import opsvis as opsv
 

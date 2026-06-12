@@ -1,5 +1,5 @@
 from matplotlib.pyplot import plot
-
+from matplotlib.lines import Line2D
 from Moment_Frame_2D_Main import *
 from MFColumn2D import *
 from Columns_config import Frame_Info
@@ -78,7 +78,8 @@ def MF_2D_runner(Frame_number,Analysis_type,Material_type,control_dir='L',latera
     Frame.generate_Nodes_and_Element_Connectivity()
     Frame.create_distorted_nodes_and_element_connectivity()
     Frame.build_ops_model()
-    results,fail_during_LCA=Frame.run_displacement_controlled_analysis(target_disp=5,plot_defo=False,control_dir=control_dir,
+    steps=100000 if lateral_load_scale==0 else 1000
+    results,fail_during_LCA=Frame.run_displacement_controlled_analysis(target_disp=1,steps=steps,plot_defo=False,control_dir=control_dir,
                 lateral_load_scale=lateral_load_scale,vertical_load_scale=vertical_load_scale,analysis=ops_anlaysis)
     
     # Frame.plot_model()
@@ -242,6 +243,7 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                 # --- Sweep vertical loads (0–0.8) ---
                 for i in np.arange(0, 0.2, 0.05):
                     print(f"Running vertical load scale {i:.2f}")
+                    # input()
                     results, frame_id, fail_during_LCA,_ = MF_2D_runner(
                         Frame_number=frame_number,
                         Analysis_type=analysis_type,
@@ -269,6 +271,7 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                 # --- Sweep vertical loads (0.8–1.0) ---
                 for i in np.arange(0.2, 0.9, 0.1):
                     print(f"Running vertical load scale {i:.2f}")
+                    # input()
                     results, frame_id, fail_during_LCA,_ = MF_2D_runner(
                         Frame_number=frame_number,
                         Analysis_type=analysis_type,
@@ -292,8 +295,9 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                                 )
                             )
 
-                for i in np.arange(0.9, 1.01, 0.01):
+                for i in np.arange(0.9, 1.0, 0.01):
                     print(f"Running vertical load scale {i:.2f}")
+                    # input()
                     results, frame_id, fail_during_LCA,_ = MF_2D_runner(
                         Frame_number=frame_number,
                         Analysis_type=analysis_type,
@@ -341,7 +345,7 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                             x, y,
                             color=exit_msg_color_map.get(msg, "gray"),
                             s=15,
-                            alpha=0.40,          
+                            alpha=0.80,          
                             edgecolors='black',  
                             linewidths=0.25,
                             zorder=5
@@ -374,13 +378,45 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                 ax_alr.set_ylim(bottom=0)
 
                 ax_alr.set_title(f'Frame {frame_number}: ALR_V vs ALR_H ({code})')
-                ax_alr.legend()
+
+                curve_legend = ax_alr.legend(
+                    loc='upper right',
+                    fontsize=7,
+                    title='Analysis Type',
+                    title_fontsize=8
+                )
+                ax_alr.add_artist(curve_legend)
+
+                termination_handles = [
+                    Line2D(
+                        [0], [0],
+                        marker='o',
+                        color='none',
+                        markerfacecolor=color,
+                        markeredgecolor='black',
+                        markeredgewidth=0.25,
+                        markersize=5,
+                        alpha=0.60,
+                        label=msg
+                    )
+                    for msg, color in exit_msg_color_map.items()
+                ]
+
+                ax_alr.legend(
+                    handles=termination_handles,
+                    loc='lower left',
+                    fontsize=6,
+                    title='Termination Message',
+                    title_fontsize=7,
+                    frameon=True
+                )
+
                 fig_alr.tight_layout()
                 
                 # Ensure directory exists before saving
                 os.makedirs(os.path.join("Column_Results", frame_id), exist_ok=True)
                 fig_alr.savefig(
-                    os.path.join("Column_Results", frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}.png'),
+                    os.path.join("Column_Results", frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}_{analysis_type}.png'),
                     dpi=600
                 )
                 plt.close(fig_alr)
@@ -493,7 +529,7 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                             )
 
                 # --- Sweep vertical loads: 1.0 to 4.0 ---
-                for i in np.arange(1.0, 6.0, 0.1):
+                for i in np.arange(1.0, 40.0, 0.1):
                     
                     print(f'{analysis_type}')
                     print(f"Running vertical load scale {i:.2f}")
@@ -551,7 +587,7 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                             x, y,
                             color=exit_msg_color_map.get(msg, "gray"),
                             s=28,
-                            alpha=0.40,          # makes markers faint
+                            alpha=0.80,          # makes markers faint
                             edgecolors='black',  # helps visibility
                             linewidths=0.25,
                             zorder=5
@@ -582,14 +618,50 @@ def Interaction_Plots(Frame_number,Analysis_type,Material_type,proportional=Fals
                 ax_alr.set_xlim(left=0)
                 ax_alr.set_ylim(bottom=0)
 
+                # ax_alr.set_title(f'Frame {frame_number}: ALR_V vs ALR_H ({code})')
+                # ax_alr.legend()
+                # fig_alr.tight_layout()
+
                 ax_alr.set_title(f'Frame {frame_number}: ALR_V vs ALR_H ({code})')
-                ax_alr.legend()
+
+                curve_legend = ax_alr.legend(
+                    loc='upper right',
+                    fontsize=7,
+                    title='Analysis Type',
+                    title_fontsize=8
+                )
+                ax_alr.add_artist(curve_legend)
+
+                termination_handles = [
+                    Line2D(
+                        [0], [0],
+                        marker='o',
+                        color='none',
+                        markerfacecolor=color,
+                        markeredgecolor='black',
+                        markeredgewidth=0.25,
+                        markersize=5,
+                        alpha=0.60,
+                        label=msg
+                    )
+                    for msg, color in exit_msg_color_map.items()
+                ]
+
+                ax_alr.legend(
+                    handles=termination_handles,
+                    loc='lower left',
+                    fontsize=6,
+                    title='Termination Message',
+                    title_fontsize=7,
+                    frameon=True
+                )
+
                 fig_alr.tight_layout()
                 
                 # Ensure directory exists before saving
                 os.makedirs(os.path.join("Column_Results", frame_id), exist_ok=True)
                 fig_alr.savefig(
-                    os.path.join("Column_Results", frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}.png'),
+                    os.path.join("Column_Results", frame_id, f'{code}_ALR_H_vs_ALR_V_Frame{frame_number}_{analysis_type}.png'),
                     dpi=600
                 )
                 plt.close(fig_alr)
@@ -747,13 +819,15 @@ def write_interaction_results(
         curves = {}
         for analysis in analysis_list:
             print(f"Running {analysis} for {frame}")
+            # if analysis=='GMNIA':
+                # input('Running GMNIA')
             try:
                 ALR_H, ALR_V,duplicate_frame = Interaction_Plots(
                     Frame_number=[frame],
                     Analysis_type=[analysis],
                     Material_type=Material_type,
                     proportional=proportional,
-                    plot=False,
+                    plot=True,
                     save_pmm_plots=False
                 )
             finally:
@@ -776,7 +850,7 @@ def write_interaction_results(
             plt.grid()
             interaction_diagram_save_path=os.path.join("Column_Results", f"{frame}")
             os.makedirs(interaction_diagram_save_path, exist_ok=True)
-            plt.savefig(os.path.join(interaction_diagram_save_path, f'interaction_diagram_before_writing_to_file_{frame}.png'))
+            plt.savefig(os.path.join(interaction_diagram_save_path, f'interaction_diagram_before_writing_to_file_{analysis}_{frame}.png'))
             plt.close()
             # input()
 
@@ -816,6 +890,7 @@ def write_interaction_results(
                 # lateral_load_scale = pt[0]
                 del2_over_del1=duplicate_frame.get_del2_over_del1(vertical_load_scale=vertical_load_scale, lateral_load_scale=lateral_load_scale)
 
+                # del2_over_del1=1
 
                 hcol = f"{analysis}_ALR_H"
                 vcol = f"{analysis}_ALR_V"
@@ -1306,97 +1381,6 @@ def parametric_slenderness_ratio_vs_min_radial_error(
 
     return df_parsed
 
-
-def check_and_create_new_entries_in_column_config_file(column_section_name,story_height,no_of_stories,bending_axes,**kwargs):
-    
-    
-    defaults={
-        'bay_width': [],
-        'column_no_of_ele': 2,
-        'beam_no_of_ele': 4,
-        'beam_section': {
-            'common_and_exceptions': {
-                'common': 'W27X84'
-            }},
-        'support': 'f',
-        'load_comb_multipliers': [1, 0, 0, 1],
-        'D_floor_intensity': 7.5 * 10 * KN,
-        'D_roof_intensity': 133.5 * KN,
-        'L_floor_intensity': 0 * kip / ft,
-        'L_roof_intensity': 0 * kip / ft,
-        'Wind_load_floor': 6.56 * 3 * KN,
-        'Wind_load_roof': 4.45 * 3 * KN,
-        'Wall_load': 0,
-        'geometric_imperfection_ratio': 1 / 500,
-        'Leaning_column': False,
-        'Leaning_column_offset': 2,
-        'Leaning_column_floor_load': 2,
-        'Leaning_column_roof_load': 1
-    }
-    code = f"{column_section_name}_{bending_axes}_{no_of_stories}X{story_height}"
-    if code not in Frame_Info:
-        config = {}
-        config['Frame_id']=code
-        config['story_height']=[story_height]*no_of_stories
-        config['column_section']={
-                    'common_and_exceptions': {
-                        'common': (column_section_name, bending_axes),
-                    }}
-        for key, value in defaults.items():
-            config[key] = kwargs.get(key, value)
-        Frame_Info[code]=config
-        
-        # Write to Columns_config.py as a proper dict entry within Frame_Info
-        _write_frame_entry_to_config(code, config)
-    return code
-
-def _format_frame_entry(code, config):
-    """Format a frame configuration entry with proper multi-line indentation"""
-    
-    lines = [f"        '{code}': {{"]
-    
-    items = list(config.items())
-    for idx, (key, value) in enumerate(items):
-        is_last = (idx == len(items) - 1)
-        comma = '' if is_last else ','
-        
-        if isinstance(value, dict):
-            # Handle nested dictionary
-            lines.append(f"        '{key}':")
-            lines.append("          {")
-            sub_items = list(value.items())
-            for sub_idx, (sub_key, sub_value) in enumerate(sub_items):
-                is_sub_last = (sub_idx == len(sub_items) - 1)
-                sub_comma = '' if is_sub_last else ','
-                lines.append(f"              '{sub_key}': {repr(sub_value)}{sub_comma}")
-            lines.append("          },")
-        else:
-            lines.append(f"        '{key}': {repr(value)}{comma}")
-    
-    lines.append("        }")
-    return '\n'.join(lines)
-
-def _write_frame_entry_to_config(code, config):
-    """Write a new frame entry into the Frame_Info dictionary in Columns_config.py"""
-    with open('Columns_config.py', 'r') as f:
-        content = f.read()
-    
-    # Format the entry with proper indentation
-    formatted_entry = _format_frame_entry(code, config)
-    
-    # Format as a dictionary entry with comma, separator, and new entry
-    entry_str = f",\n###########################################################################\n{formatted_entry}"
-    
-    # Find the last closing } of Frame_Info and insert before it
-    closing_brace_index = content.rfind('}')
-    if closing_brace_index != -1:
-        # Remove trailing whitespace before the final }, so comma goes right after previous entry's }
-        content = content[:closing_brace_index].rstrip() + entry_str + '\n' + content[closing_brace_index:]
-    
-    # Write back to file
-    with open('Columns_config.py', 'w') as f:
-        f.write(content)
-
 def add_structural_parameters_to_results(csv_path,config_col='Frame'):
 
     df = pd.read_csv(csv_path)
@@ -1406,12 +1390,14 @@ def add_structural_parameters_to_results(csv_path,config_col='Frame'):
 if __name__ == "__main__":
     new_analysis_run=True
     column_section_names=['W8X31','W14X43','W14X120','W14X311','W14X730','W18X311','W21X62','W40X264','W40X392','W40X593']
-    column_section_names=['W8X31']
+    column_section_names=['W14X43','W14X120','W14X311']
     story_heights=[7*ft,7.5*ft,8*ft,8.5*ft,9*ft,9.5*ft,10*ft,10.5*ft,11*ft,11.5*ft,12*ft,12.5*ft,13*ft,13.5*ft,14*ft,14.5*ft,15*ft,15.5*ft,16*ft,16.5*ft,17*ft,17.5*ft,18*ft,18.5*ft,19*ft,19.5*ft,20*ft]
-    story_heights=[7*ft,7.5*ft,8*ft,8.5*ft,9*ft]
+    story_heights=[11*ft]
+    story_heights=[7*ft,7.5*ft,8*ft,8.5*ft,9*ft,9.5*ft,10*ft,10.5*ft,11*ft,11.5*ft,12*ft,12.5*ft,13*ft,13.5*ft,14*ft]
     No_of_stories=[1]
     bending_axes=['x']
 
+    # Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']  
     Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']  
     Material_type="50_ksi"
     csv_path = "Column_Results/interaction_results.csv"
@@ -1459,7 +1445,7 @@ if __name__ == "__main__":
             theta_list=theta_list,
             proportional=False
         )
-        
+        # input()
         # plot_theta_vs_del2_over_del1(
         #     csv_path=csv_path,
         #     frame_list=Frame_number,
