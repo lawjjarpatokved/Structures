@@ -116,7 +116,11 @@ Frame_Info={
         'Wind_load_floor': 0,
         'Wind_load_roof': 0,
         'Wall_load':0,
-        'geometric_imperfection_ratio': 1 / 500
+        'geometric_imperfection_ratio': 1 / 500,
+        'Leaning_column':False,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load':2,
+        'Leaning_column_roof_load':1
          },
 
 ###########################################################################
@@ -245,7 +249,11 @@ Frame_Info={
         'Wind_load_floor': 6.379* kip,
         'Wind_load_roof': 3.189* kip,
         'Wall_load':9.234*kip,
-        'geometric_imperfection_ratio': 1 / 500
+        'geometric_imperfection_ratio': 1 / 500,
+        'Leaning_column':False,
+        'Leaning_column_offset': 2,
+        'Leaning_column_floor_load':2,
+        'Leaning_column_roof_load':1
          },
 ###########################################################################
 ###########################################################################

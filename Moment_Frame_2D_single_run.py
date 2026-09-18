@@ -1,16 +1,29 @@
 from Moment_Frame_2D_Main import *
-from Frames_config import Frame_Info, convert_dict_items_to_class_attributes,Analysis_Info
+from Frames_config import Frame_Info
+from Analysis_config import Analysis_Info
+from Materials_config import Material_Info
+from helpers import convert_dict_items_to_class_attributes, Steel_Material
 from libdenavit.OpenSees.get_fiber_data import *
 import opsvis as opsv 
 
-Frame_number='SF36H'
+Frame_number='13'
 Analysis_type='GMNIA'
+Material='50_ksi'  # Options: '36_ksi', '50_ksi'
 Frame_dict=Frame_Info[str(Frame_number)]
 Frame_details=convert_dict_items_to_class_attributes(Frame_dict)
 if Frame_details.geometric_imperfection_ratio>0:
     wind_load_dirn='right'
 else:
     wind_load_dirn='left'
+
+
+'''
+This chunk reads the details of the material form Materials_config.py.
+'''
+Material_dict=Material_Info[str(Material)]
+Material_details=convert_dict_items_to_class_attributes(Material_dict)
+Steel=Steel_Material(mat_tag=1,E=Material_details.E,Fy=Material_details.Fy)
+
 
 Analysis_dict=Analysis_Info[str(Analysis_type)]
 Analysis_details=convert_dict_items_to_class_attributes(Analysis_dict)
@@ -28,6 +41,7 @@ Frame=Moment_Frame_2D(Frame_details.bay_width, Frame_details.story_height, Frame
                     Wall_load=Frame_details.Wall_load,
                     load_combination_multipliers=Frame_details.load_comb_multipliers,
                     Frame_id=Frame_details.Frame_id,
+                    Material_obj=Steel,
                     Residual_Stress=Analysis_details.Residual_Stress,
                     Elastic_analysis=Analysis_details.Elastic_analysis,
                     Second_order_effects=Analysis_details.Second_order_effects,
@@ -91,8 +105,9 @@ input()
 # Frame.build_ops_model()
 # Frame.add_dead_live_wind_wall_loads()
 # target_disp=-10 if disp<0 else 10
-Frame.run_displacement_controlled_analysis(plot_defo=True,analysis='proportional_limit_point',vertical_load_scale=3,lateral_load_scale=1.0)
 Frame.plot_model()
+Frame.run_displacement_controlled_analysis(target_disp=1, steps=100,plot_defo=True,analysis='proportional_limit_point',vertical_load_scale=3,lateral_load_scale=1.0)
+Frame.plot_deformed_shape()
 # Frame.save_moments_by_member()
 
 # Frame.plot_all_fiber_section_in_the_model()
