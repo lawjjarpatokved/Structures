@@ -85,7 +85,6 @@ wind_data=load_wind_dirn_data(json_wind_dirn_path=json_wind_dirn_path)
 wind_data=ensure_frame_entry_exists(frame_key=frame_key,data=wind_data,json_wind_dirn_path=json_wind_dirn_path)
 wind_load_dirn=wind_data[frame_key]["wind_load_dirn"]
 initial_out_of_straightness_dirn=wind_data[frame_key]["initial_out_of_straightness_dirn"]
-initial_out_of_straightness_dirn=None
 print(wind_load_dirn)
 print(initial_out_of_straightness_dirn)
 
@@ -153,21 +152,6 @@ if Frame.initial_out_of_straightness_dirn is None:
 print("Initial out of straightness")
 print(Frame.initial_out_of_straightness_dirn)
 input("Initial Out of Straightness figured out")
-# input('Lateral loading figured out')
-# a=Frame.get_del2_over_del1(lateral_load_scale=0.001,vertical_load_scale=0.87)
-# # print(a)
-
-
-# Frame=Frame2.rebuild_with_overrides(storey_height=[40 * ft, 28 * ft],                Residual_Stress=False,
-#                 Elastic_analysis=True,
-#                 Second_order_effects=True,
-#                 stiffness_reduction=0.8,
-#                 strength_reduction=1,
-#                 Geometric_Imperfection=True,
-#                 Notional_load=False)
-
-# print(Frame.get_del2_over_del1())
-# print(Frame.beam_nodes)
 
 Frame.generate_Nodes_and_Element_Connectivity()
 Frame.create_distorted_nodes_and_element_connectivity()
@@ -226,25 +210,6 @@ opsv.plot_load(
 
 ax.set_aspect("equal")
 plt.show(block=True)
-
-opsv.plot_reactions()
-
-
-# plotting.plot_sfd(scale=0.3)
-# plotting.plot_bmd(scale=0.5)
-# plotting.plot_afd(scale=0.1)
-
-# check_load_ratio_problem(
-#     results,
-#     column_section_name,
-#     Analysis_type,
-#     vertical_load_scale,
-#     lateral_load_scale,
-#     txt_file_path="problematic_cases.txt"
-# )
-
-
-
 
 
 save_analysis_history_figures(
