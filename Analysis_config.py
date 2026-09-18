@@ -52,5 +52,17 @@ Analysis_Info= {
                 'strength_reduction':1,
                 'Geometric_Imperfection':False,
                 'Notional_load':False
+                },
+    'GNA_no_stiffness_reduction':{
+                'Residual_Stress':False,
+                'Elastic_analysis':True,
+                'Second_order_effects':True,
+                'stiffness_reduction':1,
+                'strength_reduction':1,
+                'Geometric_Imperfection':False,
+                'Notional_load':False
                 }
+
+
+
             }

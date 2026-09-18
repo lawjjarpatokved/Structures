@@ -18,23 +18,23 @@ from matplotlib.colors import Normalize
 from matplotlib.animation import FuncAnimation
 import inspect
 
-#################################################
-density_of_steel=7850*kg/(m**3)
-g=9.81*m/(sec**2)
-E=29000*ksi
-G=77221*Mpa
-Fy=36*ksi
-Hk = 0.001*E           # Kinematic hardening modulus
+# #################################################
+# density_of_steel=7850*kg/(m**3)
+# g=9.81*m/(sec**2)
+# E=29000*ksi
+# G=77221*Mpa
+# Fy=36*ksi
+# Hk = 0.001*E           # Kinematic hardening modulus
 
-class Steel_Material:
-    def __init__(self,mat_tag,E,Fy,G,Hk,density):
-        self.mat_tag=mat_tag
-        self.E=E
-        self.Fy=Fy
-        self.G=G
-        self.Hk=Hk
-        self.density=density
-        self.b=Hk / (E + Hk) 
+# class Steel_Material:
+#     def __init__(self,mat_tag,E,Fy,G,Hk,density):
+#         self.mat_tag=mat_tag
+#         self.E=E
+#         self.Fy=Fy
+#         self.G=G
+#         self.Hk=Hk
+#         self.density=density
+#         self.b=Hk / (E + Hk) 
 
 class MFColumn_2D(Structures_2D):
 
@@ -43,12 +43,12 @@ class MFColumn_2D(Structures_2D):
 
     def __init__(self,width_of_bay,storey_height,
                 no_of_elements_column, no_of_elements_beam,
-                 beam_section,column_section,load_combination_multipliers,Frame_id,
+                 beam_section,column_section,load_combination_multipliers,Frame_id,Material_obj,Steel_Grade,
                  **kwargs):
-        
+        kwargs["column_only_model"] = True 
         super().__init__(width_of_bay,storey_height,
                 no_of_elements_column, no_of_elements_beam,
-                 beam_section,column_section,load_combination_multipliers,Frame_id,
+                 beam_section,column_section,load_combination_multipliers,Frame_id,Material_obj,Steel_Grade,
                  **kwargs)
         # ---- Save a "constructor snapshot" for later cloning ---- This is useful for resetting or duplicating the model. Eg. Calculation of del2_over_del1
         # self._init_spec = copy.deepcopy({k: v for k, v in locals().items() if k != "self"})

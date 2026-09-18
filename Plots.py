@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import os
 import seaborn as sns
@@ -71,7 +73,6 @@ def line_plot(
     if show:
         plt.show()
 
-    plt.close()
     return ax
 
 

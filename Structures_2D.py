@@ -1,22 +1,25 @@
-import numpy as np
+
 import math as math
 import pandas as pd
 import openseespy.opensees as ops
 import os
-import opsvis as opsv
-from libdenavit.OpenSees.plotting import *
+from libdenavit.OpenSees.plotting import plot_deformed_2d,plot_undeformed_2d,get_node_coords_and_disp
 from libdenavit.OpenSees.get_fiber_data import *
 from Plots import line_plot
-from helpers import *
+from helpers import save_deformed_shape_frame,WF_Database
 from math import pi, ceil
 from libdenavit.section.wide_flange import *
 from libdenavit.OpenSees import AnalysisResults
 from libdenavit import find_limit_point_in_list, interpolate_list
 import copy
-import matplotlib.cm as color
-from matplotlib.colors import Normalize
-from matplotlib.animation import FuncAnimation
 import inspect
+import opsvis
+import matplotlib
+matplotlib.use("TkAgg")
+import numpy as np
+import matplotlib.pyplot as plt
+import opsvis as opsv
+from pathlib import Path
 
 #################################################
 # density_of_steel=7850*kg/(m**3)
@@ -43,7 +46,7 @@ class Structures_2D:
 
     def __init__(self,width_of_bay,storey_height,
                 no_of_elements_column, no_of_elements_beam,
-                 beam_section,column_section,load_combination_multipliers,Frame_id,Material_obj,
+                 beam_section,column_section,load_combination_multipliers,Frame_id,Material_obj,Steel_Grade,
                  **kwargs):
         # ---- Save a "constructor snapshot" for later cloning ---- This is useful for resetting or duplicating the model. Eg. Calculation of del2_over_del1
         self._init_spec = copy.deepcopy({k: v for k, v in locals().items() if k != "self"})
@@ -75,8 +78,6 @@ class Structures_2D:
         self.W_multiplier=load_combination_multipliers[3]      ### Wind Load multiplier
         self.Frame_id=Frame_id
         self.Material_obj=Material_obj
-        self.make_beam_section_detail_uniform()
-        self.make_column_section_detail_uniform()
         self.load_timeseries_counter = 1
         self.load_pattern_counter = 1
         self.kwargs=kwargs
@@ -91,8 +92,7 @@ class Structures_2D:
                   'D_roof_intensity':0,
                   'L_floor_intensity':0,
                   'L_roof_intensity':0,
-                  'Wind_load_floor':0,
-                  'Wind_load_roof':0,
+                  'Base_Wind_load':0,
                   'Wall_load':0,
                   'Elastic_analysis':False,
                   'Second_order_effects':False,
@@ -102,16 +102,27 @@ class Structures_2D:
                   'stiffness_reduction':1,
                   'strength_reduction':1,
                   'geometric_imperfection_ratio':1/500,
+                  'initial_out_of_straightness_ratio':1/1000,
                   'wind_load_dirn':None,
+                  'initial_out_of_straightness_dirn': None,
                   'Leaning_column':True,
                   'Leaning_column_offset':4,
                   'Leaning_column_floor_load':0,
                   'Leaning_column_roof_load':0,
-                  'plot_sections':False}
+                  'plot_sections':False,
+                  'column_only_model':False,
+                  'floor_nodes_free':False,
+                  'wind_load_same_for_all_h':False,
+                  'Steel_Grade':'Not_specified______??????????????'}
         
         for key,value in defaults.items():
             setattr(self,key,kwargs.get(key,value))
-        
+
+
+        self.make_beam_section_detail_uniform()
+
+        self.make_column_section_detail_uniform()  
+
         if self.support=='All_Fixed':
             self.support_condition=['F']*(self.no_of_bays+1)
         else:
@@ -133,7 +144,7 @@ class Structures_2D:
         if len(self.support_condition)!= self.no_of_bays+1:
             raise ValueError(f"The number of arguments given for supports {self.support} should be equal to the number of columns, {(self.no_of_bays)+1}. ")
   
-
+  
 
     @staticmethod
     def nth_digit(num, n, m=None):
@@ -225,6 +236,7 @@ class Structures_2D:
                 self.Main_Nodes.append([node_tag,x_coord,y_coord])
 
         self.NODES_TO_FIX= [Nodes for Nodes in self.Main_Nodes if Nodes[2]==0]
+        self.main_nodes_except_base=[Nodes for Nodes in self.Main_Nodes if Nodes[2]!=0]
 
         
 
@@ -413,12 +425,41 @@ class Structures_2D:
           to Moment Frames not column models  '''
         return [((-self.D_multiplier*self.D_roof_intensity)+(-self.L_r_multiplier*self.L_roof_intensity))*(self.bay_width[i]/self.no_of_elements_beam)]
 
-    def create_distorted_nodes_and_element_connectivity(self,geometric_imperfection_ratio=None):
+    def create_distorted_nodes_and_element_connectivity(self,geometric_imperfection_ratio=None,initial_out_of_straightness_ratio=None):
         if self.Geometric_Imperfection:
             print('Working in imperfect geometry')
             ratio = (geometric_imperfection_ratio if geometric_imperfection_ratio is not None else self.geometric_imperfection_ratio) * (1 if self.wind_load_dirn=='right' else -1)
             for i in range(len(self.all_nodes)):
                     self.all_nodes[i][1] = self.all_nodes[i][1] +ratio * self.all_nodes[i][2]
+
+
+            ## Initial out of straightness
+            for members in self.column_member_list:
+                member_tag=members[0]
+                member_elements=members[1:]
+                member_connectivity = [connectivity for connectivity in self.sorted_column_connectivity if connectivity[0] in member_elements]
+                member_nodes = [member_connectivity[0][1]] + [connectivity[2] for connectivity in member_connectivity]
+                node_dict = {node[0]: node for node in self.all_nodes}
+                # Get member end coordinates
+                x1, y1 = node_dict[member_nodes[0]][1], node_dict[member_nodes[0]][2]
+                x2, y2 = node_dict[member_nodes[-1]][1], node_dict[member_nodes[-1]][2]
+
+                # Member length
+                L = np.hypot(x2 - x1, y2 - y1) 
+
+                for node_tag in member_nodes:
+                    node = node_dict[node_tag]
+
+                    # Distance of node along the member
+                    s = np.hypot(node[1] - x1, node[2] - y1)
+
+                    # Initial out-of-straightness
+                    initial_out_of_straightness=(initial_out_of_straightness_ratio if initial_out_of_straightness_ratio is not None else self.initial_out_of_straightness_ratio) * (1 if self.initial_out_of_straightness_dirn=='right' else -1)
+                    imperfection = initial_out_of_straightness*L * np.sin(np.pi * s / L)
+
+                    # Modify x-coordinate directly in self.all_nodes
+                    node[1] += imperfection
+    
         else:
             print('Working in nominal geometry')
             pass
@@ -490,7 +531,12 @@ class Structures_2D:
                 ops.fix(node_tag, 1, 1, 0)
             else:                                      # Wrong condition
                 raise ValueError(f"Unsupported support condition{support_condition}.Expected 'F' or 'P'.")
-                
+            
+        if self.column_only_model and not self.floor_nodes_free:
+            for nodes in self.main_nodes_except_base:
+                node_tag=nodes[0]
+                ops.fix(node_tag,0,0,1)    
+
         if self.Leaning_column:
             ## Define leaning column nodes
             for leaning_column_node in self.Leaning_Nodes:
@@ -909,22 +955,44 @@ class Structures_2D:
     def add_lateral_wind_loads(self, lateral_load_scale=1.0):
         ##Lateral Loads
         # Wind  Load 
+        
         if self.wind_load_dirn is None:
             print('Lateral Loads not applied in the model')
 
         elif self.wind_load_dirn.lower() == 'right':
             print('Applying wind loads towards right')
-            for node in self.axis_i_floor_nodes(1):
-                ops.load(node, lateral_load_scale * self.Wind_load_floor * self.W_multiplier, 0, 0.0)
-            for node in self.axis_i_roof_nodes(1):
-                ops.load(node, lateral_load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
+
+            loaded_nodes=self.axis_i_floor_nodes(1)+self.axis_i_roof_nodes(1)
+            loaded_nodes.sort()
+
+            if self.wind_load_same_for_all_h:
+                for node in loaded_nodes:
+                    ops.load(node, lateral_load_scale * self.Base_Wind_load * self.W_multiplier, 0, 0.0)
+
+            else:
+                for node in loaded_nodes:
+                    coords = ops.nodeCoord(node)
+                    H = ops.nodeCoord(loaded_nodes[0])[1]
+                    wind_load=self.Base_Wind_load*coords[1]/H
+                    ops.load(node, lateral_load_scale * wind_load * self.W_multiplier, 0, 0.0)
+
 
         elif self.wind_load_dirn.lower() == 'left':
             print('Applying wind loads towards left')
-            for node in self.axis_i_floor_nodes(self.no_of_bays + 1):
-                ops.load(node, -lateral_load_scale * self.Wind_load_floor * self.W_multiplier, 0, 0.0)
-            for node in self.axis_i_roof_nodes(self.no_of_bays + 1):
-                ops.load(node, -lateral_load_scale * self.Wind_load_roof * self.W_multiplier, 0, 0.0)
+
+            loaded_nodes=self.axis_i_floor_nodes(self.no_of_bays + 1)+self.axis_i_roof_nodes(self.no_of_bays + 1)
+            loaded_nodes.sort()
+
+            if self.wind_load_same_for_all_h:
+                for node in loaded_nodes:
+                    ops.load(node, -lateral_load_scale * self.Base_Wind_load* self.W_multiplier, 0, 0.0)
+            else:
+                for node in loaded_nodes:
+                    coords = ops.nodeCoord(node)
+                    H = ops.nodeCoord(loaded_nodes[0])[1]
+                    wind_load=self.Base_Wind_load*coords[1]/H
+                    ops.load(node, -lateral_load_scale *wind_load * self.W_multiplier, 0, 0.0)
+
 
 
 
@@ -934,7 +1002,7 @@ class Structures_2D:
         # opsv.plot_model()
         # opsv.plot_load()
 
-    def  return_drift_of_all_storeys_at_given_axis(self,i): 
+    def return_drift_of_all_storeys_at_given_axis(self,i): 
         ## Calculate the drift of each storey at one of the axis (say axis i).
         ## At each axis I need to separately find the drift of first story using the nodes to fix and 
         ## axis i floor nodes. and the use loop to find the drift of other storeys. and again find the drift
@@ -986,8 +1054,8 @@ class Structures_2D:
 
         
 
-        incr_LCA= kwargs.get('incr_LCA', 0.1)          ######### LCA refers to Load Controlled Analysis
-        num_steps_LCA= kwargs.get('num_steps_LCA', 50)            ######### LCA refers to Load Controlled Analysis
+        incr_LCA= kwargs.get('incr_LCA', 0.1)           ######### LCA refers to Load Controlled Analysis
+        num_steps_LCA= kwargs.get('num_steps_LCA', 200)            ######### LCA refers to Load Controlled Analysis
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
         P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
@@ -998,6 +1066,7 @@ class Structures_2D:
         vertical_load_scale=kwargs.get('vertical_load_scale',1)
         plot=kwargs.get('plot')
         plot_defo=kwargs.get('plot_defo',False)
+        analysis_msg=kwargs.get("analysis_msg",0)
 
 
         # Initialize analysis results
@@ -1014,15 +1083,13 @@ class Structures_2D:
                 print(results.exit_message)
             if 'Moving to Displacement Controlled Analysis' in results.exit_message:
                 return
-            if  'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading' in results.exit_message:
+            if 'Analysis Failed' == results.exit_message:
                 ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
-            if 'Analysis Failed' in results.exit_message:
-                ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
-            elif 'Eigenvalue Limit Reached' in results.exit_message:
+            elif 'Eigenvalue Limit Reached' == results.exit_message:
                 ind, x = find_limit_point_in_list(results.lowest_eigenvalue, eigenvalue_limit)
-            elif 'Extreme Steel Fiber Strain Limit Reached' in results.exit_message:
+            elif 'Extreme Steel Fiber Strain Limit Reached' == results.exit_message:
                 ind, x = find_limit_point_in_list(results.absolute_maximum_strain, steel_strain_limit)
-            elif 'P_M_M interaction Limit Reached' in results.exit_message:
+            elif 'P_M_M interaction Limit Reached' == results.exit_message:
                 ind, x = find_limit_point_in_list(results.max_P_M_M_interaction, P_M_M_interaction_limit)            
             else:
                 raise Exception('Unknown limit point')
@@ -1031,29 +1098,60 @@ class Structures_2D:
             
 
         def plot_analysis_history():
-            line_plot( results.load_ratio,results.control_node_displacement,
-                    xlabel='Load Ratio λ', ylabel='Displacement at Control Node',
-                    title='Load Ratio vs Displacement',show=True)
 
-            line_plot( results.load_ratio,results.lowest_eigenvalue,
-                    xlabel='Load Ratio λ', ylabel='Lowest Eigenvalue',
-                    title='Load Ratio vs Lowest Eigenvalue',show=True)
+            line_plot(
+                results.control_node_displacement,
+                results.load_ratio,
+                xlabel="Displacement at Control Node",
+                ylabel="Load Ratio λ",
+                title="Load Ratio vs Displacement",
+                show=True,
+            )
 
-            line_plot( results.load_ratio,results.vertical_reaction, 
-                    xlabel='Load Ratio λ', ylabel='Vertical Reaction',
-                    title='Load Ratio vs Vertical Reaction',show=True)
+            line_plot(
+                results.load_ratio,
+                results.lowest_eigenvalue,
+                xlabel="Load Ratio λ",
+                ylabel="Lowest Eigenvalue",
+                title="Lowest Eigenvalue vs Load Ratio",
+                show=True,
+            )
 
-            line_plot( results.load_ratio,results.base_shear, 
-                    xlabel='Load Ratio λ', ylabel='Base Shear',
-                    title='Load Ratio vs Base Shear',show=True) 
+            line_plot(
+                results.vertical_reaction,
+                results.load_ratio,
+                xlabel="Vertical Reaction",
+                ylabel="Load Ratio λ",
+                title="Load Ratio vs Vertical Reaction",
+                show=True,
+            )
 
-            line_plot( results.load_ratio,results.absolute_maximum_strain, 
-                    xlabel='Load Ratio λ', ylabel='Absolute Maximum Strain',
-                    title='Load Ratio vs Absolute Maximum Strain',show=True) 
+            line_plot(
+                results.base_shear,
+                results.load_ratio,
+                xlabel="Base Shear",
+                ylabel="Load Ratio λ",
+                title="Load Ratio vs Base Shear",
+                show=True,
+            )
 
-            line_plot( results.load_ratio,results.max_P_M_M_interaction,
-                    xlabel='Load Ratio λ', ylabel='Max P-M-M Interaction',
-                    title='Load Ratio vs Max P-M-M Interaction',show=True) 
+            line_plot(
+                results.absolute_maximum_strain,
+                results.load_ratio,
+                xlabel="Absolute Maximum Strain",
+                ylabel="Load Ratio λ",
+                title="Load Ratio vs Absolute Maximum Strain",
+                show=True,
+            )
+
+            line_plot(
+                results.load_ratio,
+                results.max_P_M_M_interaction,
+                xlabel="Load Ratio λ",
+                ylabel="Max P-M-M Interaction",
+                title="Max P-M-M Interaction vs Load Ratio",
+                show=True,
+            )
             
         fail_during_LCA=True
 
@@ -1079,17 +1177,16 @@ class Structures_2D:
             results.Element_Forces.append(Element_Forces)
         # endregion
         control_node,control_dof=self.get_control_node_and_dof(control_dir='L')
-        ops.initialize()
         # Create output folder
-        os.makedirs(os.path.join("Column_Results", self.Frame_id), exist_ok=True)
+        os.makedirs(os.path.join("Column_Results/Analysis_History", self.Frame_id), exist_ok=True)
 
-        # ops.constraints('Plain')
-        ops.constraints('Transformation')
+        ops.constraints('Plain')
+        # ops.constraints('Transformation')
         ops.numberer('RCM')
         ops.system('UmfPack')
-        ops.test('NormUnbalance', 1e-3, 10,1)
+        ops.test('NormUnbalance', 1e-8, 10,analysis_msg)
         ops.algorithm('Newton')
-        ops.integrator('LoadControl',1/num_steps_LCA)  ## incr_LCA because, we do not want to apply the entire load during load controlled analysis.
+        ops.integrator('LoadControl',1/num_steps_LCA) 
         ops.analysis('Static')
 
         record()
@@ -1099,7 +1196,7 @@ class Structures_2D:
             ok = ops.analyze(1)
             if ok != 0:
                 print(f'Load controlled analysis failed in step {i}')
-                results.exit_message = 'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading'
+                results.exit_message = 'Analysis Failed'
                 find_limit_point()
                 drift=self.return_drift_of_all_storeys_at_given_axis(1)
                 if plot:
@@ -1107,31 +1204,30 @@ class Structures_2D:
                 return drift,results,fail_during_LCA
             else:
                 print('Load controlled analysis PASSED')
-                results.exit_message='Moving to Displacement Controlled Analysis'
             record()
 
             # Check for lowest eigenvalue less than zero
-            if eigenvalue_limit is not None:
-                if results.lowest_eigenvalue[-1] < eigenvalue_limit:
-                    results.exit_message = 'Eigenvalue Limit Reached'
-                    drift=self.return_drift_of_all_storeys_at_given_axis(1)
-                    find_limit_point()
-                    if plot:
-                        plot_analysis_history()
-                    return drift,results,fail_during_LCA
+            # if eigenvalue_limit is not None:
+            #     if results.lowest_eigenvalue[-1] < eigenvalue_limit:
+            #         results.exit_message = 'Eigenvalue Limit Reached'
+            #         drift=self.return_drift_of_all_storeys_at_given_axis(1)
+            #         find_limit_point()
+            #         if plot:
+            #             plot_analysis_history()
+            #         return drift,results,fail_during_LCA
                     # break
 
             # Check for strain in extreme steel fiber
-            if steel_strain_limit is not None:
-                # if Structures_2D.print_ops_status:
-                #     print(f'Checking Steel Tensile Strain')
-                if results.absolute_maximum_strain[-1] > steel_strain_limit:
-                    results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
-                    drift=self.return_drift_of_all_storeys_at_given_axis(1)
-                    find_limit_point()
-                    if plot:
-                        plot_analysis_history()
-                    return drift,results,fail_during_LCA
+            # if steel_strain_limit is not None:
+            #     # if Structures_2D.print_ops_status:
+            #     #     print(f'Checking Steel Tensile Strain')
+            #     if results.absolute_maximum_strain[-1] > steel_strain_limit:
+            #         results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
+            #         drift=self.return_drift_of_all_storeys_at_given_axis(1)
+            #         find_limit_point()
+            #         if plot:
+            #             plot_analysis_history()
+            #         return drift,results,fail_during_LCA
                     # break
             # Check for maximum PMM interaction value    
 
@@ -1154,11 +1250,15 @@ class Structures_2D:
         print(results.lowest_eigenvalue)
         if plot:
             plot_analysis_history()
+            plt.show()
+            
 
         if plot_defo:
             try:
-                import opsvis
+                # import opsvis
                 opsvis.plot_defo()
+                plt.show()
+                
             except:
                 print("opsvis not available for deformation plotting.")
 
@@ -1192,20 +1292,89 @@ class Structures_2D:
 
             print(dummy_results.control_node_displacement)
             print(dummy_results.lowest_eigenvalue)
-            # input()
+            
             if displacement_to_check>=0:
                 self.wind_load_dirn='right'
             else:
                 self.wind_load_dirn='left'
             ops.wipe()
 
-        return self.wind_load_dirn
-        
+        return self.wind_load_dirn  
+
+    def get_initial_out_of_straightness_direction(self):
+        print('I am inside get_initial_out_of_straightness_direction method')
+
+        if self.initial_out_of_straightness_dirn is None:
+            print("Right out of straightness model running")
+            Dummy_Frame_right=self.rebuild_with_overrides(Second_order_effects=True,
+                                                        Residual_Stress=True,
+                                                        Elastic_analysis=False,
+                                                        stiffness_reduction=0.9,
+                                                        strength_reduction=0.9,
+                                                        Geometric_Imperfection=True,
+                                                        initial_out_of_straightness_dirn='right',
+                                                        wind_load_dirn=self.wind_load_dirn,
+                                                        Notional_load=False)
+            Dummy_Frame_right.generate_Nodes_and_Element_Connectivity()
+            Dummy_Frame_right.create_distorted_nodes_and_element_connectivity()
+            Dummy_Frame_right.build_ops_model()
+
+
+
+            # opsv.plot_model()
+            # opsv.plot_load()
+            # Dummy_Frame_right.plot_model()
+            
+
+            dummy_results_right,fail_during_LCA =Dummy_Frame_right.run_displacement_controlled_analysis(target_disp=1,steps=1000,plot_defo=False,num_steps_LCA=50, 
+                                                      analysis='proportional_limit_point',
+                                                      vertical_load_scale=1,
+                                                      lateral_load_scale=0.5,
+                                                      control_dir='L',try_smaller_steps=False,
+                                                      live_plot=False,tolerance=1e-6,iterations=10) 
+
+
+
+            print("Left out of straightness model running")
+            Dummy_Frame_left=self.rebuild_with_overrides(Second_order_effects=True,
+                                                        Residual_Stress=True,
+                                                        Elastic_analysis=False,
+                                                        stiffness_reduction=0.9,
+                                                        strength_reduction=0.9,
+                                                        Geometric_Imperfection=True,
+                                                        initial_out_of_straightness_dirn='left',
+                                                        wind_load_dirn=self.wind_load_dirn,
+                                                        Notional_load=False)
+            Dummy_Frame_left.generate_Nodes_and_Element_Connectivity()
+            Dummy_Frame_left.create_distorted_nodes_and_element_connectivity()
+            Dummy_Frame_left.build_ops_model()
+
+            # opsv.plot_model()
+            # opsv.plot_load()
+            # Dummy_Frame_left.plot_model()
+
+            
+            dummy_results_left,fail_during_LCA =Dummy_Frame_left.run_displacement_controlled_analysis(target_disp=1,steps=1000,plot_defo=False,num_steps_LCA=50, 
+                                                      analysis='proportional_limit_point',
+                                                      vertical_load_scale=1,
+                                                      lateral_load_scale=0.5,
+                                                      control_dir='L',try_smaller_steps=False,
+                                                      live_plot=False,tolerance=1e-6,iterations=10) 
+
+
+            print(dummy_results_right.maximum_load_ratio_at_limit_point)
+            print(dummy_results_left.maximum_load_ratio_at_limit_point)
+            if dummy_results_right.maximum_load_ratio_at_limit_point>dummy_results_left.maximum_load_ratio_at_limit_point:
+                self.initial_out_of_straightness_dirn='left'
+            else:
+                self.initial_out_of_straightness_dirn='right'
+            ops.wipe()
+
+        return self.initial_out_of_straightness_dirn    
                  
     def get_del2_over_del1(self,vertical_load_scale=1, lateral_load_scale=1):
         print('Second order Frame')
         # print(self)
-        # input()
         Second_order_frame=self.rebuild_with_overrides(Second_order_effects=True,
                                                        Residual_Stress=False,
                                                        Elastic_analysis=True,
@@ -1228,12 +1397,13 @@ class Structures_2D:
         Second_order_frame.create_distorted_nodes_and_element_connectivity()
         Second_order_frame.build_ops_model()
         drift_with_second_order_effects,results,fail_during_LCA=Second_order_frame.run_load_controlled_anlaysis(vertical_load_scale=vertical_load_scale,lateral_load_scale=lateral_load_scale,plot=False)
+
         if results.lowest_eigenvalue[-1]<0:
             print('Warning: The lowest eigenvalue is negative, which indicates that the structure has gone past elastic critical buckling limit. So the drift is treated as infinite.')
             drift_with_second_order_effects = [float('inf')] * len(drift_with_second_order_effects)
         print('drift_with_second_order_effects',drift_with_second_order_effects)
         # print(self)
-        # input()
+
         # input('Press Enter to continue...')
         print('First order Frame')
         First_order_frame=self.rebuild_with_overrides(Second_order_effects=False,
@@ -1271,8 +1441,7 @@ class Structures_2D:
         return max(del2_over_del1)
 
 
-
-    def run_displacement_controlled_analysis(self, target_disp=1, steps=1000000, plot_defo=False,**kwargs):
+    def run_displacement_controlled_analysis(self, target_disp=1, steps=10000, plot_defo=False,**kwargs):
         """
         Runs displacement-controlled analysis and plots load ratio (λ) vs. displacement and vertical reaction.
 
@@ -1283,7 +1452,7 @@ class Structures_2D:
         """
         
         incr_LCA= kwargs.get('incr_LCA', 0.01)          ######### LCA refers to Load Controlled Analysis
-        num_steps_LCA= kwargs.get('num_steps_LCA', 100)            ######### LCA refers to Load Controlled Analysis
+        num_steps_LCA= kwargs.get('num_steps_LCA', 50)            ######### LCA refers to Load Controlled Analysis
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
         P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
@@ -1292,6 +1461,11 @@ class Structures_2D:
         ops_analysis=kwargs.get('analysis','proportional_limit_point')
         lateral_load_scale=kwargs.get('lateral_load_scale',1)
         vertical_load_scale=kwargs.get('vertical_load_scale',1)
+        live_plot = kwargs.get("live_plot", False)
+        live_plot_every = max(1, int(kwargs.get("live_plot_every", 1)))
+        tol=kwargs.get("tolerance", 1e-10)
+        iter=kwargs.get("iterations", 10)
+        analysis_msg=kwargs.get("analysis_msg",0)
 
 
         # Initialize analysis results
@@ -1299,25 +1473,250 @@ class Structures_2D:
         attributes = ['load_ratio','vertical_reaction','base_shear','control_node_displacement', 'control_node_displacement_absolute',
                       'lowest_eigenvalue','absolute_maximum_strain','max_P_M_M_interaction','P_M_M_interaction_all_elements','Element_Forces']
         
-        for attr in attributes:
-            setattr(results, attr, [])
+        def initialize_results():
+            for attr in attributes:
+                setattr(results, attr, [])
 
+        initialize_results()
 
+        live_fig = None
+        live_axes = None
+        live_lines = {}
+        was_interactive = plt.isinteractive()
+
+        if live_plot:
+            plt.ion()
+
+            live_fig, live_axes = plt.subplots(
+                nrows=2,
+                ncols=3,
+                figsize=(16, 9),
+                facecolor="white",
+            )
+
+            axes = live_axes.ravel()
+
+            # Store both the history lines and current-point markers
+            live_lines = {}
+            live_last_points = {}
+
+            subplot_settings = [
+                {
+                    "key": "displacement",
+                    "xlabel": "Displacement at Control Node",
+                    "ylabel": "Load Ratio λ",
+                    "title": "Load Ratio vs Displacement",
+                },
+                {
+                    "key": "eigenvalue",
+                    "xlabel": "Load Ratio λ",
+                    "ylabel": "Lowest Eigenvalue",
+                    "title": "Lowest Eigenvalue vs Load Ratio",
+                },
+                {
+                    "key": "vertical_reaction",
+                    "xlabel": "Vertical Reaction",
+                    "ylabel": "Load Ratio λ",
+                    "title": "Load Ratio vs Vertical Reaction",
+                },
+                {
+                    "key": "base_shear",
+                    "xlabel": "Base Shear",
+                    "ylabel": "Load Ratio λ",
+                    "title": "Load Ratio vs Base Shear",
+                },
+                {
+                    "key": "strain",
+                    "xlabel": "Absolute Maximum Strain",
+                    "ylabel": "Load Ratio λ",
+                    "title": "Load Ratio vs Maximum Strain",
+                },
+                {
+                    "key": "pmm",
+                    "xlabel": "Load Ratio λ",
+                    "ylabel": "Maximum P-M-M Interaction",
+                    "title": "P-M-M Interaction vs Load Ratio",
+                },
+            ]
+
+            for ax, settings in zip(axes, subplot_settings):
+                key = settings["key"]
+
+                # Complete analysis history
+                live_lines[key], = ax.plot(
+                    [],
+                    [],
+                    color="tab:blue",
+                    linewidth=2.0,
+                    marker="o",
+                    markersize=6,
+                    markevery=1,
+                    alpha=0.9,
+                    zorder=2,
+                )
+
+                # Current/last point
+                live_last_points[key], = ax.plot(
+                    [],
+                    [],
+                    marker="o",
+                    linestyle="None",
+                    markersize=6,
+                    markerfacecolor="red",
+                    markeredgecolor="black",
+                    markeredgewidth=0.8,
+                    zorder=5,
+                    label="Current point",
+                )
+
+                ax.set_xlabel(
+                    settings["xlabel"],
+                    fontsize=10,
+                    fontweight="medium",
+                )
+                ax.set_ylabel(
+                    settings["ylabel"],
+                    fontsize=10,
+                    fontweight="medium",
+                )
+                ax.set_title(
+                    settings["title"],
+                    fontsize=11,
+                    fontweight="bold",
+                    pad=10,
+                )
+
+                ax.grid(
+                    True,
+                    linestyle="--",
+                    linewidth=0.7,
+                    alpha=0.4,
+                )
+
+                ax.tick_params(
+                    axis="both",
+                    labelsize=9,
+                    direction="in",
+                )
+
+                ax.spines["top"].set_visible(False)
+                ax.spines["right"].set_visible(False)
+
+                ax.margins(x=0.05, y=0.08)
+
+            # Only one legend is needed
+            axes[0].legend(
+                loc="best",
+                fontsize=9,
+                frameon=True,
+            )
+
+            live_fig.suptitle(
+                f"Live Analysis History: {self.Frame_id}",
+                fontsize=16,
+                fontweight="bold",
+                y=0.98,
+            )
+
+            live_fig.tight_layout(
+                rect=[0.02, 0.02, 0.98, 0.95],
+                h_pad=2.0,
+                w_pad=2.0,
+            )
+
+            plt.show(block=False)
+            plt.pause(0.1)
+
+        def update_live_plots(force=False):
+            if not live_plot:
+                return
+
+            if live_fig is None:
+                return
+
+            if not plt.fignum_exists(live_fig.number):
+                return
+
+            number_of_points = len(results.load_ratio)
+
+            if number_of_points == 0:
+                return
+
+            if not force and number_of_points % live_plot_every != 0:
+                return
+
+            plot_data = {
+                "displacement": (
+                    results.control_node_displacement,
+                    results.load_ratio,
+                ),
+                "eigenvalue": (
+                    results.load_ratio,
+                    results.lowest_eigenvalue,
+                ),
+                "vertical_reaction": (
+                    results.vertical_reaction,
+                    results.load_ratio,
+                ),
+                "base_shear": (
+                    results.base_shear,
+                    results.load_ratio,
+                ),
+                "strain": (
+                    results.absolute_maximum_strain,
+                    results.load_ratio,
+                ),
+                "pmm": (
+                    results.load_ratio,
+                    results.max_P_M_M_interaction,
+                ),
+            }
+
+            for key, (x_values, y_values) in plot_data.items():
+                if len(x_values) == 0 or len(y_values) == 0:
+                    continue
+
+                # Update the complete curve
+                live_lines[key].set_data(
+                    x_values,
+                    y_values,
+                )
+
+                # Highlight the newest point
+                live_last_points[key].set_data(
+                    [x_values[-1]],
+                    [y_values[-1]],
+                )
+
+            for ax in live_axes.ravel():
+                ax.relim()
+                ax.autoscale_view()
+
+            live_fig.canvas.draw_idle()
+            live_fig.canvas.flush_events()
+
+            plt.pause(0.005)
+        
+        
         # Define function to find limit point
         def find_limit_point():
-            if Structures_2D.print_ops_status:
-                print(results.exit_message)
-            if 'Moving to Displacement Controlled Analysis' in results.exit_message:
+
+            
+            print(results.exit_message)
+
+            if 'Moving to Displacement Controlled Analysis' == results.exit_message:
                 return
-            if  'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading' in results.exit_message:
+            elif 'Analysis Failed in Displacement Controlled Loading in Non Proportional Analysis'==results.exit_message:
                 ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
-            if 'Analysis Failed' in results.exit_message:
+            elif  'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading' == results.exit_message:
                 ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
-            elif 'Eigenvalue Limit Reached' in results.exit_message:
+            elif 'Analysis Failed' == results.exit_message:
+                ind, x = find_limit_point_in_list(results.load_ratio, max(results.load_ratio))
+            elif 'Eigenvalue Limit Reached' == results.exit_message:
                 ind, x = find_limit_point_in_list(results.lowest_eigenvalue, eigenvalue_limit)
-            elif 'Extreme Steel Fiber Strain Limit Reached' in results.exit_message:
+            elif 'Extreme Steel Fiber Strain Limit Reached' == results.exit_message:
                 ind, x = find_limit_point_in_list(results.absolute_maximum_strain, steel_strain_limit)
-            elif 'P_M_M interaction Limit Reached' in results.exit_message:
+            elif 'P_M_M interaction Limit Reached' == results.exit_message:
                 ind, x = find_limit_point_in_list(results.max_P_M_M_interaction, P_M_M_interaction_limit)            
             else:
                 raise Exception('Unknown limit point')
@@ -1333,8 +1732,6 @@ class Structures_2D:
             ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
             self.add_vertical_dead_live_wall_notional_loads(vertical_load_scale=vertical_load_scale)
             self.add_lateral_wind_loads(lateral_load_scale=lateral_load_scale)
-            # ops.printModel()
-            # input()
             # region Define recorder
             def record():
                 time = ops.getTime()
@@ -1354,69 +1751,19 @@ class Structures_2D:
             # endregion
 
             control_node,control_dof=self.get_control_node_and_dof(control_dir=control_dir)
-            ops.initialize()
-            # Create output folder
-            os.makedirs(os.path.join("Column_Results", self.Frame_id), exist_ok=True)
 
-            # ops.constraints('Plain')
-            ops.constraints('Transformation')
+            # Create output folder
+            os.makedirs(os.path.join("Column_Results/Analysis_History", self.Frame_id), exist_ok=True)
+
+            ops.constraints('Plain')
+            # ops.constraints('Transformation')
             ops.numberer('RCM')
             ops.system('UmfPack')
-            ops.test('NormUnbalance', 1e-3, 10, 1)
-            ops.algorithm('Newton')
-            ops.integrator('LoadControl',incr_LCA)  ## incr_LCA because, we do not want to apply the entire load during load controlled analysis.
+            ops.test('NormUnbalance', tol, iter, analysis_msg)
+            ops.algorithm('RaphsonNewton')  
             ops.analysis('Static')
-            # record()
-            # for i in range(num_steps_LCA):
-            #     if Structures_2D.print_ops_status:
-            #         print(f'Running Load Controlled Analysis Step {i}')
-            #         # input()
-            #     ok = ops.analyze(1)
-            #     if ok != 0:
-            #         print(f'Load controlled analysis failed in step {i}')
-            #         results.exit_message = 'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading'
-            #         find_limit_point()
-            #         return results,fail_during_LCA
-            #     else:
-            #         print('Load controlled analysis PASSED')
-            #         results.exit_message='Moving to Displacement Controlled Analysis'
-            #     record()
-
-            #     # Check for lowest eigenvalue less than zero
-            #     if eigenvalue_limit is not None:
-            #         if results.lowest_eigenvalue[-1] < eigenvalue_limit:
-            #             results.exit_message = 'Eigenvalue Limit Reached'
-            #             find_limit_point()
-            #             return results,fail_during_LCA
-            #             # break
-
-            #     # Check for strain in extreme steel fiber
-            #     if steel_strain_limit is not None:
-            #         # if Structures_2D.print_ops_status:
-            #         #     print(f'Checking Steel Tensile Strain')
-            #         if results.absolute_maximum_strain[-1] > steel_strain_limit:
-            #             results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
-            #             find_limit_point()
-            #             return results,fail_during_LCA
-            #             # break
-            #     # Check for maximum PMM interaction value    
-            #     if self.Elastic_analysis:
-            #         if P_M_M_interaction_limit is not None:
-            #             # if Structures_2D.print_ops_status:
-            #             #     print(f'Checking PMM Interaction')
-            #             if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
-            #                 results.exit_message = 'P_M_M interaction Limit Reached'
-            #                 find_limit_point()
-            #                 return results,fail_during_LCA
-
-
-
-            # print(results.control_node_displacement)
-            # input()
             dU = target_disp / steps
 
-            # if results.control_node_displacement[-1]<0 or control_dof==2:
-            #     dU=-dU 
             print(self.wind_load_dirn)
             
             if self.wind_load_dirn=="left" or control_dof==2:
@@ -1425,12 +1772,16 @@ class Structures_2D:
 
             record()
 
+            update_live_plots()
+
             i=1
+            # save_deformed_shape_frame(i,"temporary_folder")
             while True:
                 print(f'Running Displacement Controlled Analysis {i}')
                 i=i+1
                 fail_during_LCA=False
                 ok = ops.analyze(1)
+
                 if try_smaller_steps:
                     if ok != 0:
                         if Structures_2D.print_ops_status:
@@ -1462,7 +1813,7 @@ class Structures_2D:
                         if ok == 0:
                             # dU = dU / 10
                             if Structures_2D.print_ops_status:
-                                print(f'Changed the step size to: {dU / 10}')
+                                print(f'Changed the step size to: {dU }')
 
                 if ok != 0:
                     if Structures_2D.print_ops_status:
@@ -1486,7 +1837,7 @@ class Structures_2D:
                     if Structures_2D.print_ops_status:
                         print('Trying KrylovNewton and Greater Tolerance')
                     ops.algorithm('KrylovNewton')
-                    ops.test('NormUnbalance', 1e-4, 10,1)
+                    ops.test('NormUnbalance', tol*100, iter,analysis_msg)
                     ok = ops.analyze(1)
                     if ok == 0:
                         if Structures_2D.print_ops_status:
@@ -1495,8 +1846,8 @@ class Structures_2D:
                 if ok == 0:
                     # Reset analysis options
                     print(f'Displacement controlled analysis step {i-1} PASSED')
-                    ops.algorithm('Newton')
-                    ops.test('NormUnbalance', 1e-3, 10,1)
+                    ops.algorithm('RaphsonNewton')
+                    ops.test('NormUnbalance', tol, iter,analysis_msg)
                     ops.integrator('DisplacementControl', control_node, control_dof, dU)
                 else:
                     print('Analysis Failed')
@@ -1505,6 +1856,8 @@ class Structures_2D:
 
 
                 record()
+                update_live_plots()
+
 
                 # Check for lowest eigenvalue less than zero
                 if eigenvalue_limit is not None:
@@ -1529,7 +1882,18 @@ class Structures_2D:
                         if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
                             results.exit_message = 'P_M_M interaction Limit Reached'
                             break
+                
+                
 
+                    
+                # if i%(steps/20)==0:
+                     # save_deformed_shape_frame(i,"temporary_folder")
+            update_live_plots(force=True)
+
+            if live_plot and not was_interactive:
+                plt.ioff()
+
+            # save_deformed_shape_frame(i,"temporary_folder")
 
             find_limit_point()
 
@@ -1541,9 +1905,7 @@ class Structures_2D:
             ops.timeSeries('Linear', self.load_timeseries_counter)
             ops.pattern('Plain',self.load_pattern_counter, self.load_timeseries_counter)
             self.add_vertical_dead_live_wall_notional_loads(vertical_load_scale=vertical_load_scale)
-            # ops.printModel()
-            # input()
-            # self.add_lateral_wind_notional_loads(lateral_load_scale=lateral_load_scale)
+
             # region Define recorder
             def record():
                 time = ops.getTime()
@@ -1560,23 +1922,19 @@ class Structures_2D:
                 results.max_P_M_M_interaction.append(max_PMM)
                 results.P_M_M_interaction_all_elements.append(P_M_M_interaction_all_elements)
                 results.Element_Forces.append(Element_Forces)
-
             # endregion
 
             control_node,control_dof=self.get_control_node_and_dof(control_dir=control_dir)
 
-            # print(control_node,control_dof)
-            # input()
 
-            ops.initialize()
             # Create output folder
-            os.makedirs(os.path.join("Column_Results", self.Frame_id), exist_ok=True)
+            os.makedirs(os.path.join("Column_Results/Analysis_History", self.Frame_id), exist_ok=True)
 
             # ops.constraints('Plain')
-            ops.constraints('Transformation')
+            ops.constraints('Plain')
             ops.numberer('RCM')
             ops.system('UmfPack')
-            ops.test('NormUnbalance', 1e-3, 10,1)
+            ops.test('NormUnbalance', 1e-8, iter,analysis_msg)
             ops.algorithm('Newton')
             ops.integrator('LoadControl',1/num_steps_LCA)  ## 1/num_steps_LCA because we want the entire vertical load to be applied before starting displacement controlled analysis.
             ops.analysis('Static')
@@ -1585,6 +1943,7 @@ class Structures_2D:
                 if Structures_2D.print_ops_status:
                     print(f'Running Load Controlled Analysis Step {i}')
                 ok = ops.analyze(1)
+
                 if ok != 0:
                     print(f'Load controlled analysis failed in step {i}')
                     results.exit_message = 'Analysis Failed In Load Controlled Loading before entering Displacement controlled Loading'
@@ -1594,6 +1953,8 @@ class Structures_2D:
                     print('Load controlled analysis PASSED')
                     results.exit_message='Moving to Displacement Controlled Analysis'
                 record()
+                update_live_plots()
+
 
                 # Check for lowest eigenvalue less than zero
                 if eigenvalue_limit is not None:
@@ -1626,29 +1987,23 @@ class Structures_2D:
 
 
             dU = target_disp / steps
-            print(results.control_node_displacement)
-            print(results.vertical_reaction)
-            print(results.base_shear)
-            print(control_dof)
-            # input()
-            # if results.control_node_displacement[-1]<0 or control_dof==2:
-            #     dU=-dU 
-
             if self.wind_load_dirn=="left" or control_dof==2:
                 dU=-dU 
 
             ops.loadConst('-time', 0.0)
             ops.timeSeries('Linear', self.load_timeseries_counter+1)
             ops.pattern('Plain',self.load_pattern_counter+1, self.load_timeseries_counter+1)
-            # print(lateral_load_scale)
-            # input()
             self.add_lateral_wind_loads(lateral_load_scale=lateral_load_scale)
-            # ops.printModel()
-            # input()
-            # self.add_vertical_dead_live_wall_loads()
+            ops.algorithm('RaphsonNewton')
+            ops.test('NormUnbalance', tol, iter,analysis_msg)
             ops.integrator('DisplacementControl', control_node, control_dof, dU)
 
             record()
+
+            update_live_plots()
+
+            initialize_results()
+
             i=1
             while True:
                 print(f'Running Displacement Controlled Analysis {i}')
@@ -1674,7 +2029,7 @@ class Structures_2D:
                         ops.integrator('DisplacementControl', control_node, control_dof, dU / 1000)
                         ok = ops.analyze(1)
                         if ok == 0:
-                            dU = dU / 10
+                            # dU = dU / 10
                             if Structures_2D.print_ops_status:
                                 print(f'Changed the step size to: {dU}')
 
@@ -1684,7 +2039,7 @@ class Structures_2D:
                         ops.integrator('DisplacementControl', control_node, control_dof, dU / 10000)
                         ok = ops.analyze(1)
                         if ok == 0:
-                            dU = dU / 10
+                            # dU = dU / 10
                             if Structures_2D.print_ops_status:
                                 print(f'Changed the step size to: {dU / 10}')
 
@@ -1710,7 +2065,7 @@ class Structures_2D:
                     if Structures_2D.print_ops_status:
                         print('Trying KrylovNewton and Greater Tolerance')
                     ops.algorithm('KrylovNewton')
-                    ops.test('NormUnbalance', 1e-4, 10,1)
+                    ops.test('NormUnbalance', tol*100, iter,analysis_msg)
                     ok = ops.analyze(1)
                     if ok == 0:
                         if Structures_2D.print_ops_status:
@@ -1718,17 +2073,19 @@ class Structures_2D:
 
                 if ok == 0:
                     # Reset analysis options
-                    print(f'Displacement controlled analysis step {i} PASSED')
-                    ops.algorithm('Newton')
-                    ops.test('NormUnbalance', 1e-3, 10,1)
+                    print(f'Displacement controlled analysis step {i-1} PASSED')
+                    ops.algorithm('RaphsonNewton')
+                    ops.test('NormUnbalance', tol, iter,analysis_msg)
                     ops.integrator('DisplacementControl', control_node, control_dof, dU)
                 else:
-                    print('Analysis Failed')
-                    results.exit_message = 'Analysis Failed'
+                    print('Analysis Failed in Displacement Controlled Loading in Non Proportional Analysis')
+                    results.exit_message = 'Analysis Failed in Displacement Controlled Loading in Non Proportional Analysis'
                     break
 
 
                 record()
+                update_live_plots()
+
 
                 # Check for lowest eigenvalue less than zero
                 if eigenvalue_limit is not None:
@@ -1752,26 +2109,25 @@ class Structures_2D:
                             results.exit_message = 'P_M_M interaction Limit Reached'
                             break
 
+            update_live_plots(force=True)
             find_limit_point()
        
-       
+            if live_plot and not was_interactive:
+                plt.ioff()
+
         else:
             raise Exception('Give valid ops_analysis option')
         # Optional: plot deformed shape
         if plot_defo:
             try:
-                import opsvis
+                # import opsvis
                 opsvis.plot_defo()
             except:
                 print("opsvis not available for deformation plotting.")
-        # results.control_node_displacement_absolute[:] = [abs(x) if x is not None else None
-        #                                 for x in results.control_node_displacement]
 
-
-
-        # print(vars(self))
-        # input()
         return results,fail_during_LCA
+
+
 
     def save_moments_by_member(self, filename='max_member_moments.csv'):
         os.makedirs(self.Frame_id, exist_ok=True)
@@ -1836,9 +2192,13 @@ class Structures_2D:
     
     def plot_model(self):
         plot_undeformed_2d(axis_equal=True)
+        
 
     def display_node_coords(self):
         get_node_coords_and_disp()
+
+    def plot_deformed_shape(self):
+        plot_deformed_2d(axis_equal=True,scale_factor=8)
 
 
     
