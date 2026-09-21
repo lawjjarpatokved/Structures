@@ -428,11 +428,6 @@ class Structures_2D:
     def create_distorted_nodes_and_element_connectivity(self,geometric_imperfection_ratio=None,initial_out_of_straightness_ratio=None):
         if self.Geometric_Imperfection:
             print('Working in imperfect geometry')
-            ratio = (geometric_imperfection_ratio if geometric_imperfection_ratio is not None else self.geometric_imperfection_ratio) * (1 if self.wind_load_dirn=='right' else -1)
-            for i in range(len(self.all_nodes)):
-                    self.all_nodes[i][1] = self.all_nodes[i][1] +ratio * self.all_nodes[i][2]
-
-
             ## Initial out of straightness
             for members in self.column_member_list:
                 member_tag=members[0]
@@ -459,6 +454,11 @@ class Structures_2D:
 
                     # Modify x-coordinate directly in self.all_nodes
                     node[1] += imperfection
+
+
+            ratio = (geometric_imperfection_ratio if geometric_imperfection_ratio is not None else self.geometric_imperfection_ratio) * (1 if self.wind_load_dirn=='right' else -1)
+            for i in range(len(self.all_nodes)):
+                    self.all_nodes[i][1] = self.all_nodes[i][1] +ratio * self.all_nodes[i][2]
     
         else:
             print('Working in nominal geometry')
@@ -1318,6 +1318,7 @@ class Structures_2D:
             Dummy_Frame_right.generate_Nodes_and_Element_Connectivity()
             Dummy_Frame_right.create_distorted_nodes_and_element_connectivity()
             Dummy_Frame_right.build_ops_model()
+            
 
 
 

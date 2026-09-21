@@ -15,9 +15,6 @@ column_section_name='W8X31'
 slenderness_ratios=50
 bending_axes='x'
 story_heights=get_storey_height_list_for_a_section(column_section_name,bending_axes,slenderness_ratios)
-print(story_heights)
-# input()
-# story_height=round(story_height,4)
 no_of_stories=2
 support='f'
 Analysis_type='GMNIA'
@@ -88,7 +85,7 @@ initial_out_of_straightness_dirn=wind_data[frame_key]["initial_out_of_straightne
 print(wind_load_dirn)
 print(initial_out_of_straightness_dirn)
 
-input()
+
 
 '''
 Making a MFColumn_2D object from the Frame_details, Analysis_details, Material_details read from the corresponding files.
@@ -137,36 +134,17 @@ if Frame.wind_load_dirn is None:
         save_wind_dirn_data(data=wind_data,json_wind_dirn_path=json_wind_dirn_path)
 
 
-print("Wind Load Direction")
-print(Frame.wind_load_dirn)
-print(Frame.column_only_model)
-input("Wind Load direction figured out")
-
 if Frame.initial_out_of_straightness_dirn is None:
         calculated_initial_out_of_straightness_dirn=Frame.get_initial_out_of_straightness_direction()   
         wind_data[frame_key]["initial_out_of_straightness_dirn"]=calculated_initial_out_of_straightness_dirn
         wind_data[frame_key]["initial_out_of_straightness_dirn_source"] = "analysis"
         save_wind_dirn_data(data=wind_data,json_wind_dirn_path=json_wind_dirn_path)
 
-
-print("Initial out of straightness")
-print(Frame.initial_out_of_straightness_dirn)
-input("Initial Out of Straightness figured out")
-
 Frame.generate_Nodes_and_Element_Connectivity()
 Frame.create_distorted_nodes_and_element_connectivity()
 Frame.build_ops_model()
-opsv.plot_model()
-opsv.plot_load()
-Frame.plot_model()
-print(Frame.column_connectivity)
-print(Frame.column_intermediate_nodes)
-print(Frame.member_list)
-print(Frame.sorted_column_connectivity)
-print(Frame.column_member_list)
-print("All nodes")
-print(Frame.all_nodes)
-input()
+# Frame.plot_model()
+
 
 
 vertical_load_scale=0.2
@@ -190,26 +168,19 @@ results,fail_during_LCA =Frame.run_displacement_controlled_analysis(target_disp=
                                                       vertical_load_scale=vertical_load_scale,
                                                       lateral_load_scale=lateral_load_scale,
                                                       control_dir=control_dir,try_smaller_steps=False,
-                                                      live_plot=True,tolerance=tolerance,iterations=iterations) 
-input()
-
-fig, ax = plt.subplots(figsize=(10, 6))
-opsv.plot_model(
-    node_labels=False,
-    element_labels=False,
-    node_supports=True,
-    ax=ax
-)
-
-opsv.plot_load(
-    node_supports=True,
-    ax=ax
-)
+                                                      live_plot=False,tolerance=tolerance,iterations=iterations)  
 
 
+# fig, ax = plt.subplots(figsize=(10, 6))
+# opsv.plot_model(
+#     node_labels=False,
+#     element_labels=False,
+#     node_supports=True,
+#     ax=ax
+# )
 
-ax.set_aspect("equal")
-plt.show(block=True)
+# ax.set_aspect("equal")
+# plt.show(block=True)
 
 
 save_analysis_history_figures(
