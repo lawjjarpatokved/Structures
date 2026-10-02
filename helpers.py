@@ -10,6 +10,7 @@ lbm = 0.45359237 * kg      # 1 lbm = 0.45359237 kg
 psi = lb / inch**2
 ksi = kip / inch**2
 
+
 import libdenavit.section.database.aisc as section
 import libdenavit.section.wide_flange as database
 from libdenavit.section.database.aisc import wide_flange_database as wide_flange_database
@@ -783,6 +784,7 @@ def plot_interaction_diagrams_for_all_analyses(
     use_original=True,
     save=True,
     show=True,
+    analysis_types=None
 ):
     """
     Read every JSON file inside a folder and plot all analysis interaction
@@ -860,7 +862,10 @@ def plot_interaction_diagrams_for_all_analyses(
             for key, value in content.items()
             if key != "data" and isinstance(value, dict)
         ]
-
+        analyses = [key for key, value in content.items() 
+                    if key != "data" and isinstance(value, dict) 
+                    and (analysis_types is None or key in analysis_types)]
+        
         if not analyses:
             print(f"Skipping {file_path.name}: no analyses were found.")
             continue
@@ -951,7 +956,7 @@ def plot_interaction_diagrams_for_all_analyses(
             save_folder = os.path.join("Column_Results/Analysis_History", f"{frame_id}")
             os.makedirs(save_folder, exist_ok=True)
 
-            filename = f"{frame_id}_interaction_diagrams_all_analyses.png"
+            filename = f"interaction_diagrams.png"
             save_path = os.path.join(save_folder, filename)
 
             fig.savefig(save_path, dpi=300, bbox_inches="tight")
@@ -962,6 +967,331 @@ def plot_interaction_diagrams_for_all_analyses(
             plt.show()
         else:
             plt.close(fig)
+
+def plot_interaction_diagrams_for_all_analyses_with_load_combo_info(json_file_path, use_original=True, save=True, show=True, analysis_types=None, load_combo_analysis=None, load_combo_L_over_D_ratio=None, load_combo_E_over_D_ratio=None):
+
+    Folder = Path(json_file_path)
+
+    if not Folder.exists():
+        raise FileNotFoundError(f"The specified path does not exist: {Folder}")
+
+    if not Folder.is_dir():
+        raise NotADirectoryError(f"The specified path is not a directory: {Folder}")
+
+    json_files = sorted(file_path for file_path in Folder.iterdir() if file_path.is_file() and file_path.suffix.lower() == ".json")
+
+    if not json_files:
+        print(f"No JSON files were found in: {Folder}")
+        return []
+
+    if use_original:
+        alr_h_key = "Original_ALR_H"
+        alr_v_key = "Original_ALR_V"
+    else:
+        alr_h_key = "ALR_H"
+        alr_v_key = "ALR_V"
+
+    results = []
+
+    for file_number, file_path in enumerate(json_files, start=1):
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                content = json.load(file)
+
+        except json.JSONDecodeError as error:
+            print(f"Skipping invalid JSON file {file_path.name}: {error}")
+            continue
+
+        except OSError as error:
+            print(f"Could not read {file_path.name}: {error}")
+            continue
+
+        data = content.get("data", {})
+
+        frame_id = data.get("frame_id", file_path.stem)
+        section_name = data.get("column_section_name", "Unknown section")
+        bending_axis = data.get("bending_axes", data.get("bending_axis", "Unknown axis"))
+        storey_height = data.get("storey_height", "Unknown height")
+        no_of_stories = data.get("no_of_stories", "Unknown number of stories")
+        material = data.get("Material", data.get("material", None))
+
+        analyses = [key for key, value in content.items() if key != "data" and isinstance(value, dict) and (analysis_types is None or key in analysis_types)]
+
+        if not analyses:
+            print(f"Skipping {file_path.name}: no analyses were found.")
+            continue
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        plotted_analyses = []
+        line_styles = ["-", "--", "-.", ":"]
+
+        for analysis_index, analysis in enumerate(analyses):
+
+            analysis_data = content[analysis]
+
+            if alr_h_key not in analysis_data or alr_v_key not in analysis_data:
+                print(f"Skipping analysis '{analysis}' in {file_path.name}: missing {alr_h_key} or {alr_v_key}.")
+                continue
+
+            ALR_H = analysis_data[alr_h_key]
+            ALR_V = analysis_data[alr_v_key]
+
+            if ALR_H is None or ALR_V is None:
+                print(f"Skipping analysis '{analysis}' in {file_path.name}: interaction data are None.")
+                continue
+
+            if len(ALR_H) == 0 or len(ALR_V) == 0:
+                print(f"Skipping analysis '{analysis}' in {file_path.name}: interaction data are empty.")
+                continue
+
+            if len(ALR_H) != len(ALR_V):
+                print(f"Skipping analysis '{analysis}' in {file_path.name}: ALR_H and ALR_V have different lengths.")
+                continue
+
+            interaction_diagram = InteractionDiagram2d(ALR_H, ALR_V)
+
+            plt.sca(ax)
+            interaction_diagram.plot(label=analysis, linestyle=line_styles[analysis_index % len(line_styles)], linewidth=1.8, alpha=0.9)
+
+            plotted_analyses.append(analysis)
+
+        if not plotted_analyses:
+            print(f"Skipping {file_path.name}: no valid interaction curves were found.")
+            plt.close(fig)
+            continue
+
+        #### Plot load combination points ####
+
+        if load_combo_analysis is not None:
+
+            if load_combo_analysis not in content:
+                print(f"Load combination analysis '{load_combo_analysis}' was not found in {file_path.name}.")
+
+            else:
+                load_combo_cases = content[load_combo_analysis].get("load_combo_details", {})
+                load_combo_points_plotted = False
+
+                for ratio_key, load_combo_case in load_combo_cases.items():
+                    stored_L_over_D_ratio = load_combo_case.get("L_over_D_ratio")
+                    stored_E_over_D_ratio = load_combo_case.get("E_over_D_ratio")
+
+                    matches_L_over_D = load_combo_L_over_D_ratio is None or stored_L_over_D_ratio == load_combo_L_over_D_ratio
+                    matches_E_over_D = load_combo_E_over_D_ratio is None or stored_E_over_D_ratio == load_combo_E_over_D_ratio
+
+                    if not (matches_L_over_D and matches_E_over_D):
+                        continue
+
+                    load_combo_results = load_combo_case["load_combo_results"]
+
+                    for load_combo_name, load_combo_result in load_combo_results.items():
+                        horizontal_load = load_combo_result["horizontal_load"]
+                        vertical_load = load_combo_result["vertical_load"]
+                        governing = load_combo_result["governing"]
+
+                        if governing:
+                            ax.scatter(horizontal_load, vertical_load, s=50, marker="*", color="red", edgecolor="black", linewidth=0.8, zorder=10, label="_nolegend_")
+                        else:
+                            ax.scatter(horizontal_load, vertical_load, s=10, marker="o", color="blue", zorder=9, label="_nolegend_")
+
+                        load_combo_points_plotted = True
+
+                if load_combo_points_plotted:
+                    ax.scatter([], [], s=140, marker="*", color="red", edgecolor="black", linewidth=0.8, label="Controlling load combination")
+        ax.set_xlabel("ALR_H")
+        ax.set_ylabel("ALR_V")
+        ax.set_xlim(left=0)
+        ax.set_ylim(bottom=0)
+        ax.grid(True, alpha=0.3)
+        ax.legend(title="Analysis / Load Combination", loc="best")
+
+        if no_of_stories == 1:
+            story_label = "1 story"
+        elif isinstance(no_of_stories, (int, float)):
+            story_label = f"{no_of_stories} stories"
+        else:
+            story_label = str(no_of_stories)
+
+        title_lines = [f"{section_name}, axis = {bending_axis}", f"{story_label}, h = {storey_height} m"]
+
+        if material is not None:
+            title_lines.append(f"Material = {material}")
+
+        if load_combo_analysis is not None:
+            L_D_label = "all" if load_combo_L_over_D_ratio is None else str(load_combo_L_over_D_ratio)
+            E_D_label = "all" if load_combo_E_over_D_ratio is None else str(load_combo_E_over_D_ratio)
+            title_lines.append(f"Load combinations: {load_combo_analysis}, L/D = {L_D_label}, E/D = {E_D_label}")
+
+        ax.set_title("\n".join(title_lines))
+        fig.tight_layout()
+
+        save_path = None
+
+        if save:
+            save_folder = os.path.join("Column_Results/Analysis_History", f"{frame_id}")
+            os.makedirs(save_folder, exist_ok=True)
+            L_D_label = "all" if load_combo_L_over_D_ratio is None else str(load_combo_L_over_D_ratio)
+            E_D_label = "all" if load_combo_E_over_D_ratio is None else str(load_combo_E_over_D_ratio)
+            filename = f"interaction_diagrams_L_D_{L_D_label}_E_D_{E_D_label}.png"
+            save_path = os.path.join(save_folder, filename)
+            fig.savefig(save_path, dpi=300, bbox_inches="tight")
+            print(f"[{file_number}/{len(json_files)}] Saved to: {save_path}")
+
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+
+
+def plot_governing_vertical_load_vs_E_over_D_for_all_analyses(json_file_path, save=True, show=True, analysis_types=None, load_combo_L_over_D_ratio=None):
+
+    Folder = Path(json_file_path)
+
+    if not Folder.exists():
+        raise FileNotFoundError(f"The specified path does not exist: {Folder}")
+
+    if not Folder.is_dir():
+        raise NotADirectoryError(f"The specified path is not a directory: {Folder}")
+
+    json_files = sorted(file_path for file_path in Folder.iterdir() if file_path.is_file() and file_path.suffix.lower() == ".json")
+
+    if not json_files:
+        print(f"No JSON files were found in: {Folder}")
+        return []
+
+    results = []
+
+    for file_number, file_path in enumerate(json_files, start=1):
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                content = json.load(file)
+
+        except json.JSONDecodeError as error:
+            print(f"Skipping invalid JSON file {file_path.name}: {error}")
+            continue
+
+        except OSError as error:
+            print(f"Could not read {file_path.name}: {error}")
+            continue
+
+        data = content.get("data", {})
+
+        frame_id = data.get("frame_id", file_path.stem)
+        section_name = data.get("column_section_name", "Unknown section")
+        bending_axis = data.get("bending_axes", data.get("bending_axis", "Unknown axis"))
+        storey_height = data.get("storey_height", "Unknown height")
+        no_of_stories = data.get("no_of_stories", "Unknown number of stories")
+        material = data.get("Material", data.get("material", None))
+
+        analyses = [key for key, value in content.items() if key != "data" and isinstance(value, dict) and "load_combo_details" in value and (analysis_types is None or key in analysis_types)]
+
+        if not analyses:
+            print(f"Skipping {file_path.name}: no analyses with load combination details were found.")
+            continue
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+        plotted_analyses = []
+        line_styles = ["-", "--", "-.", ":"]
+
+        for analysis_index, analysis in enumerate(analyses):
+
+            analysis_data = content[analysis]
+
+            load_combo_cases = analysis_data.get("load_combo_details", {})
+
+            E_over_D_values = []
+            governing_vertical_loads = []
+
+            for ratio_key, load_combo_case in load_combo_cases.items():
+
+                stored_L_over_D_ratio = load_combo_case.get("L_over_D_ratio")
+                stored_E_over_D_ratio = load_combo_case.get("E_over_D_ratio")
+
+                matches_L_over_D = load_combo_L_over_D_ratio is None or stored_L_over_D_ratio == load_combo_L_over_D_ratio
+
+                if not matches_L_over_D:
+                    continue
+
+                load_combo_results = load_combo_case.get("load_combo_results", {})
+
+                for load_combo_name, load_combo_result in load_combo_results.items():
+
+                    governing = load_combo_result.get("governing", False)
+
+                    if not governing:
+                        continue
+
+                    vertical_load = load_combo_result.get("vertical_load")
+
+                    if stored_E_over_D_ratio is None or vertical_load is None:
+                        continue
+
+                    E_over_D_values.append(stored_E_over_D_ratio)
+                    governing_vertical_loads.append(vertical_load)
+
+            if len(E_over_D_values) == 0:
+                print(f"Skipping analysis '{analysis}' in {file_path.name}: no governing load combinations were found.")
+                continue
+
+            sorted_data = sorted(zip(E_over_D_values, governing_vertical_loads), key=lambda x: x[0])
+
+            E_over_D_values = [value[0] for value in sorted_data]
+            governing_vertical_loads = [value[1] for value in sorted_data]
+
+            ax.plot(E_over_D_values, governing_vertical_loads, label=analysis, linestyle=line_styles[analysis_index % len(line_styles)], marker="o", linewidth=1.8, alpha=0.9)
+
+            plotted_analyses.append(analysis)
+
+        if not plotted_analyses:
+            print(f"Skipping {file_path.name}: no valid governing load combination curves were found.")
+            plt.close(fig)
+            continue
+
+        ax.set_xlabel("E/D Ratio")
+        ax.set_ylabel("Vertical Load of Governing Load Combination")
+        ax.set_xlim(left=0)
+        ax.set_ylim(bottom=0)
+        ax.grid(True, alpha=0.3)
+        ax.legend(title="Analysis", loc="best")
+
+        if no_of_stories == 1:
+            story_label = "1 story"
+        elif isinstance(no_of_stories, (int, float)):
+            story_label = f"{no_of_stories} stories"
+        else:
+            story_label = str(no_of_stories)
+
+        title_lines = [f"{section_name}, axis = {bending_axis}", f"{story_label}, h = {storey_height} m"]
+
+        if material is not None:
+            title_lines.append(f"Material = {material}")
+
+        L_D_label = "all" if load_combo_L_over_D_ratio is None else str(load_combo_L_over_D_ratio)
+
+        title_lines.append(f"L/D = {L_D_label}")
+
+        ax.set_title("\n".join(title_lines))
+        fig.tight_layout()
+
+        save_path = None
+
+        if save:
+            save_folder = os.path.join("Column_Results/Analysis_History", f"{frame_id}")
+            os.makedirs(save_folder, exist_ok=True)
+            filename = f"governing_vertical_load_vs_E_D_L_D_{L_D_label}.png"
+            save_path = os.path.join(save_folder, filename)
+            fig.savefig(save_path, dpi=300, bbox_inches="tight")
+            print(f"[{file_number}/{len(json_files)}] Saved to: {save_path}")
+
+        results.append({"frame_id": frame_id, "analyses": plotted_analyses, "L_over_D_ratio": load_combo_L_over_D_ratio, "save_path": save_path})
+
+        if show:
+            plt.show()
+        else:
+            plt.close(fig)
+
+    return results
 
 def plot_theta_vs_del2_over_del1_for_all_analyses(json_file_path,cap=3, save=True, show=True):
     """
@@ -1094,8 +1424,6 @@ def plot_theta_vs_del2_over_del1_for_all_analyses(json_file_path,cap=3, save=Tru
             plt.close(fig)
 
     return results
-
-
 
 
 def my_scatter_plot(data_df, x_col, y_col, hover_data=None, xlabel=None, ylabel=None, title='Interactive Scatter Plot'):
@@ -1536,6 +1864,101 @@ def structural_parameter_vs_radial_error_multiple(json_file_path, analysis_types
     
     return results_df, fig
 
+def get_governing_load_combo_details(json_file_path, analysis_type, L_over_D_ratios=2, E_over_D_ratios=0.05, plot_interaction_diagram=False, frame_names_list=None, storey_heights_list=None, no_of_stories_list=None, bending_axes_list=None, support_list=None, **kwargs):
+
+    analysis1 = analysis_type
+    save_folder = os.path.join("Column_Results", "Intersection_of_load_combo_with_interaction_curves")
+    results_data = []
+
+    Folder = Path(json_file_path)
+
+    for file_path in Folder.iterdir():
+
+        if not file_path.is_file() or file_path.suffix.lower() != ".json":
+            continue
+
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = json.load(file)
+
+        #### Read structural parameters from JSON file ####
+        frame_id = content["data"]["Frame_id"]
+        frame_name = content["data"]["column_section_name"]
+        bending_axis = content["data"]["bending_axes"]
+        storey_height = content["data"]["storey_height"][0]
+        no_of_stories = content["data"]["no_of_stories"]
+        support = content["data"]["support"]
+
+        #### Filter for the lists if provided ####
+        matches_filter = ((frame_names_list is None or frame_name in frame_names_list) 
+                    and (storey_heights_list is None or storey_height in storey_heights_list)
+                    and (no_of_stories_list is None or no_of_stories in no_of_stories_list) 
+                    and (bending_axes_list is None or bending_axis in bending_axes_list) 
+                    and (support_list is None or support in support_list))
+
+        if not matches_filter:
+            continue
+
+        #### Extract interaction diagram for reference analysis ####
+        analysis1_ALR_H = content[analysis1]["Original_ALR_H"]
+        analysis1_ALR_V = content[analysis1]["Original_ALR_V"]
+
+        analysis1_interaction_diagram = InteractionDiagram2d(analysis1_ALR_H, analysis1_ALR_V)
+
+        for L_over_D_ratio in L_over_D_ratios:
+            for E_over_D_ratio in E_over_D_ratios:
+
+                #### Find load combination results ####
+                load_combo_results = find_the_intersection_of_load_combo_with_interaction_curves(analysis1_interaction_diagram, L_over_D_ratio, E_over_D_ratio)
+
+                #### Create data for this L/D and E/D combination ####
+                load_combo_details = {"L_over_D_ratio": L_over_D_ratio, "E_over_D_ratio": E_over_D_ratio, "load_combo_results": load_combo_results}
+
+                #### Create unique key for this L/D and E/D combination ####
+                ratio_key = f"L_D_{L_over_D_ratio}__E_D_{E_over_D_ratio}"
+
+                #### Create load_combo_details dictionary if it does not already exist ####
+                content[analysis_type].setdefault("load_combo_details", {})
+
+                #### Add/update this particular L/D and E/D case ####
+                content[analysis_type]["load_combo_details"][ratio_key] = load_combo_details
+
+                #### Save updated data back to original JSON file ####
+                with open(file_path, "w", encoding="utf-8") as file:
+                    json.dump(content, file, indent=4)
+
+                print(f"Updated: {file_path.name} | {ratio_key}")
+
+def find_the_intersection_of_load_combo_with_interaction_curves(interaction_diagram, L_over_D_ratio, E_over_D_ratio, **kwargs):
+
+    D_test = 1.0
+
+    load_combinations = {
+        "1.4D": lambda D: [0, 1.4 * D],
+        "1.2D+1.6L": lambda D: [0, 1.2 * D + 1.6 * L_over_D_ratio * D],
+        "1.2D+E": lambda D: [E_over_D_ratio * D, 1.2 * D],
+        "0.9D+E": lambda D: [E_over_D_ratio * D, 0.9 * D],
+    }
+
+    ratio_of_load_values_to_strengths = {}
+
+    for load_combo_name, load_function in load_combinations.items():
+        horizontal_load, vertical_load = load_function(D_test)
+        ratio = interaction_diagram.check_points(horizontal_load, vertical_load)
+        ratio_of_load_values_to_strengths[load_combo_name] = ratio
+
+    governing_load_combo = max(ratio_of_load_values_to_strengths, key=ratio_of_load_values_to_strengths.get)
+    governing_ratio = ratio_of_load_values_to_strengths[governing_load_combo]
+
+    D_critical = D_test / governing_ratio
+
+    load_combo_results = {}
+
+    for load_combo_name, load_function in load_combinations.items():
+        horizontal_load, vertical_load = load_function(D_critical)
+        ratio = interaction_diagram.check_points(horizontal_load, vertical_load)
+        load_combo_results[load_combo_name] = {"horizontal_load": horizontal_load, "vertical_load": vertical_load, "ratio": ratio, "governing": load_combo_name == governing_load_combo}
+
+    return load_combo_results
 
 def compute_del2_over_del1(json_file_path,theta_list):
 
@@ -1941,9 +2364,6 @@ def plot_error_vs_del2_over_del1(json_file_path, analysis_types,
     print(f"Static PNG image saved to: {png_path}")
 
     fig.show()
-
-
-
 
 
 def get_storey_height_list_for_a_section(
@@ -2542,3 +2962,27 @@ def check_load_ratio_problem(
                     f"{detail['robust_z_score']:.3f}\n"
                 )
 
+
+
+if __name__ == "__main__":
+    print("running")
+    json_file_path="Column_Results/json_files_copy"
+    L_over_D_ratios=np.arange(0.3,6,0.1)
+    # L_over_D_ratios=[0.3]
+    E_over_D_ratios=np.arange(0,2,0.1)
+    # E_over_D_ratios=[0.5]
+    analysis_types=["GNA_Notional_Loads",'GMNIA','GNA']
+
+    #get_governing_load_combo_details(json_file_path=json_file_path,analysis_type='GNA',L_over_D_ratios=L_over_D_ratios,E_over_D_ratios=E_over_D_ratios)
+    
+    # plot_interaction_diagrams_for_all_analyses_with_load_combo_info(json_file_path=json_file_path,
+    #                                                                 use_original=True,
+    #                                                                 save=True,
+    #                                                                 show=False,
+    #                                                                 analysis_types=analysis_types,
+    #                                                                 load_combo_analysis='GNA',
+    #                                                                 load_combo_L_over_D_ratio=None,
+    #                                                                 load_combo_E_over_D_ratio=None)  
+
+    for L_over_D_ratio in L_over_D_ratios:
+        plot_governing_vertical_load_vs_E_over_D_for_all_analyses(json_file_path=json_file_path,save=True,show=False,analysis_types=analysis_types,load_combo_L_over_D_ratio=L_over_D_ratio)
