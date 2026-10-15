@@ -1085,6 +1085,8 @@ def plot_interaction_diagrams_for_all_analyses_with_load_combo_info(json_file_pa
                     load_combo_results = load_combo_case["load_combo_results"]
 
                     for load_combo_name, load_combo_result in load_combo_results.items():
+                        if load_combo_name in ["Dmax","governing_load_combo"]:
+                            continue
                         horizontal_load = load_combo_result["horizontal_load"]
                         vertical_load = load_combo_result["vertical_load"]
                         governing = load_combo_result["governing"]
@@ -1213,6 +1215,9 @@ def plot_governing_vertical_load_vs_E_over_D_for_all_analyses(json_file_path, sa
                 load_combo_results = load_combo_case.get("load_combo_results", {})
 
                 for load_combo_name, load_combo_result in load_combo_results.items():
+                    if load_combo_name in ["Dmax","governing_load_combo"]:
+                            continue
+                    
                     governing = load_combo_result.get("governing", False)
                     if not governing:
                         continue
@@ -1861,20 +1866,19 @@ def structural_parameter_vs_radial_error_multiple(json_file_path, analysis_types
     
     return results_df, fig
 
-def get_governing_load_combo_details(json_file_path, analysis_type, L_over_D_ratios=2, E_over_D_ratios=0.05, plot_interaction_diagram=False, frame_names_list=None, storey_heights_list=None, no_of_stories_list=None, bending_axes_list=None, support_list=None, **kwargs):
+def get_governing_load_combo_details(json_file_path, analysis_type, L_over_D_ratios, E_over_D_ratios,
+                                     frame_names_list=None, storey_heights_list=None, no_of_stories_list=None, bending_axes_list=None, support_list=None):
 
-    analysis1 = analysis_type
+    for file_path in Path(json_file_path).iterdir():
 
-    Folder = Path(json_file_path)
-
-    for file_path in Folder.iterdir():
-
+        # Find and load json files
         if not file_path.is_file() or file_path.suffix.lower() != ".json":
             continue
 
         with open(file_path, "r", encoding="utf-8") as file:
             content = json.load(file)
 
+        # Filters to run only selected frames
         frame_id = content["data"]["Frame_id"]
         frame_name = content["data"]["column_section_name"]
         bending_axis = content["data"]["bending_axes"]
@@ -1891,58 +1895,58 @@ def get_governing_load_combo_details(json_file_path, analysis_type, L_over_D_rat
         if not matches_filter:
             continue
 
-        analysis1_ALR_H = content[analysis1]["Original_ALR_H"]
-        analysis1_ALR_V = content[analysis1]["Original_ALR_V"]
-
+        # Reteive the interaction diagram
+        analysis1_ALR_H = content[analysis_type]["Original_ALR_H"]
+        analysis1_ALR_V = content[analysis_type]["Original_ALR_V"]
         analysis1_interaction_diagram = InteractionDiagram2d(analysis1_ALR_H, analysis1_ALR_V)
 
-        content[analysis_type].setdefault("load_combo_details", {})
+        # Initilize results dictionary
+        content[analysis_type]["load_combo_details"] = {}
 
+        # Computes results
         for L_over_D_ratio in L_over_D_ratios:
             for E_over_D_ratio in E_over_D_ratios:
-
                 load_combo_results = find_the_intersection_of_load_combo_with_interaction_curves(analysis1_interaction_diagram, L_over_D_ratio, E_over_D_ratio)
                 load_combo_details = {"L_over_D_ratio": L_over_D_ratio, "E_over_D_ratio": E_over_D_ratio, "load_combo_results": load_combo_results}
                 ratio_key = f"L_D_{L_over_D_ratio}__E_D_{E_over_D_ratio}"
                 content[analysis_type]["load_combo_details"][ratio_key] = load_combo_details
                 print(f"Prepared: {file_path.name} | {ratio_key}")
 
+        # Save json file
         with open(file_path, "w", encoding="utf-8") as file:
             json.dump(content, file, indent=4, default=lambda x: int(x) if isinstance(x, np.integer) else x)
 
         print(f"Updated file: {file_path.name}")
 
-def find_the_intersection_of_load_combo_with_interaction_curves(interaction_diagram, L_over_D_ratio, E_over_D_ratio, **kwargs):
-
-    D_test = 1.0
+def find_the_intersection_of_load_combo_with_interaction_curves(interaction_diagram, L_over_D_ratio, E_over_D_ratio):
 
     load_combinations = {
-        "1.4D": lambda D: [0, 1.4 * D],
-        "1.2D+1.6L": lambda D: [0, 1.2 * D + 1.6 * L_over_D_ratio * D],
-        "1.2D+L+E": lambda D: [E_over_D_ratio * D, 1.2 * D + L_over_D_ratio * D],
-        "0.9D+E": lambda D: [E_over_D_ratio * D, 0.9 * D],
+        "1.4D":      [0, 1.4],
+        "1.2D+1.6L": [0, 1.2 + 1.6 * L_over_D_ratio],
+        "1.2D+L+E":  [E_over_D_ratio, 1.2 + L_over_D_ratio],
+        "0.9D+E":    [E_over_D_ratio, 0.9],
     }
 
+    # Evaluate each load combination
     ratio_of_load_values_to_strengths = {}
-
-    for load_combo_name, load_function in load_combinations.items():
-        horizontal_load, vertical_load = load_function(D_test)
+    for load_combo_name, load_factors in load_combinations.items():
+        horizontal_load, vertical_load = load_factors
         ratio = interaction_diagram.check_points(horizontal_load, vertical_load)
         ratio_of_load_values_to_strengths[load_combo_name] = ratio
 
+    # Determine the governing load combination
     governing_load_combo = max(ratio_of_load_values_to_strengths, key=ratio_of_load_values_to_strengths.get)
     governing_ratio = ratio_of_load_values_to_strengths[governing_load_combo]
 
-    D_critical = D_test / governing_ratio
-
-    load_combo_results = {}
-
-    for load_combo_name, load_function in load_combinations.items():
-        horizontal_load, vertical_load = load_function(D_critical)
-        ratio = interaction_diagram.check_points(horizontal_load, vertical_load)
-        load_combo_results[load_combo_name] = {"horizontal_load": horizontal_load, "vertical_load": vertical_load, "ratio": ratio, "governing": load_combo_name == governing_load_combo,"D_max":D_critical}
-
-    return load_combo_results
+    # Save results
+    results = {}
+    results['Dmax'] = 1 / governing_ratio
+    results['governing_load_combo'] = governing_load_combo   
+    for load_combo_name, load_factors in load_combinations.items():
+        horizontal_load, vertical_load = load_factors  
+        results[load_combo_name] = {"horizontal_load": horizontal_load/governing_ratio, "vertical_load": vertical_load/governing_ratio, 'governing': load_combo_name == governing_load_combo}
+    
+    return results
 
 def compute_del2_over_del1(json_file_path,theta_list):
 
@@ -2958,7 +2962,7 @@ if __name__ == "__main__":
     analysis_types=['GMNIA','GNA']
 
     for analysis_type in analysis_types:
-        get_governing_load_combo_details(json_file_path=json_file_path,analysis_type=analysis_type,L_over_D_ratios=L_over_D_ratios,E_over_D_ratios=E_over_D_ratios)
+        get_governing_load_combo_details(json_file_path,analysis_type,L_over_D_ratios,E_over_D_ratios)
     
     plot_interaction_diagrams_for_all_analyses_with_load_combo_info(json_file_path=json_file_path,
                                                                     use_original=True,
