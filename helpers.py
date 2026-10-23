@@ -38,9 +38,13 @@ from Plots import line_plot
 import numpy as np
 import tempfile
 from numbers import Real
+from filelock import FileLock
+import runpy
+from matplotlib.lines import Line2D
+from tqdm import tqdm
 
-
-
+CONFIG_PATH = Path(__file__).resolve().parent / "Columns_config.py"
+CONFIG_LOCK = FileLock(str(CONFIG_PATH) + ".lock", timeout=120)
 
 class wf_Database:
     def __init__(self,Section_name,unit=inch):
@@ -170,7 +174,7 @@ def _write_frame_entry_to_config(code, config):
 def _save_frame_info_to_config():
     """Replace the existing Frame_Info dictionary in Columns_config.py."""
 
-    file_path = "Columns_config.py"
+    file_path = CONFIG_PATH
 
     with open(file_path, "r", encoding="utf-8") as file:
         content = file.read()
@@ -191,36 +195,49 @@ def _save_frame_info_to_config():
             break
 
     if frame_info_node is None:
-        raise ValueError(
-            "Frame_Info dictionary was not found in Columns_config.py."
-        )
-
+        raise ValueError("Frame_Info dictionary was not found in Columns_config.py.")
+    content_bytes = content.encode("utf-8")
     lines = content.splitlines(keepends=True)
 
     start_index = (
-        sum(len(line) for line in lines[:frame_info_node.lineno - 1])
+        sum(len(line.encode("utf-8")) for line in lines[:frame_info_node.lineno - 1])
         + frame_info_node.col_offset
     )
 
     end_index = (
-        sum(len(line) for line in lines[:frame_info_node.end_lineno - 1])
+        sum(len(line.encode("utf-8")) for line in lines[:frame_info_node.end_lineno - 1])
         + frame_info_node.end_col_offset
     )
-
-    updated_frame_info = pformat(
-        Frame_Info,
-        sort_dicts=False,
-        width=120
-    )
+    updated_frame_info = pformat(Frame_Info, sort_dicts=False, width=120).encode("utf-8")
 
     updated_content = (
-        content[:start_index]
+        content_bytes[:start_index]
         + updated_frame_info
-        + content[end_index:]
+        + content_bytes[end_index:]
     )
 
-    with open(file_path, "w", encoding="utf-8") as file:
-        file.write(updated_content)
+    compile(updated_content, str(file_path), "exec")
+
+    temp_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=file_path.parent,
+            suffix=".tmp",
+            delete=False
+        ) as file:
+
+            temp_path = Path(file.name)
+            file.write(updated_content)
+            file.flush()
+            os.fsync(file.fileno())
+
+        os.replace(temp_path, file_path)
+
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink()
 
 def  check_and_create_new_entries_in_column_config_file(
     column_section_name,
@@ -250,7 +267,7 @@ def  check_and_create_new_entries_in_column_config_file(
         "L_floor_intensity": 0 * kip / ft,
         "L_roof_intensity": 0 * kip / ft,
         "wind_load_same_for_all_h": False,
-        "Base_Wind_load": 10 * KN,
+        "Base_Wind_load": 1000 * KN,
         "Wall_load": 0,
         "geometric_imperfection_ratio": 1 / 500,
         "initial_out_of_straightness_ratio": 1/1000,
@@ -295,23 +312,27 @@ def  check_and_create_new_entries_in_column_config_file(
         config['Leaning_column_roof_load']=0
 
 
-    # Case 1: The frame does not exist
-    if code not in Frame_Info:
-        Frame_Info[code] = config
-        _save_frame_info_to_config()
+    with CONFIG_LOCK:
 
-        print(f"Created new configuration: {code}")
+        # Reload the latest dictionary from Columns_config.py
+        latest_frame_info = runpy.run_path(str(CONFIG_PATH))["Frame_Info"]
 
-    # Case 2: The frame exists, but its values are different
-    elif Frame_Info[code] != config:
-        Frame_Info[code] = config
-        _save_frame_info_to_config()
+        # Update the existing dictionary in memory
+        Frame_Info.clear()
+        Frame_Info.update(latest_frame_info)
 
-        print(f"Updated existing configuration: {code}")
+        if code not in Frame_Info:
+            Frame_Info[code] = config
+            _save_frame_info_to_config()
+            print(f"Created new configuration: {code}", flush=True)
 
-    # Case 3: The frame exists and the values are unchanged
-    else:
-        print(f"Configuration already exists and is unchanged: {code}")
+        elif Frame_Info[code] != config:
+            Frame_Info[code] = config
+            _save_frame_info_to_config()
+            print(f"Updated existing configuration: {code}", flush=True)
+
+        else:
+            print(f"Configuration already exists and is unchanged: {code}", flush=True)
 
     return code   
 
@@ -1145,45 +1166,23 @@ def plot_interaction_diagrams_for_all_analyses_with_load_combo_info(json_file_pa
             plt.close(fig)
 
 
-def plot_governing_vertical_load_vs_E_over_D_for_all_analyses(json_file_path, save=True, show=True, analysis_types=None, load_combo_L_over_D_ratio=None):
+def plot_governing_D_max_vs_E_over_D_for_all_analyses(json_file_path, save=True, show=True, analysis_types=None, L_over_D_ratios=None, E_over_D_ratios=None):
 
-    Folder = Path(json_file_path)
-    if not Folder.exists():
-        raise FileNotFoundError(f"The specified path does not exist: {Folder}")
+    load_combo_colors = {"1.4D": "red", "1.2D+1.6L": "blue", "1.2D+L+E": "green", "0.9D+E": "orange"}
+    linestyles = ['-', '--', '-.', ':']
 
-    if not Folder.is_dir():
-        raise NotADirectoryError(f"The specified path is not a directory: {Folder}")
-
-    json_files = sorted(file_path for file_path in Folder.iterdir() if file_path.is_file() and file_path.suffix.lower() == ".json")
-
-    if not json_files:
-        print(f"No JSON files were found in: {Folder}")
-        return []
-
-    results = []
-
-    for file_number, file_path in enumerate(json_files, start=1):
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as file:
-                content = json.load(file)
-
-        except json.JSONDecodeError as error:
-            print(f"Skipping invalid JSON file {file_path.name}: {error}")
-            continue
-
-        except OSError as error:
-            print(f"Could not read {file_path.name}: {error}")
-            continue
+    for file_path in sorted(Path(json_file_path).iterdir()):
+        if not file_path.is_file() or file_path.suffix.lower() != ".json": continue
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = json.load(file)
 
         data = content.get("data", {})
-
         frame_id = data.get("frame_id", file_path.stem)
         section_name = data.get("column_section_name", "Unknown section")
         bending_axis = data.get("bending_axes", data.get("bending_axis", "Unknown axis"))
         storey_height = data.get("storey_height", "Unknown height")
         no_of_stories = data.get("no_of_stories", "Unknown number of stories")
-        material = data.get("Material", data.get("material", None))
+        material = data.get("Material", data.get("Steel_Grade", None))
 
         analyses = [key for key, value in content.items() if key != "data" and isinstance(value, dict) and "load_combo_details" in value and (analysis_types is None or key in analysis_types)]
 
@@ -1191,109 +1190,49 @@ def plot_governing_vertical_load_vs_E_over_D_for_all_analyses(json_file_path, sa
             print(f"Skipping {file_path.name}: no analyses with load combination details were found.")
             continue
 
-        fig, ax = plt.subplots(figsize=(8, 6))
-        plotted_analyses = []
-        line_styles = ["-", "--", "-.", ":"]
+        save_folder = Path("Column_Results/Analysis_History") / str(frame_id) / "D_max_vs_E_over_D_plots"
+        if save: save_folder.mkdir(parents=True, exist_ok=True)
 
-        for analysis_index, analysis in enumerate(analyses):
-            analysis_data = content[analysis]
-            load_combo_cases = analysis_data.get("load_combo_details", {})
-            E_over_D_values = []
-            governing_vertical_loads = []
-            D_max=[]
+        for L_over_D in L_over_D_ratios:
+            RESULTS = {}
+            RESULTS['L_over_D'] = L_over_D
+            print(f"Analysis for {L_over_D} running")
+            fig, ax = plt.subplots(figsize=(8, 6))
+            analysis_handles = []
+            for i, analysis in enumerate(analyses):
+                results = get_Dmax_EoverD_LoverD(content, analysis_type=analysis, L_over_D_ratios=[L_over_D], E_over_D_ratios=E_over_D_ratios)
+                RESULTS[analysis] = {}
+                RESULTS[analysis]['E_over_D'] = [v['E_over_D_ratio'] for v in results.values()]
+                RESULTS[analysis]['Dmax'] = [v['Dmax'] for v in results.values()]
+                RESULTS[analysis]['Governing_load_combo'] = [v['Governing_Load_Combo'] for v in results.values()]
 
-            for ratio_key, load_combo_case in load_combo_cases.items():
+                E_over_D = np.array(RESULTS[analysis]['E_over_D'])
+                Dmax = np.array(RESULTS[analysis]['Dmax'])
+                governing_combos = RESULTS[analysis]['Governing_load_combo']
+                if len(E_over_D) == 0: continue
+                sorted_indices = np.argsort(E_over_D)
+                line, = ax.plot(E_over_D[sorted_indices], Dmax[sorted_indices], linestyle=linestyles[i % len(linestyles)], linewidth=1.8, label=analysis)
+                ax.scatter(E_over_D, Dmax, c=[load_combo_colors.get(combo, 'gray') for combo in governing_combos], s=15, zorder=3)
 
-                stored_L_over_D_ratio = load_combo_case.get("L_over_D_ratio")
-                stored_E_over_D_ratio = load_combo_case.get("E_over_D_ratio")
+                analysis_handles.append(line)
 
-                matches_L_over_D = load_combo_L_over_D_ratio is None or stored_L_over_D_ratio == load_combo_L_over_D_ratio
+            ax.set_xlabel('E/D Ratio')
+            ax.set_ylabel('D_max')
+            ax.set_title(f'L/D = {L_over_D}')
+            ax.grid(True, alpha=0.3)
 
-                if not matches_L_over_D:
-                    continue
+            combo_handles = [Line2D([0], [0], marker='o', color='none', markerfacecolor=color, markersize=8, linestyle='None', label=combo) for combo, color in load_combo_colors.items()]
+            if analysis_handles:
+                legend1 = ax.legend(handles=analysis_handles, loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=len(analysis_handles), frameon=False)
+                ax.add_artist(legend1)
 
-                load_combo_results = load_combo_case.get("load_combo_results", {})
+            ax.legend(handles=combo_handles, loc='upper center', bbox_to_anchor=(0.5, -0.25), ncol=len(combo_handles), frameon=False)
+            fig.subplots_adjust(bottom=0.30)
 
-                for load_combo_name, load_combo_result in load_combo_results.items():
-                    if load_combo_name in ["Dmax","governing_load_combo"]:
-                            continue
-                    
-                    governing = load_combo_result.get("governing", False)
-                    if not governing:
-                        continue
-
-                    vertical_load = load_combo_result.get("vertical_load")
-                    d_max=load_combo_result.get("D_max")
-
-                    if stored_E_over_D_ratio is None or vertical_load is None:
-                        continue
-
-                    E_over_D_values.append(stored_E_over_D_ratio)
-                    governing_vertical_loads.append(vertical_load)
-                    D_max.append(d_max)
-
-            if len(E_over_D_values) == 0:
-                print(f"Skipping analysis '{analysis}' in {file_path.name}: no governing load combinations were found.")
-                continue
-
-            sorted_data = sorted(zip(E_over_D_values, governing_vertical_loads), key=lambda x: x[0])
-
-            E_over_D_values = [value[0] for value in sorted_data]
-            governing_vertical_loads = [value[1] for value in sorted_data]
-
-            ax.plot(E_over_D_values, D_max, label=analysis, linestyle=line_styles[analysis_index % len(line_styles)], marker="o",markersize=4, linewidth=1.8, alpha=0.9)
-
-            plotted_analyses.append(analysis)
-
-        if not plotted_analyses:
-            print(f"Skipping {file_path.name}: no valid governing load combination curves were found.")
-            plt.close(fig)
-            continue
-
-        ax.set_xlabel("E/D Ratio")
-        ax.set_ylabel("D_max")
-        ax.set_xlim(left=0)
-        ax.set_ylim(bottom=0)
-        ax.grid(True, alpha=0.3)
-        ax.legend(title="Analysis", loc="best")
-
-        if no_of_stories == 1:
-            story_label = "1 story"
-        elif isinstance(no_of_stories, (int, float)):
-            story_label = f"{no_of_stories} stories"
-        else:
-            story_label = str(no_of_stories)
-
-        title_lines = [f"{section_name}, axis = {bending_axis}", f"{story_label}, h = {storey_height} m"]
-
-        if material is not None:
-            title_lines.append(f"Material = {material}")
-
-        L_D_label = "all" if load_combo_L_over_D_ratio is None else str(load_combo_L_over_D_ratio)
-
-        title_lines.append(f"L/D = {L_D_label}")
-
-        ax.set_title("\n".join(title_lines))
-        fig.tight_layout()
-
-        save_path = None
-
-        if save:
-            save_folder = os.path.join("Column_Results/Analysis_History", f"{frame_id}")
-            os.makedirs(save_folder, exist_ok=True)
-            filename = f"governing_vertical_load_vs_E_D_L_D_{L_D_label}.png"
-            save_path = os.path.join(save_folder, filename)
-            fig.savefig(save_path, dpi=300, bbox_inches="tight")
-            print(f"[{file_number}/{len(json_files)}] Saved to: {save_path}")
-
-        results.append({"frame_id": frame_id, "analyses": plotted_analyses, "L_over_D_ratio": load_combo_L_over_D_ratio, "save_path": save_path})
-
-        if show:
-            plt.show()
-        else:
+            if save: fig.savefig(save_folder / f'Dmax_vs_EoverD_LoverD_{L_over_D:.4f}.png', dpi=300, bbox_inches='tight')
+            if show: plt.show()
             plt.close(fig)
 
-    return results
 
 def plot_theta_vs_del2_over_del1_for_all_analyses(json_file_path,cap=3, save=True, show=True):
     """
@@ -1445,7 +1384,7 @@ def my_scatter_plot(data_df, x_col, y_col, hover_data=None, xlabel=None, ylabel=
                      labels={x_col: xlabel, y_col: ylabel})
     fig.update_traces(
         marker=dict(
-            size=3,
+            size=6,
             opacity=0.9,
             line=dict(color="black", width=0.7)
         )
@@ -1918,6 +1857,35 @@ def get_governing_load_combo_details(json_file_path, analysis_type, L_over_D_rat
 
         print(f"Updated file: {file_path.name}")
 
+def get_Dmax_EoverD_LoverD(json_file_content, analysis_type, L_over_D_ratios, E_over_D_ratios):
+
+
+    # Retrieve the interaction diagram
+    analysis1_ALR_H = json_file_content[analysis_type]["Original_ALR_H"]
+    analysis1_ALR_V = json_file_content[analysis_type]["Original_ALR_V"]
+    analysis1_interaction_diagram = InteractionDiagram2d(analysis1_ALR_H, analysis1_ALR_V)
+
+    # Initialize results dictionary
+    results = {}
+    x = 0
+
+    # Compute results
+    for L_over_D_ratio in L_over_D_ratios:
+        for E_over_D_ratio in E_over_D_ratios:
+            load_combo_results = find_the_intersection_of_load_combo_with_interaction_curves(
+                analysis1_interaction_diagram,
+                L_over_D_ratio,
+                E_over_D_ratio
+            )
+            results[x] = {
+                'L_over_D_ratio': L_over_D_ratio,
+                'E_over_D_ratio': E_over_D_ratio,
+                'Dmax': load_combo_results['Dmax'],
+                'Governing_Load_Combo': load_combo_results['governing_load_combo']
+            }
+            x += 1
+    return results
+
 def find_the_intersection_of_load_combo_with_interaction_curves(interaction_diagram, L_over_D_ratio, E_over_D_ratio):
 
     load_combinations = {
@@ -1942,11 +1910,222 @@ def find_the_intersection_of_load_combo_with_interaction_curves(interaction_diag
     results = {}
     results['Dmax'] = 1 / governing_ratio
     results['governing_load_combo'] = governing_load_combo   
-    for load_combo_name, load_factors in load_combinations.items():
-        horizontal_load, vertical_load = load_factors  
-        results[load_combo_name] = {"horizontal_load": horizontal_load/governing_ratio, "vertical_load": vertical_load/governing_ratio, 'governing': load_combo_name == governing_load_combo}
+    # for load_combo_name, load_factors in load_combinations.items():
+    #     horizontal_load, vertical_load = load_factors  
+    #     results[load_combo_name] = {"horizontal_load": horizontal_load/governing_ratio, "vertical_load": vertical_load/governing_ratio, 'governing': load_combo_name == governing_load_combo}
     
     return results
+
+def plot_LoverD_EoverD_Dmaxerror_contour_plots(json_file_path,benchmark_analysis,test_analysis,L_over_D_ratios, E_over_D_ratios,
+                                     frame_names_list=None, storey_heights_list=None, no_of_stories_list=None, bending_axes_list=None, support_list=None,save=True,show=False):
+
+    json_files = [f for f in Path(json_file_path).iterdir() if f.is_file() and f.suffix.lower() == ".json"]
+
+    for file_path in tqdm(json_files, desc="Processing Frames", unit="frame"):
+
+        # Find and load json files
+        if not file_path.is_file() or file_path.suffix.lower() != ".json":
+            continue
+
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = json.load(file)
+
+        # Filters to run only selected frames
+        frame_id = content["data"]["Frame_id"]
+        frame_name = content["data"]["column_section_name"]
+        bending_axis = content["data"]["bending_axes"]
+        storey_height = content["data"]["storey_height"][0]
+        no_of_stories = content["data"]["no_of_stories"]
+        support = content["data"]["support"]
+
+        matches_filter = ((frame_names_list is None or frame_name in frame_names_list) 
+                    and (storey_heights_list is None or storey_height in storey_heights_list)
+                    and (no_of_stories_list is None or no_of_stories in no_of_stories_list) 
+                    and (bending_axes_list is None or bending_axis in bending_axes_list) 
+                    and (support_list is None or support in support_list))
+
+        if not matches_filter:
+            continue
+
+        L_over_D_all = []
+        E_over_D_all = []
+        Dmax_error_all = []
+
+        for L_over_D in tqdm(L_over_D_ratios, desc=f"Frame {frame_id}", unit="ratio", leave=False):
+            results_benchmark=get_Dmax_EoverD_LoverD(content, benchmark_analysis, L_over_D_ratios=[L_over_D], E_over_D_ratios=E_over_D_ratios)
+            results_test=get_Dmax_EoverD_LoverD(content, test_analysis, L_over_D_ratios=[L_over_D], E_over_D_ratios=E_over_D_ratios)
+            E_over_D = [v['E_over_D_ratio'] for v in results_benchmark.values()]
+            Dmax_benchmark = [v['Dmax'] for v in results_benchmark.values()]
+            Dmax_test = [v['Dmax'] for v in results_test.values()]
+            Dmax_error = [(benchmark - test) / benchmark * 100 for benchmark, test in zip(Dmax_benchmark, Dmax_test)]
+            
+            # Store data for contour plot
+            L_over_D_all.extend([L_over_D] * len(E_over_D))
+            E_over_D_all.extend(E_over_D)
+            Dmax_error_all.extend(Dmax_error)
+
+        E_grid, L_grid = np.meshgrid(E_over_D_ratios, L_over_D_ratios)
+        Error_grid = np.array(Dmax_error_all).reshape(len(L_over_D_ratios), len(E_over_D_ratios))
+
+        save_folder = Path("Column_Results") / "Analysis_History" / str(frame_id) / "Contour plots"
+        if save:
+            save_folder.mkdir(parents=True, exist_ok=True)
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        contours = ax.contour(E_grid, L_grid, Error_grid, levels=10, colors='black', linewidths=0.8)
+        ax.clabel(contours, inline=True, fontsize=8, fmt='%.1f%%')
+
+        if np.nanmin(Error_grid) <= -5 <= np.nanmax(Error_grid):
+            contour_minus5 = ax.contour(E_grid, L_grid, Error_grid, levels=[-5], colors='red', linewidths=2)
+            ax.clabel(contour_minus5, inline=True, fontsize=9, fmt='%.1f%%')
+
+        ax.set_xlabel('E/D Ratio')
+        ax.set_ylabel('L/D Ratio')
+        ax.set_title(f'Dmax Error Contour: {benchmark_analysis} vs {test_analysis}')
+        ax.grid(alpha=0.2)
+        plt.tight_layout()
+
+        if save:
+            fig.savefig(save_folder / f'Dmax_Error_Contour_{benchmark_analysis}_vs_{test_analysis}.png', dpi=300, bbox_inches='tight')
+        if show:
+            plt.show()
+        plt.close(fig)
+
+
+
+#################################################################################
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        mesh = ax.pcolormesh(E_grid, L_grid, Error_grid, shading='auto', cmap='coolwarm')
+
+        for i, L_over_D in enumerate(L_over_D_ratios):
+            for j, E_over_D in enumerate(E_over_D_ratios):
+                ax.text(E_over_D, L_over_D, f'{Error_grid[i, j]:.1f}', ha='center', va='center', fontsize=8)
+
+        cbar = fig.colorbar(mesh, ax=ax)
+        cbar.set_label('Dmax Error (%)')
+
+        ax.set_xlabel('E/D Ratio')
+        ax.set_ylabel('L/D Ratio')
+        ax.set_title(f'Dmax Error Heatmap: {benchmark_analysis} vs {test_analysis}')
+        plt.tight_layout()
+
+        if save:
+            fig.savefig(save_folder / f'Dmax_Error_Heatmap_{benchmark_analysis}_vs_{test_analysis}.png', dpi=300, bbox_inches='tight')
+        if show:
+            plt.show()
+        plt.close(fig)
+
+
+
+######################################################################
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        min_error = np.nanmin(Error_grid)
+        max_error = np.nanmax(Error_grid)
+
+        # Safe and unsafe regions
+        if min_error < -5 < max_error:
+            filled = ax.contourf(E_grid, L_grid, Error_grid, levels=[min_error - 0.001, -5, max_error + 0.001], colors=['lightcoral', 'lightgreen'], alpha=0.8)
+            boundary = ax.contour(E_grid, L_grid, Error_grid, levels=[-5], colors='black', linewidths=2)
+            ax.clabel(boundary, inline=True, fontsize=9, fmt='%.1f%%')
+
+        elif max_error <= -5:
+            ax.set_facecolor('lightcoral')
+
+        else:
+            ax.set_facecolor('lightgreen')
+
+        from matplotlib.patches import Patch
+        legend_handles = [Patch(facecolor='lightgreen', edgecolor='black', label='Safe: Error ≥ -5%'), Patch(facecolor='lightcoral', edgecolor='black', label='Unsafe: Error < -5%')]
+        ax.legend(handles=legend_handles, loc='best')
+
+        ax.set_xlim(np.min(E_over_D_ratios), np.max(E_over_D_ratios))
+        ax.set_ylim(np.min(L_over_D_ratios), np.max(L_over_D_ratios))
+
+        ax.set_xlabel('E/D Ratio')
+        ax.set_ylabel('L/D Ratio')
+        ax.set_title(f'Safe and Unsafe Regions: {benchmark_analysis} vs {test_analysis}')
+
+        plt.tight_layout()
+
+        if save:
+            save_folder = Path("Column_Results") / "Analysis_History" / str(frame_id) / "Contour plots"
+            save_folder.mkdir(parents=True, exist_ok=True)
+            fig.savefig(save_folder / f'Dmax_Error_Safe_Unsafe_{benchmark_analysis}_vs_{test_analysis}.png', dpi=300, bbox_inches='tight')
+
+        if show:
+            plt.show()
+
+        plt.close(fig)
+
+#####################################################################
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        min_error = np.nanmin(Error_grid)
+        max_error = np.nanmax(Error_grid)
+
+        levels = [min_error]
+        if min_error < -5 < max_error or np.isclose(-5, min_error) or np.isclose(-5, max_error):
+            levels.append(-5)
+        if min_error < 0 < max_error or np.isclose(0, min_error) or np.isclose(0, max_error):
+            levels.append(0)
+        levels.append(max_error)
+
+        levels = sorted(set(levels))
+
+        if len(levels) >= 2:
+            if len(levels) == 2:
+                if max_error <= -5:
+                    colors = ['lightcoral']
+                elif min_error >= 0:
+                    colors = ['lightgreen']
+                else:
+                    colors = ['khaki']
+            elif len(levels) == 3:
+                if max_error <= 0 and min_error < -5:
+                    colors = ['lightcoral', 'khaki']
+                elif min_error >= -5 and max_error > 0:
+                    colors = ['khaki', 'lightgreen']
+                else:
+                    colors = ['lightcoral', 'lightgreen']
+            else:
+                colors = ['lightcoral', 'khaki', 'lightgreen']
+
+            filled = ax.contourf(E_grid, L_grid, Error_grid, levels=levels, colors=colors, alpha=0.8)
+
+        if min_error <= -5 <= max_error:
+            contour_minus5 = ax.contour(E_grid, L_grid, Error_grid, levels=[-5], colors='black', linewidths=2)
+            ax.clabel(contour_minus5, inline=True, fontsize=9, fmt='%.1f%%')
+
+        if min_error <= 0 <= max_error:
+            contour_zero = ax.contour(E_grid, L_grid, Error_grid, levels=[0], colors='blue', linewidths=2)
+            ax.clabel(contour_zero, inline=True, fontsize=9, fmt='%.1f%%')
+
+        from matplotlib.patches import Patch
+        legend_handles = [
+            Patch(facecolor='lightcoral', edgecolor='black', label='Error < -5%'),
+            Patch(facecolor='khaki', edgecolor='black', label='-5% ≤ Error < 0%'),
+            Patch(facecolor='lightgreen', edgecolor='black', label='Error ≥ 0%')
+        ]
+        ax.legend(handles=legend_handles, loc='best')
+
+        ax.set_xlabel('E/D Ratio')
+        ax.set_ylabel('L/D Ratio')
+        ax.set_title(f'Dmax Error Regions: {benchmark_analysis} vs {test_analysis}')
+        plt.tight_layout()
+
+        if save:
+            save_folder = Path("Column_Results") / "Analysis_History" / str(frame_id) / "Contour plots"
+            save_folder.mkdir(parents=True, exist_ok=True)
+            fig.savefig(save_folder / f'Dmax_Error_ThreeRegions_{benchmark_analysis}_vs_{test_analysis}.png', dpi=300, bbox_inches='tight')
+
+        if show:
+            plt.show()
+
+        plt.close(fig)
 
 def compute_del2_over_del1(json_file_path,theta_list):
 
@@ -2955,23 +3134,25 @@ def check_load_ratio_problem(
 if __name__ == "__main__":
     print("running")
     json_file_path="Column_Results/json_files_copy_copy"
-    L_over_D_ratios=np.arange(0.3,6,0.1)
-    L_over_D_ratios=[1]
-    E_over_D_ratios=np.arange(1.8,2.4,0.25)
+    L_over_D_ratios=np.arange(0,6,0.1)
+    # L_over_D_ratios=[1]
+    E_over_D_ratios=np.arange(0,2.6,0.1)
     # E_over_D_ratios=[2]
-    analysis_types=['GMNIA','GNA']
+    analysis_types=['GMNIA','GNA','GNA_Notional_Loads']
 
-    for analysis_type in analysis_types:
-        get_governing_load_combo_details(json_file_path,analysis_type,L_over_D_ratios,E_over_D_ratios)
+    # for analysis_type in analysis_types:
+    #     get_governing_load_combo_details(json_file_path,analysis_type,L_over_D_ratios,E_over_D_ratios)
     
-    plot_interaction_diagrams_for_all_analyses_with_load_combo_info(json_file_path=json_file_path,
-                                                                    use_original=True,
-                                                                    save=True,
-                                                                    show=False,
-                                                                    analysis_types=analysis_types,
-                                                                    load_combo_analysis='GNA',
-                                                                    load_combo_L_over_D_ratio=None,
-                                                                    load_combo_E_over_D_ratio=None)  
+    # plot_interaction_diagrams_for_all_analyses_with_load_combo_info(json_file_path=json_file_path,
+    #                                                                 use_original=True,
+    #                                                                 save=True,
+    #                                                                 show=False,
+    #                                                                 analysis_types=analysis_types,
+    #                                                                 load_combo_analysis='GNA',
+    #                                                                 load_combo_L_over_D_ratio=None,
+    #                                                                 load_combo_E_over_D_ratio=None)  
 
-    for L_over_D_ratio in L_over_D_ratios:
-        plot_governing_vertical_load_vs_E_over_D_for_all_analyses(json_file_path=json_file_path,save=True,show=False,analysis_types=analysis_types,load_combo_L_over_D_ratio=L_over_D_ratio)
+
+    #plot_governing_D_max_vs_E_over_D_for_all_analyses(json_file_path=json_file_path,save=True,show=False,analysis_types=analysis_types,L_over_D_ratios=L_over_D_ratios,E_over_D_ratios=E_over_D_ratios)
+
+    plot_LoverD_EoverD_Dmaxerror_contour_plots(json_file_path,'GMNIA','GNA',L_over_D_ratios,E_over_D_ratios)
