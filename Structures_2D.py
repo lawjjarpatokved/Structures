@@ -6,38 +6,17 @@ import os
 from libdenavit.OpenSees.plotting import plot_deformed_2d,plot_undeformed_2d,get_node_coords_and_disp
 from libdenavit.OpenSees.get_fiber_data import *
 from Plots import line_plot
-from helpers import save_deformed_shape_frame,WF_Database
-from math import pi, ceil
+from helpers import WF_Database
+from math import pi
 from libdenavit.section.wide_flange import *
 from libdenavit.OpenSees import AnalysisResults
 from libdenavit import find_limit_point_in_list, interpolate_list
 import copy
-import inspect
 import opsvis
 import matplotlib
 matplotlib.use("TkAgg")
 import numpy as np
 import matplotlib.pyplot as plt
-import opsvis as opsv
-from pathlib import Path
-
-#################################################
-# density_of_steel=7850*kg/(m**3)
-# g=9.81*m/(sec**2)
-# E=29000*ksi
-# G=77221*Mpa
-# Fy=36*ksi
-# Hk = 0.001*E           # Kinematic hardening modulus
-
-# class Steel_Material:
-#     def __init__(self,mat_tag,E,Fy,G,Hk,density):
-#         self.mat_tag=mat_tag
-#         self.E=E
-#         self.Fy=Fy
-#         self.G=G
-#         self.Hk=Hk
-#         self.density=density
-#         self.b=Hk / (E + Hk) 
 
 class Structures_2D:
 
@@ -49,7 +28,7 @@ class Structures_2D:
                  beam_section,column_section,load_combination_multipliers,Frame_id,Material_obj,Steel_Grade,
                  **kwargs):
         # ---- Save a "constructor snapshot" for later cloning ---- This is useful for resetting or duplicating the model. Eg. Calculation of del2_over_del1
-        self._init_spec = copy.deepcopy({k: v for k, v in locals().items() if k != "self"})
+        self._init_spec = copy.deepcopy({**{k: v for k, v in locals().items()if k not in ("self", "kwargs")},**kwargs})
         # print(self._init_spec)
         # print("Constructor snapshot saved. You can use self._init_spec to clone or reset the model later.")
         # input()
@@ -78,6 +57,7 @@ class Structures_2D:
         self.W_multiplier=load_combination_multipliers[3]      ### Wind Load multiplier
         self.Frame_id=Frame_id
         self.Material_obj=Material_obj
+        self.Steel_Grade = Steel_Grade
         self.load_timeseries_counter = 1
         self.load_pattern_counter = 1
         self.kwargs=kwargs
@@ -101,6 +81,7 @@ class Structures_2D:
                   'Residual_Stress':True,
                   'stiffness_reduction':1,
                   'strength_reduction':1,
+                  'P_M_M_interaction_limit':None,
                   'geometric_imperfection_ratio':1/500,
                   'initial_out_of_straightness_ratio':1/1000,
                   'wind_load_dirn':None,
@@ -112,15 +93,13 @@ class Structures_2D:
                   'plot_sections':False,
                   'column_only_model':False,
                   'floor_nodes_free':False,
-                  'wind_load_same_for_all_h':False,
-                  'Steel_Grade':'Not_specified______??????????????'}
+                  'wind_load_same_for_all_h':False
+                  }
         
         for key,value in defaults.items():
             setattr(self,key,kwargs.get(key,value))
 
-
         self.make_beam_section_detail_uniform()
-
         self.make_column_section_detail_uniform()  
 
         if self.support=='All_Fixed':
@@ -718,44 +697,25 @@ class Structures_2D:
             if Structures_2D.nth_digit(beams[1],2,2)==self.no_of_stories:
                 self.roof_beams.append(beams)
 
-    def rebuild_with_overrides(self, message=False, **overrides ):
+    def rebuild_with_overrides(self, message=False, **overrides):
 
         if message:
-            print("WARNING: You are using the rebuild_with_overrides method, which creates a new instance of the class with overridden parameters." \
-            " Make sure to assign the result to a variable, e.g., new_instance = old_instance.rebuild_with_overrides(**overrides). Furthermore, if you are using this" \
-            "method for the first time, make sure that you have given correct override parameters. You can do a simple chekck by comparing the output of the original instance and the new instance for a simple case where you know the expected output. ")
-
+            print(
+                "WARNING: You are using the rebuild_with_overrides method, "
+                "which creates a new instance of the class with overridden parameters. "
+                "Make sure to assign the result to a variable, e.g., "
+                "new_instance = old_instance.rebuild_with_overrides(**overrides). "
+                "If you are using this method for the first time, verify the "
+                "override parameters and compare the results with a known case."
+            )
             input("Press Enter to continue...")
-
-        ## This function rebuilds the current instance with overridden parameters.This is 
-        ## useful for parametric studies where only a few parameters need to be changed.
-        ## For example, this method can be used for the calculation of del2_over_del1 parameter
-        ## for a frame whatever be the original analysis choice (Second order effects: True or False) made during instantiation of the class.
+        # Copy the original constructor parameters
         spec = copy.deepcopy(self._init_spec)
-        spec.setdefault("kwargs", {})
+        # Apply the overrides
+        spec.update(copy.deepcopy(overrides))
+        # Create and return a new instance
+        return self.__class__(**spec)
 
-        sig = inspect.signature(self.__class__.__init__)
-        explicit_params = {
-            p.name for p in sig.parameters.values()
-            if p.name not in ("self",) and p.kind != inspect.Parameter.VAR_KEYWORD
-        }
-        # print("Explicit parameters:", explicit_params)
-    
-        # Apply overrides: explicit args stay explicit, everything else goes into **kwargs
-
-        # print('Overrides to apply:', overrides)
-        for k, v in overrides.items():
-            if k in explicit_params:
-                spec[k] = copy.deepcopy(v)
-            else:
-                spec["kwargs"][k] = copy.deepcopy(v)
-
-        #  split the call into explicit args + **kwargs dict
-        kwargs_dict = spec.pop("kwargs", {})
-        # print("Spec after overrides:", spec)
-        # print("Kwargs dict:", kwargs_dict)
-        
-        return self.__class__(**spec, **kwargs_dict)
     
     def return_max_of_fiber_strain_in_all_elements(self):
         ## returns the maximum strain from among all elements in the Frame
@@ -1058,7 +1018,7 @@ class Structures_2D:
         num_steps_LCA= kwargs.get('num_steps_LCA', 200)            ######### LCA refers to Load Controlled Analysis
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
-        P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
+        P_M_M_interaction_limit=self.P_M_M_interaction_limit
         # try_smaller_steps = kwargs.get('try_smaller_steps', True)
         # control_dir=kwargs.get('control_dir','L')  # L for lateral and V for Vertical
         # ops_analysis=kwargs.get('analysis','proportional_limit_point')
@@ -1246,8 +1206,6 @@ class Structures_2D:
         ## Store drift at all storeys at axis 1 ##
         
         drift=self.return_drift_of_all_storeys_at_given_axis(1)
-        print(results.control_node_displacement)
-        print(results.lowest_eigenvalue)
         if plot:
             plot_analysis_history()
             plt.show()
@@ -1385,14 +1343,14 @@ class Structures_2D:
                                                        geometric_imperfection_ratio=1/500,
                                                        Notional_load=False,
                                                        wind_load_dirn=self.wind_load_dirn)
-        print(Second_order_frame.Second_order_effects)
-        print(Second_order_frame.Geometric_Imperfection)
-        print(Second_order_frame.geometric_imperfection_ratio)
-        print(Second_order_frame.Notional_load)
-        print(Second_order_frame.stiffness_reduction)
-        print(Second_order_frame.strength_reduction)
-        print(Second_order_frame.Residual_Stress)
-        print(Second_order_frame.Elastic_analysis)
+        # print(Second_order_frame.Second_order_effects)
+        # print(Second_order_frame.Geometric_Imperfection)
+        # print(Second_order_frame.geometric_imperfection_ratio)
+        # print(Second_order_frame.Notional_load)
+        # print(Second_order_frame.stiffness_reduction)
+        # print(Second_order_frame.strength_reduction)
+        # print(Second_order_frame.Residual_Stress)
+        # print(Second_order_frame.Elastic_analysis)
         
         Second_order_frame.generate_Nodes_and_Element_Connectivity()
         Second_order_frame.create_distorted_nodes_and_element_connectivity()
@@ -1416,14 +1374,14 @@ class Structures_2D:
                                                        geometric_imperfection_ratio=1/500,
                                                        Notional_load=False,
                                                        wind_load_dirn=self.wind_load_dirn)
-        print(First_order_frame.Second_order_effects)
-        print(First_order_frame.Geometric_Imperfection)
-        print(First_order_frame.geometric_imperfection_ratio)
-        print(First_order_frame.Notional_load)
-        print(First_order_frame.stiffness_reduction)
-        print(First_order_frame.strength_reduction)
-        print(First_order_frame.Residual_Stress)
-        print(First_order_frame.Elastic_analysis)
+        # print(First_order_frame.Second_order_effects)
+        # print(First_order_frame.Geometric_Imperfection)
+        # print(First_order_frame.geometric_imperfection_ratio)
+        # print(First_order_frame.Notional_load)
+        # print(First_order_frame.stiffness_reduction)
+        # print(First_order_frame.strength_reduction)
+        # print(First_order_frame.Residual_Stress)
+        # print(First_order_frame.Elastic_analysis)
         
         First_order_frame.generate_Nodes_and_Element_Connectivity()
         First_order_frame.create_distorted_nodes_and_element_connectivity()
@@ -1456,7 +1414,7 @@ class Structures_2D:
         num_steps_LCA= kwargs.get('num_steps_LCA', 50)            ######### LCA refers to Load Controlled Analysis
         steel_strain_limit = kwargs.get('steel_strain_limit', 0.05)
         eigenvalue_limit = kwargs.get('eigenvalue_limit', 0)
-        P_M_M_interaction_limit=kwargs.get('P_M_M_interaction_limit',1)
+        P_M_M_interaction_limit=self.P_M_M_interaction_limit
         try_smaller_steps = kwargs.get('try_smaller_steps', False)
         control_dir=kwargs.get('control_dir','L')  # L for lateral and V for Vertical
         ops_analysis=kwargs.get('analysis','proportional_limit_point')
@@ -1876,13 +1834,13 @@ class Structures_2D:
                         results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
                         break
                 # Check for maximum PMM interaction value    
-                if self.Elastic_analysis:
-                    if P_M_M_interaction_limit is not None:
-                        # if Structures_2D.print_ops_status:
-                        #     print(f'Checking PMM Interaction')
-                        if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
-                            results.exit_message = 'P_M_M interaction Limit Reached'
-                            break
+
+                if P_M_M_interaction_limit is not None:
+                    # if Structures_2D.print_ops_status:
+                    #     print(f'Checking PMM Interaction')
+                    if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+                        results.exit_message = 'P_M_M interaction Limit Reached'
+                        break
                 
                 
 
@@ -1975,16 +1933,16 @@ class Structures_2D:
                         return results,fail_during_LCA
                         # break
                 # Check for maximum PMM interaction value    
-                if self.Elastic_analysis:
-                    if P_M_M_interaction_limit is not None:
-                        # if Structures_2D.print_ops_status:
-                        #     print(f'Checking PMM Interaction')
-                        if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
-                            results.exit_message = 'P_M_M interaction Limit Reached'
-                            find_limit_point()
-                            return results,fail_during_LCA
-                            # break
-            # find_limit_point()
+
+                if P_M_M_interaction_limit is not None:
+                    # if Structures_2D.print_ops_status:
+                    #     print(f'Checking PMM Interaction')
+                    if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+                        results.exit_message = 'P_M_M interaction Limit Reached'
+                        find_limit_point()
+                        return results,fail_during_LCA
+                        # break
+        # find_limit_point()
 
 
             dU = target_disp / steps
@@ -2102,13 +2060,13 @@ class Structures_2D:
                         results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
                         break
                 # Check for maximum PMM interaction value    
-                if self.Elastic_analysis:
-                    if P_M_M_interaction_limit is not None:
-                        # if Structures_2D.print_ops_status:
-                        #     print(f'Checking PMM Interaction')
-                        if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
-                            results.exit_message = 'P_M_M interaction Limit Reached'
-                            break
+
+                if P_M_M_interaction_limit is not None:
+                    # if Structures_2D.print_ops_status:
+                    #     print(f'Checking PMM Interaction')
+                    if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
+                        results.exit_message = 'P_M_M interaction Limit Reached'
+                        break
 
             update_live_plots(force=True)
             find_limit_point()

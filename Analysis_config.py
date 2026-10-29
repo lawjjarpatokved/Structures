@@ -6,7 +6,8 @@ Analysis_Info= {
                 'stiffness_reduction':0.9,
                 'strength_reduction':0.9,
                 'Geometric_Imperfection':True,
-                'Notional_load':False
+                'Notional_load':False,
+                'P_M_M_interaction_limit':None
                 },
     'GMNA':{
                 'Residual_Stress':True,
@@ -15,7 +16,8 @@ Analysis_Info= {
                 'stiffness_reduction':0.9,
                 'strength_reduction':0.9,
                 'Geometric_Imperfection':False,
-                'Notional_load':False
+                'Notional_load':False,
+                'P_M_M_interaction_limit':None
                 },
     'GNIA':{
                 'Residual_Stress':False,
@@ -24,7 +26,8 @@ Analysis_Info= {
                 'stiffness_reduction':0.8,
                 'strength_reduction':1,
                 'Geometric_Imperfection':True,
-                'Notional_load':False
+                'Notional_load':False,
+                'P_M_M_interaction_limit':1
                 },
     'GNA_Notional_Loads':{
                 'Residual_Stress':False,
@@ -33,7 +36,8 @@ Analysis_Info= {
                 'stiffness_reduction':0.8,
                 'strength_reduction':1,
                 'Geometric_Imperfection':False,
-                'Notional_load':True
+                'Notional_load':True,
+                'P_M_M_interaction_limit':1
                 },
     '1st_order_elastic':{
                 'Residual_Stress':False,
@@ -42,7 +46,8 @@ Analysis_Info= {
                 'stiffness_reduction':0.8,
                 'strength_reduction':1,
                 'Geometric_Imperfection':False,
-                'Notional_load':False
+                'Notional_load':False,
+                'P_M_M_interaction_limit':1
                 },
     'GNA':{
                 'Residual_Stress':False,
@@ -51,7 +56,8 @@ Analysis_Info= {
                 'stiffness_reduction':0.8,
                 'strength_reduction':1,
                 'Geometric_Imperfection':False,
-                'Notional_load':False
+                'Notional_load':False,
+                'P_M_M_interaction_limit':1
                 },
     'GNA_no_stiffness_reduction':{
                 'Residual_Stress':False,
@@ -60,7 +66,8 @@ Analysis_Info= {
                 'stiffness_reduction':1,
                 'strength_reduction':1,
                 'Geometric_Imperfection':False,
-                'Notional_load':False
+                'Notional_load':False,
+                'P_M_M_interaction_limit':1
                 }
 
 

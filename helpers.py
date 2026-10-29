@@ -2643,255 +2643,70 @@ def create_video_from_frames_and_clear_folder(
     print(f"All contents inside {temporary_folder} have been deleted.")
 
 
-def save_analysis_history_figures(
-    parent_folder,
-    results,
-    frame_name,
-    analysis_type,
-    ALR_H,
-    ALR_V,
-    step_size=None,
-    tolerance=None,
-    iterations=None,
-    control_dir=None,
-):
-    """
-    Plot six analysis-history curves in one 2-by-3 figure and save it.
-
-    Parameters
-    ----------
-    parent_folder : str or Path
-        Folder where the figure will be saved.
-
-    results : object
-        Analysis results containing the required response lists.
-
-    frame_name : str
-        Frame identifier.
-
-    analysis_type : str
-        Analysis type, such as GMNIA, GNA, or WC.
-
-    ALR_H, ALR_V : float
-        Horizontal and vertical axial load ratios.
-
-    tolerance : float, optional
-        Convergence tolerance used in the analysis.
-
-    iterations : int, optional
-        Maximum number of convergence iterations.
-
-    control_dir : str, optional
-        Control direction, such as "L" or "V".
-    """
+def save_analysis_history_figures(parent_folder, results, frame_name, analysis_type, ALR_H, ALR_V,
+                                  step_size=None, tolerance=None, iterations=None, control_dir=None):
 
     parent_folder = Path(parent_folder)
-    parent_folder.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    fig, axes = plt.subplots(
-        nrows=2,
-        ncols=3,
-        figsize=(16, 9),
-    )
-
-    axes = axes.ravel()
-
-    plot_options = {
-        "linewidth": 2,
-        "marker": "o",
-        "markersize": 3,
-        "markevery": 1,
-    }
-
-    # 1. Displacement vs load ratio
-    axes[0].plot(
-        results.control_node_displacement,
-        results.load_ratio,
-        **plot_options,
-    )
-    axes[0].set_xlabel("Displacement at Control Node")
-    axes[0].set_ylabel("Load Ratio λ")
-    axes[0].set_title("Load Ratio vs Displacement")
-
-    # 2. Load ratio vs eigenvalue
-    axes[1].plot(
-        results.load_ratio,
-        results.lowest_eigenvalue,
-        **plot_options,
-    )
-    axes[1].set_xlabel("Load Ratio λ")
-    axes[1].set_ylabel("Lowest Eigenvalue")
-    axes[1].set_title("Eigenvalue vs Load Ratio")
-
-    # 3. Vertical reaction vs load ratio
-    axes[2].plot(
-        results.vertical_reaction,
-        results.load_ratio,
-        **plot_options,
-    )
-    axes[2].set_xlabel("Vertical Reaction")
-    axes[2].set_ylabel("Load Ratio λ")
-    axes[2].set_title("Load Ratio vs Vertical Reaction")
-
-    # 4. Base shear vs load ratio
-    axes[3].plot(
-        results.base_shear,
-        results.load_ratio,
-        **plot_options,
-    )
-    axes[3].set_xlabel("Base Shear")
-    axes[3].set_ylabel("Load Ratio λ")
-    axes[3].set_title("Load Ratio vs Base Shear")
-
-    # 5. Maximum strain vs load ratio
-    axes[4].plot(
-        results.absolute_maximum_strain,
-        results.load_ratio,
-        **plot_options,
-    )
-    axes[4].set_xlabel("Absolute Maximum Strain")
-    axes[4].set_ylabel("Load Ratio λ")
-    axes[4].set_title("Load Ratio vs Maximum Strain")
-
-    # 6. Load ratio vs P-M-M interaction
-    axes[5].plot(
-        results.load_ratio,
-        results.max_P_M_M_interaction,
-        **plot_options,
-    )
-    axes[5].set_xlabel("Load Ratio λ")
-    axes[5].set_ylabel("Maximum P-M-M Interaction")
-    axes[5].set_title("P-M-M Interaction vs Load Ratio")
-
-    # Common formatting
-    for ax in axes:
-        ax.grid(
-            True,
-            linestyle="--",
-            linewidth=0.7,
-            alpha=0.5,
-        )
-
-        ax.tick_params(
-            axis="both",
-            direction="in",
-            labelsize=9,
-        )
-
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-
-        ax.margins(
-            x=0.05,
-            y=0.08,
-        )
-
+    parent_folder.mkdir(parents=True, exist_ok=True)
+    plt.figure(figsize=(16, 9))
+    plot_options = {"linewidth": 2, "marker": "o", "markersize": 3, "markevery": 1}
+    # Plot definitions: (x, y, xlabel, ylabel, title)
+    plots = [
+        (results.control_node_displacement, results.load_ratio,
+         "Displacement at Control Node", "Load Ratio λ", "Load Ratio vs Displacement"),
+        (results.load_ratio, results.lowest_eigenvalue,
+         "Load Ratio λ", "Lowest Eigenvalue", "Eigenvalue vs Load Ratio"),
+        (results.vertical_reaction, results.load_ratio,
+         "Vertical Reaction", "Load Ratio λ", "Load Ratio vs Vertical Reaction"),
+        (results.base_shear, results.load_ratio,
+         "Base Shear", "Load Ratio λ", "Load Ratio vs Base Shear"),
+        (results.absolute_maximum_strain, results.load_ratio,
+         "Absolute Maximum Strain", "Load Ratio λ", "Load Ratio vs Maximum Strain"),
+        (results.load_ratio, results.max_P_M_M_interaction,
+         "Load Ratio λ", "Maximum P-M-M Interaction", "P-M-M Interaction vs Load Ratio")
+    ]
+    # Plot all six graphs
+    for i, (x, y, xlabel, ylabel, title) in enumerate(plots, start=1):
+        plt.subplot(2, 3, i)
+        plt.plot(x, y, **plot_options)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.title(title)
+        plt.grid(True, linestyle="--", linewidth=0.7, alpha=0.5)
+        plt.tick_params(axis="both", direction="in", labelsize=9)
+        plt.margins(x=0.05, y=0.08)
     # Main title
     title = f"{frame_name} — {analysis_type}"
-
     if control_dir is not None:
         title += f" — Control Direction: {control_dir}"
 
-    fig.suptitle(
-        title,
-        fontsize=15,
-        fontweight="bold",
-        y=0.98,
-    )
-
-    # Build information box
-    information = [
-        f"ALR_H: {ALR_H}",
-        f"ALR_V: {ALR_V}",
-    ]
-
+    plt.suptitle(title, fontsize=15, fontweight="bold", y=0.98)
+    # Information box
+    information = [f"ALR_H: {ALR_H}", f"ALR_V: {ALR_V}"]
     if tolerance is not None:
-        information.append(
-            f"Tolerance: {tolerance:.2e}"
-        )
-
+        information.append(f"Tolerance: {tolerance:.2e}")
     if iterations is not None:
-        information.append(
-            f"Iterations: {iterations}"
-        )
-
+        information.append(f"Iterations: {iterations}")
     if step_size is not None:
-        information.append(
-            f"No_of_steps: {step_size}"
-        )
-
+        information.append(f"No_of_steps: {step_size}")
     information_text = "\n".join(information)
-
-    fig.text(
-        0.985,
-        0.975,
-        information_text,
-        ha="right",
-        va="top",
-        fontsize=9,
-        bbox={
-            "boxstyle": "round,pad=0.4",
-            "facecolor": "white",
-            "edgecolor": "black",
-            "linewidth": 0.8,
-            "alpha": 0.9,
-        },
-    )
-
-    fig.tight_layout(
-        rect=[0, 0, 1, 0.91],
-        h_pad=2,
-        w_pad=2,
-    )
-
-    # Build filename dynamically
-    filename_parts = [
-        f"ALR_H_{ALR_H}",
-        f"ALR_V_{ALR_V}",
-        # str(frame_name),
-        # str(analysis_type),
-    ]
-
+    plt.gcf().text(0.985, 0.975, information_text, ha="right", va="top", fontsize=9,
+                   bbox={"boxstyle": "round,pad=0.4", "facecolor": "white",
+                         "edgecolor": "black", "linewidth": 0.8, "alpha": 0.9})
+    plt.tight_layout(rect=[0, 0, 1, 0.91], h_pad=2, w_pad=2)
+    # Dynamic filename
+    filename_parts = [f"ALR_H_{ALR_H}", f"ALR_V_{ALR_V}"]
     if control_dir is not None:
-        filename_parts.append(
-            f"control_{control_dir}"
-        )
-
+        filename_parts.append(f"control_{control_dir}")
     if tolerance is not None:
-        tolerance_text = (
-            f"{tolerance:.2e}"
-            .replace("+", "")
-        )
-
-        filename_parts.append(
-            f"tol_{tolerance_text}"
-        )
-
+        filename_parts.append(f"tol_{tolerance:.2e}".replace("+", ""))
     if iterations is not None:
-        filename_parts.append(
-            f"iter_{iterations}"
-        )
-
+        filename_parts.append(f"iter_{iterations}")
     if step_size is not None:
-        filename_parts.append(
-            f"No_of_steps_{step_size}"
-        )
-
-    filename = parent_folder / (
-        "_".join(filename_parts) + ".png"
-    )
-
-    fig.savefig(
-        filename,
-        dpi=300,
-        bbox_inches="tight",
-    )
-
-    # Close only this figure
-    plt.close(fig)
+        filename_parts.append(f"No_of_steps_{step_size}")
+    filename = parent_folder / ("_".join(filename_parts) + ".png")
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
 
 def check_load_ratio_problem(
     results,

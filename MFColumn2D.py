@@ -140,6 +140,10 @@ class MFColumn_2D(Structures_2D):
         
         # self.get_lateral_loading_direction()  
 
+    @classmethod
+    def from_dict(cls, details_dict: dict):
+        return cls(**details_dict)
+
     def axis_i_floor_load(self, i=1):
         if i == 1:
             return [(-self.D_multiplier*self.D_floor_intensity)+(-self.L_multiplier*self.L_floor_intensity)]
