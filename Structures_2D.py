@@ -124,7 +124,7 @@ class Structures_2D:
             raise ValueError(f"The number of arguments given for supports {self.support} should be equal to the number of columns, {(self.no_of_bays)+1}. ")
   
   
-
+    # @todo - better to move some of these staticmethods outside of the class
     @staticmethod
     def nth_digit(num, n, m=None):
         m=1 if m is None else m
@@ -559,7 +559,8 @@ class Structures_2D:
                                         axis='x')
             self.Material_obj.mat_tag += 2 * self.num_regions + 2
             ops.beamIntegration("Lobatto", beam_section_tag, beam_section_tag, self.nip)
-            setattr(self, beam_section_name, beam)
+            setattr(self, beam_section_name, beam) 
+            # @todo - eventually replace with beam_sections dictionary
 
         # Columns
         for column_section_name, (column_section_tag, axis) in self.column_section_tags.items():

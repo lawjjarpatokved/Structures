@@ -1,7 +1,6 @@
-from MFColumn2D import *
+from MFColumn2D import MFColumn_2D # @todo avoid using * in imports
 from Analysis_config import Analysis_Info
 from Materials_config import Material_Info
-import opsvis as opsv 
 from helpers import Steel_Material,save_analysis_history_figures
 
 
@@ -34,12 +33,12 @@ details_dict = {
     "width_of_bay": [],
     "storey_height": [story_height]*no_of_stories,
     "no_of_elements_column": 4,
-    "no_of_elements_beam": 4,
+    "no_of_elements_beam": 4,  # @todo - needed for MFColumn2D?
     "beam_section": {
         "common_and_exceptions": {
             "common": "W27X84"
         }
-    },
+    }, # @todo - needed for MFColumn2D?
     "column_section": {
         "common_and_exceptions": {
             "common": (column_section_name, bending_axes)
@@ -55,7 +54,7 @@ details_dict = {
     "L_floor_intensity": 0.0,
     "L_roof_intensity": 0.0,
     "Base_Wind_load": 1000.0,
-    "Wall_load": 0,
+    "Wall_load": 0, # @todo - maybe the default on this could be zero.
     "Residual_Stress": Analysis_dict["Residual_Stress"],
     "Elastic_analysis": Analysis_dict["Elastic_analysis"],
     "Second_order_effects": Analysis_dict["Second_order_effects"],
@@ -76,7 +75,7 @@ details_dict = {
     "Leaning_column_roof_load": 0,
     "floor_nodes_free": False,
     "wind_load_same_for_all_h": False,
-    "column_only_model": True
+    "column_only_model": True  # @todo - needed for MFColumn2D?
 }
 
 # Create MFColumn_2D Object

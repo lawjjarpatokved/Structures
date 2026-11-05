@@ -17,6 +17,8 @@ import matplotlib.cm as color
 from matplotlib.colors import Normalize
 from matplotlib.animation import FuncAnimation
 import inspect
+# @todo - clean up your imports
+# @todo - removed unneeded commented code
 
 # #################################################
 # density_of_steel=7850*kg/(m**3)
