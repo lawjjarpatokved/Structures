@@ -1166,43 +1166,6 @@ class Structures_2D:
                 print('Load controlled analysis PASSED')
             record()
 
-            # Check for lowest eigenvalue less than zero
-            # if eigenvalue_limit is not None:
-            #     if results.lowest_eigenvalue[-1] < eigenvalue_limit:
-            #         results.exit_message = 'Eigenvalue Limit Reached'
-            #         drift=self.return_drift_of_all_storeys_at_given_axis(1)
-            #         find_limit_point()
-            #         if plot:
-            #             plot_analysis_history()
-            #         return drift,results,fail_during_LCA
-                    # break
-
-            # Check for strain in extreme steel fiber
-            # if steel_strain_limit is not None:
-            #     # if Structures_2D.print_ops_status:
-            #     #     print(f'Checking Steel Tensile Strain')
-            #     if results.absolute_maximum_strain[-1] > steel_strain_limit:
-            #         results.exit_message = 'Extreme Steel Fiber Strain Limit Reached'
-            #         drift=self.return_drift_of_all_storeys_at_given_axis(1)
-            #         find_limit_point()
-            #         if plot:
-            #             plot_analysis_history()
-            #         return drift,results,fail_during_LCA
-                    # break
-            # Check for maximum PMM interaction value    
-
-            # if self.Elastic_analysis:
-            #     if P_M_M_interaction_limit is not None:
-            #         # if Structures_2D.print_ops_status:
-            #         #     print(f'Checking PMM Interaction')
-            #         if results.max_P_M_M_interaction[-1] > P_M_M_interaction_limit:
-            #             results.exit_message = 'P_M_M interaction Limit Reached'
-            #             drift=self.return_drift_of_all_storeys_at_given_axis(1)
-            #             find_limit_point()
-            #             if plot:
-            #                 plot_analysis_history()
-            #             return drift,results,fail_during_LCA
-
         ## Store drift at all storeys at axis 1 ##
         
         drift=self.return_drift_of_all_storeys_at_given_axis(1)

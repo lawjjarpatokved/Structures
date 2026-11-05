@@ -68,6 +68,7 @@ def MF_2D_runner(Frame_number,Analysis_type,tolerance,iterations,control_dir='L'
                         strength_reduction=Analysis_details.strength_reduction,
                         Notional_load=Analysis_details.Notional_load,
                         Geometric_Imperfection=Analysis_details.Geometric_Imperfection,
+                        P_M_M_interaction_limit=Analysis_details.P_M_M_interaction_limit,
                         geometric_imperfection_ratio=Frame_details.geometric_imperfection_ratio,
                         initial_out_of_straightness_ratio=Frame_details.initial_out_of_straightness_ratio,
                         nip=3,
@@ -226,9 +227,6 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot=False,
 
             if plot:
                 fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
-
-            # store intersection points for optional later use
-            intersections = []   # list of (x, y, color)
 
             for j, analysis_type in enumerate(Analysis_type):
                 ALR_H, ALR_V = [], []
@@ -513,8 +511,6 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot=False,
             fig_alr, ax_alr = None, None       
             if plot:
                 fig_alr, ax_alr = plt.subplots(figsize=(5, 5))
-            # NEW: store intersections if you want them later (optional)
-            intersections = []
 
             for j, analysis_type in enumerate(Analysis_type):
                 ALR_H, ALR_V = [], []
@@ -535,9 +531,6 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot=False,
                 analysis_folder = os.path.join("Column_Results/Analysis_History", Frame.Frame_id, analysis_type)
                 os.makedirs(analysis_folder, exist_ok=True)
 
-                
-
-                # --- Initialize ALR values ---
                 ALR_V_max = results.maximum_load_ratio_at_limit_point
                 V=ALR_V_max
                 H=0
@@ -547,7 +540,6 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot=False,
 
                 check_load_ratio_problem(results,frame_number,analysis_type,V,H)
 
-                # --- Plot PMM interaction for base case ---
                 save_pmm_plot(
                     results.P_M_M_interaction_all_elements[-1],
                     os.path.join(
@@ -560,7 +552,6 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot=False,
                                                   step_size=step_size_V,
                                                 iterations=iterations)
 
-                # --- Sweep vertical loads: fine steps near 0 ---
                 for i in np.arange(0, 0.1, 0.05):
                     
                     print(f"Running vertical load scale {i:.3f}")
@@ -587,7 +578,6 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot=False,
                         exit_message.insert(-1,results.exit_message)
 
                         check_load_ratio_problem(results,frame_number,analysis_type,V,H)
-                        # --- Plot PMM every 2nd step ---
                         if int(i * 10) % 2 == 0:
                             save_pmm_plot(
                                 results.P_M_M_interaction_all_elements[-1],
@@ -601,7 +591,6 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot=False,
                                                   step_size=step_size_L,
                                                 iterations=iterations)
 
-                # --- Sweep vertical loads: 0.1 to 1.0 ---
                 for i in np.arange(0.1, 1.0, 0.1):
                     
                     print(f"Running vertical load scale {i:.2f}")
@@ -641,15 +630,11 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot=False,
                                                   step_size=step_size_L,
                                                 iterations=iterations)
 
-                # --- Sweep vertical loads: 1.0 to 4.0 ---
                 for i in np.arange(1.0, 2, 0.1):
                     
                     print(f'{analysis_type}')
                     print(f"Running vertical load scale {i:.2f}")
-                    # input()
 
-    
-                    
                     results,  fail_during_LCA,Frame = MF_2D_runner(
                         Frame_number=frame_number,
                         Analysis_type=analysis_type,
@@ -790,7 +775,7 @@ def Interaction_Plots(Frame_number,Analysis_type,proportional=False,plot=False,
     # plotting.plot_sfd()
     # plotting.plot_bmd()
     # plotting.plot_afd(scale=0.001)
-    return ALR_H,ALR_V,Frame
+    return ALR_H,ALR_V,Frame,exit_message
 
 def intersection_with_ray_from_origin(
     x: List[float],
@@ -907,67 +892,6 @@ def report_usage(iteration, log_file="memory_usage.txt"):
     with open(log_file, "a", encoding="utf-8") as file:
         file.write(message + "\n")
 
-def extract_metadata(duplicate_frame):
-    details = {
-        attr: getattr(duplicate_frame, attr)
-        for attr in ['_init_spec']
-        if not attr.startswith('__') and not callable(getattr(duplicate_frame, attr))
-    }
-    init_spec = details['_init_spec']
-    kwargs = init_spec['kwargs']
-
-
-    return {
-        "Frame_id": init_spec['Frame_id'],
-        "width_of_bay": init_spec['width_of_bay'],
-        "storey_height": init_spec['storey_height'],
-        "no_of_elements_column": init_spec['no_of_elements_column'],
-        "no_of_elements_beam": init_spec['no_of_elements_beam'],
-
-        "beam_section": init_spec['beam_section'],
-        "column_section": init_spec['column_section'],
-        "column_section_name": init_spec['column_section']['common_and_exceptions']['common'][0],
-        "bending_axes": init_spec['column_section']['common_and_exceptions']['common'][1],
-        "no_of_stories": len(init_spec['storey_height']),
-
-        "support": kwargs['support'],
-
-        "D_floor_intensity": kwargs['D_floor_intensity'],
-        "D_roof_intensity": kwargs['D_roof_intensity'],
-        "L_floor_intensity": kwargs['L_floor_intensity'],
-        "L_roof_intensity": kwargs['L_roof_intensity'],
-        "Base_Wind_load": kwargs['Base_Wind_load'],
-        "Wall_load": kwargs['Wall_load'],
-
-        "load_combination_multipliers": init_spec['load_combination_multipliers'],
-
-        # "Material_obj": init_spec['Material_obj'],
-        "Steel_Grade": init_spec['Steel_Grade'],
-
-        "Residual_Stress": kwargs['Residual_Stress'],
-        "Elastic_analysis": kwargs['Elastic_analysis'],
-        "Second_order_effects": kwargs['Second_order_effects'],
-        "stiffness_reduction": kwargs['stiffness_reduction'],
-        "strength_reduction": kwargs['strength_reduction'],
-        "Notional_load": kwargs['Notional_load'],
-        "Geometric_Imperfection": kwargs['Geometric_Imperfection'],
-        "geometric_imperfection_ratio": kwargs['geometric_imperfection_ratio'],
-        "initial_out_of_straightness_ratio":kwargs['initial_out_of_straightness_ratio'],
-        "initial_out_of_straightness_dirn":kwargs['initial_out_of_straightness_dirn'],
-
-        "nip": kwargs['nip'],
-        "mat_type": kwargs['mat_type'],
-        "wind_load_dirn": kwargs['wind_load_dirn'],
-
-        "Leaning_column": kwargs['Leaning_column'],
-        "Leaning_column_offset": kwargs['Leaning_column_offset'],
-        "Leaning_column_floor_load": kwargs['Leaning_column_floor_load'],
-        "Leaning_column_roof_load": kwargs['Leaning_column_roof_load'],
-
-        "floor_nodes_free": kwargs['floor_nodes_free'],
-        "wind_load_same_for_all_h": kwargs['wind_load_same_for_all_h']
-
-    }
 
 def compute_results(duplicate_frame,interaction_curve,analysis, theta_list, calculate_del2_over_del1=True):
     results={
@@ -1030,7 +954,7 @@ def write_interaction_results_to_json_file(
         for analysis in analysis_list:
             print(f"Running {analysis} for {frame}")
             try:
-                ALR_H, ALR_V,duplicate_frame = Interaction_Plots(
+                ALR_H, ALR_V,duplicate_frame,exit_message = Interaction_Plots(
                     Frame_number=[frame],
                     Analysis_type=[analysis],
                     proportional=proportional,
@@ -1045,12 +969,13 @@ def write_interaction_results_to_json_file(
             finally:
                 plt.close("all")
 
-            curves[analysis] = (ALR_H, ALR_V)
+            curves[analysis] = (ALR_H, ALR_V,exit_message)
 
-        metadata = extract_metadata(duplicate_frame)
-        new_data = {"data": metadata}
+        new_data = {"data": duplicate_frame._init_spec.copy()}
+        new_data["data"].pop("Material_obj", None)  ### This is done because _init_spec contains an instance of Steel_Material which throws error while storing.
+        ### However, we still store the Steel Grade for replication.
 
-        file_name = f"{metadata['Frame_id']}.json"
+        file_name = f"{duplicate_frame.Frame_id}.json"
         output_dir = "Column_Results/json_files"
         os.makedirs(output_dir, exist_ok=True)
         file_path = os.path.join(output_dir, file_name)
@@ -1059,7 +984,7 @@ def write_interaction_results_to_json_file(
 
 
         for analysis in analysis_list:
-            ALR_H, ALR_V = curves[analysis]
+            ALR_H, ALR_V,exit_message = curves[analysis]
             interaction_curve=InteractionDiagram2d(ALR_H, ALR_V)
             # interaction_curve.plot()
             # plt.legend()
@@ -1073,6 +998,7 @@ def write_interaction_results_to_json_file(
             # plt.close()
             
             results = compute_results(duplicate_frame,interaction_curve,analysis,theta_list,calculate_del2_over_del1=calculate_del2_over_del1)
+            results["exit_message"]=exit_message
             original_results={"Original_ALR_H":ALR_H,
                               "Original_ALR_V":ALR_V}
             Original={f"{analysis}": original_results}
@@ -1092,7 +1018,9 @@ if __name__ == "__main__":
 
 
     step_size_V=100000
-    step_size_L=100000
+
+    step_size_L=10000
+
     tolerance_V=1e-8
     tolerance_L=1e-3
     iterations=10
@@ -1101,16 +1029,15 @@ if __name__ == "__main__":
     column_section_names=['W14X43','W14X120','W14X311','W14X730','W18X311','W21X62','W40X264','W40X392','W40X593']
     column_section_names=['W14X43','W14X120','W14X311','W14X730','W18X311','W21X62','W40X264','W40X392','W40X593']
     column_section_names=['W14X43','W14X120','W14X311','W14X730','W18X311','W21X62','W40X264','W40X392','W40X593']
-    column_section_names=['W14X43']
+    column_section_names=['W40X392']
 
-    slenderness_ratios = np.arange(40, 55, 2)
-    
+    slenderness_ratios = np.arange(10,130,10)
+    slenderness_ratios = [25,65]
     
     No_of_stories=[1]
     
-
     bending_axes=['x','y']
-    # bending_axes=['y']
+    bending_axes=['x']
 
     Analysis_type= [  'GMNIA','GNA','GNA_Notional_Loads']  
     Analysis_type= [ 'GMNIA','GNA_Notional_Loads', 'GNA_no_stiffness_reduction']  
@@ -1119,7 +1046,8 @@ if __name__ == "__main__":
     Material_type=["50_ksi"]
 
     supports=['f','p']
-    # supports=['p']
+    supports=['p']
+    
 
     theta_list = np.linspace(0, 90,91) 
 

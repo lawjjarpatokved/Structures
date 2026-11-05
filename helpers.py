@@ -42,6 +42,7 @@ from filelock import FileLock
 import runpy
 from matplotlib.lines import Line2D
 from tqdm import tqdm
+from scipy.interpolate import griddata
 
 CONFIG_PATH = Path(__file__).resolve().parent / "Columns_config.py"
 CONFIG_LOCK = FileLock(str(CONFIG_PATH) + ".lock", timeout=120)
@@ -85,7 +86,6 @@ class Steel_Material:
         self.mat_tag=mat_tag
         self.E=E
         self.Fy=Fy
-
         
 class convert_dict_items_to_class_attributes:
     def __init__(self,config):
@@ -1234,137 +1234,116 @@ def plot_governing_D_max_vs_E_over_D_for_all_analyses(json_file_path, save=True,
             plt.close(fig)
 
 
-def plot_theta_vs_del2_over_del1_for_all_analyses(json_file_path,cap=3, save=True, show=True):
-    """
-    Read every JSON file inside a folder and plot theta vs del2_over_del1
-    for all analyses from each JSON file on the same figure.
-
-    One figure is created for each JSON file.
-    """
+def plot_theta_vs_del2_over_del1_for_all_analyses(json_file_path, cap=3, save=True, show=True):
 
     Folder = Path(json_file_path)
-
-    if not Folder.exists():
-        raise FileNotFoundError(f"The specified path does not exist: {Folder}")
-
-    if not Folder.is_dir():
-        raise NotADirectoryError(f"The specified path is not a directory: {Folder}")
-
-    json_files = sorted(file_path for file_path in Folder.iterdir() if file_path.is_file() and file_path.suffix.lower() == ".json")
-
-    if not json_files:
-        print(f"No JSON files were found in: {Folder}")
-        return []
-
     results = []
+    line_styles = ['-', '--', '-.', ':']
 
-    for file_number, file_path in enumerate(json_files, start=1):
+    for file_path in tqdm(sorted(Folder.glob("*.json")), desc="Processing Frames", unit="frame"):
 
-        try:
-            with open(file_path, "r", encoding="utf-8") as file:
-                content = json.load(file)
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = json.load(file)
 
-        except json.JSONDecodeError as error:
-            print(f"Skipping invalid JSON file {file_path.name}: {error}")
-            continue
+        # Frame details
+        data = content['data']
+        frame_id = data['Frame_id']
+        section_name = data['column_section']['common_and_exceptions']['common'][0]
+        bending_axis = data['column_section']['common_and_exceptions']['common'][1]
+        storey_height = data['storey_height'][0]
+        no_of_stories = len(data['storey_height'])
 
-        except OSError as error:
-            print(f"Could not read {file_path.name}: {error}")
-            continue
-
-        data = content.get("data", {})
-
-        frame_id = data.get("Frame_id", file_path.stem)
-        section_name = data.get("column_section_name", "Unknown section")
-        bending_axis = data.get("bending_axes", data.get("bending_axis", "Unknown axis"))
-        storey_height = data.get("storey_height", "Unknown height")
-        no_of_stories = data.get("no_of_stories", "Unknown number of stories")
-        material = data.get("Material", data.get("material", None))
-
-        analyses = [key for key, value in content.items() if key != "data" and isinstance(value, dict)]
-
-        if not analyses:
-            print(f"Skipping {file_path.name}: no analyses were found.")
-            continue
-
-        fig, ax = plt.subplots(figsize=(8, 6))
+        plt.figure(figsize=(8, 6))
         plotted_analyses = []
-        line_styles = ["-", "--", "-.", ":"]
 
-        for analysis_index, analysis in enumerate(analyses):
+        # Plot each analysis
+        analyses = [key for key, value in content.items() if key != 'data' and isinstance(value, dict)]
 
-            analysis_data = content[analysis]
+        for i, analysis in enumerate(analyses):
 
-            if "Theta" not in analysis_data or "del2_over_del1" not in analysis_data:
-                print(f"Skipping analysis '{analysis}' in {file_path.name}: missing theta or del2_over_del1.")
+            if 'del2_over_del1_results' not in content[analysis]:
                 continue
 
-            theta = analysis_data['del2_over_del1_results']["Theta"]
-            del2_over_del1 = analysis_data['del2_over_del1_results']["del2_over_del1"]
+            theta = content[analysis]['del2_over_del1_results']['Theta']
+            del2_over_del1 = content[analysis]['del2_over_del1_results']['del2_over_del1']
+            del2_over_del1_capped = [min(x, cap) for x in del2_over_del1]
 
-            del2_over_del1_capped=[min(x,cap) for x in del2_over_del1]
-
-            if theta is None or del2_over_del1 is None:
-                print(f"Skipping analysis '{analysis}' in {file_path.name}: theta or del2_over_del1 is None.")
-                continue
-
-            if len(theta) == 0 or len(del2_over_del1) == 0:
-                print(f"Skipping analysis '{analysis}' in {file_path.name}: theta or del2_over_del1 is empty.")
-                continue
-
-            if len(theta) != len(del2_over_del1):
-                print(f"Skipping analysis '{analysis}' in {file_path.name}: theta and del2_over_del1 have different lengths.")
-                continue
-
-            ax.plot(theta, del2_over_del1_capped, label=analysis, linestyle=line_styles[analysis_index % len(line_styles)], linewidth=1.8, alpha=0.9,marker='o', markersize=2.5)
-
+            plt.plot(theta, del2_over_del1_capped, label=analysis, linestyle=line_styles[i % len(line_styles)], linewidth=1.5)
             plotted_analyses.append(analysis)
 
         if not plotted_analyses:
-            print(f"Skipping {file_path.name}: no valid theta vs del2_over_del1 curves were found.")
-            plt.close(fig)
+            plt.close()
             continue
 
-        ax.set_xlabel(r"$\theta$")
-        ax.set_ylabel(r"$\Delta_2/\Delta_1$")
-        ax.grid(True, alpha=0.3)
-        ax.legend(title="Analysis", loc="best")
+        # Plot formatting
+        plt.xlabel(r'$\theta$ (degrees)')
+        plt.ylabel(r'$\Delta_2/\Delta_1$')
+        plt.title(f'{section_name}, axis = {bending_axis}\n{no_of_stories} stories, h = {storey_height} m')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
 
-        if no_of_stories == 1:
-            story_label = "1 story"
-        elif isinstance(no_of_stories, (int, float)):
-            story_label = f"{no_of_stories} stories"
-        else:
-            story_label = str(no_of_stories)
-
-        title_lines = [f"{section_name}, axis = {bending_axis}", f"{story_label}, h = {storey_height} m"]
-
-        if material is not None:
-            title_lines.append(f"Material = {material}")
-
-        ax.set_title("\n".join(title_lines))
-        fig.tight_layout()
-
+        # Save figure
         save_path = None
 
         if save:
-            save_folder = os.path.join("Column_Results", "Analysis_History", f"{frame_id}")
+            save_folder = os.path.join("Column_Results", "Analysis_History", str(frame_id))
             os.makedirs(save_folder, exist_ok=True)
-
-            filename = f"{frame_id}_theta_vs_del2_over_del1_all_analyses.png"
-            save_path = os.path.join(save_folder, filename)
-
-            fig.savefig(save_path, dpi=300, bbox_inches="tight")
-            print(f"[{file_number}/{len(json_files)}] Saved to: {save_path}")
-
-        results.append({"frame_id": frame_id, "file_path": str(file_path), "analyses": plotted_analyses, "save_path": save_path})
+            save_path = os.path.join(save_folder, f"{frame_id}_theta_vs_del2_over_del1.png")
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
 
         if show:
             plt.show()
         else:
-            plt.close(fig)
+            plt.close()
+
+        results.append({'frame_id': frame_id, 'analyses': plotted_analyses, 'save_path': save_path})
 
     return results
+
+def plot_theta_vs_error_all_analyses(json_file_path, benchmark_analysis, test_analyses):
+
+    Folder = Path(json_file_path)
+    theta_list = np.linspace(0, 90, 181)
+
+    for file_path in tqdm(sorted(Folder.glob("*.json")), desc="Processing Frames", unit="frame"):
+
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = json.load(file)
+
+        frame_id = content['data']['Frame_id']
+
+        # Benchmark interaction diagram
+        benchmark_ALR_H = content[benchmark_analysis]['Original_ALR_H']
+        benchmark_ALR_V = content[benchmark_analysis]['Original_ALR_V']
+        benchmark_interaction_diagram = InteractionDiagram2d(benchmark_ALR_H, benchmark_ALR_V)
+
+        plt.figure(figsize=(8, 6))
+
+        # Compare benchmark with each test analysis
+        for test_analysis in test_analyses:
+
+            test_ALR_H = content[test_analysis]['Original_ALR_H']
+            test_ALR_V = content[test_analysis]['Original_ALR_V']
+            test_interaction_diagram = InteractionDiagram2d(test_ALR_H, test_ALR_V)
+
+            errors = benchmark_interaction_diagram.compare_two(test_interaction_diagram, theta_list, degrees=True)
+
+            plt.plot(theta_list, np.array(errors) * 100, label=test_analysis, linewidth=1.5)
+
+        # Plot formatting
+        plt.axhline(0, color='black', linewidth=1)
+        plt.xlabel(r'$\theta$ (degrees)')
+        plt.ylabel('Radial Error (%)')
+        plt.title(f'{frame_id}: {benchmark_analysis} vs Test Analyses')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+
+        save_folder = os.path.join("Column_Results", "Analysis_History", str(frame_id))
+        os.makedirs(save_folder, exist_ok=True)
+        plt.savefig(os.path.join(save_folder, f"{frame_id}_theta_vs_error.png"), dpi=300, bbox_inches='tight')
+        plt.close()
 
 
 def my_scatter_plot(data_df, x_col, y_col, hover_data=None, xlabel=None, ylabel=None, title='Interactive Scatter Plot'):
@@ -1614,13 +1593,12 @@ def structural_parameter_vs_radial_error_multiple(json_file_path, analysis_types
         content=json.loads(content)
 
         #### Read structural parameters from json file ###
-        frame_id=content['data']['Frame_id'] 
-        frame_name=content['data']['column_section_name']
-        bending_axis=content['data']["bending_axes"]
-        storey_height=content['data']["storey_height"][0]
-        no_of_stories=content['data']["no_of_stories"]
-        support=content['data']["support"]
-
+        frame_id = content['data']['Frame_id']
+        frame_name = content['data']['column_section']['common_and_exceptions']['common'][0]  ### !!!! This works only for MFColumn Results
+        bending_axis = content['data']['column_section']['common_and_exceptions']['common'][1]### !!!! This works only for MFColumn Results
+        storey_height = content['data']["storey_height"][0]
+        no_of_stories = len(content['data']["storey_height"])
+        support = content['data']["support"]
 
         #### Filter for the lists if provided ####
         matches_filter = (
@@ -1805,6 +1783,120 @@ def structural_parameter_vs_radial_error_multiple(json_file_path, analysis_types
     
     return results_df, fig
 
+def plot_slenderness_ratio_vs_del2_over_del1_vs_error_contour_plots(
+    json_file_path, benchmark_analysis, test_analysis,
+    frame_names_list=None, no_of_stories_list=None,
+    bending_axes_list=None, support_list=None,
+    min_error=-6, max_error=-1, save=True, show=False):
+
+    save_folder = os.path.join("Column_Results", "slenderness_ratio_vs_del2_over_del1_vs_error_contour_plots")
+
+    Folder = Path(json_file_path)
+    slenderness_ratio = []
+    del2_over_del1_list = []
+    error_list = []
+
+    json_files = list(Folder.glob("*.json"))
+
+    for file_path in tqdm(json_files, desc="Processing Frames", unit="frame"):
+
+        tqdm.write(f"Parsing: {file_path.name}")
+
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = json.load(file)
+
+        # Read structural parameters
+        frame_name = content['data']['column_section']['common_and_exceptions']['common'][0]
+        bending_axis = content['data']['column_section']['common_and_exceptions']['common'][1]
+        storey_height = content['data']['storey_height'][0]
+        no_of_stories = len(content['data']['storey_height'])
+        support = content['data']['support']
+
+        # Apply filters
+        matches_filter = (
+            (frame_names_list is None or frame_name in frame_names_list)
+            and (no_of_stories_list is None or no_of_stories in no_of_stories_list)
+            and (bending_axes_list is None or bending_axis in bending_axes_list)
+            and (support_list is None or support in support_list)
+        )
+
+        if not matches_filter:
+            continue
+
+        # Calculate slenderness ratio
+        r = (wide_flange_database[frame_name]['rx'] if bending_axis == 'x' else wide_flange_database[frame_name]['ry']) * inch
+        slenderness_ratio.append(storey_height / r)
+
+        # Benchmark interaction diagram
+        benchmark_ALR_H = content[benchmark_analysis]['Original_ALR_H']
+        benchmark_ALR_V = content[benchmark_analysis]['Original_ALR_V']
+        benchmark_interaction_diagram = InteractionDiagram2d(benchmark_ALR_H, benchmark_ALR_V)
+
+        # Test interaction diagram
+        test_ALR_H = content[test_analysis]['Original_ALR_H']
+        test_ALR_V = content[test_analysis]['Original_ALR_V']
+        test_interaction_diagram = InteractionDiagram2d(test_ALR_H, test_ALR_V)
+
+        # Get theta and displacement amplification
+        test_results = content[test_analysis]['del2_over_del1_results']
+        angles = test_results['Theta']
+        del2_over_del1 = test_results['del2_over_del1']
+
+        # Calculate radial errors
+        errors = benchmark_interaction_diagram.compare_two(test_interaction_diagram, angles, degrees=True)
+
+        del2_over_del1_list.append(del2_over_del1)
+        error_list.append(errors)
+
+    # Flatten data
+    if not slenderness_ratio:
+        print("No frames matched the specified filters.")
+        return
+
+    X = np.concatenate([np.full(len(values), slenderness) for slenderness, values in zip(slenderness_ratio, del2_over_del1_list)])
+    Y = np.concatenate(del2_over_del1_list)
+    Z = np.concatenate(error_list) * 100
+
+    # Filter based on radial error only
+    if min_error >= max_error:
+        raise ValueError("min_error must be smaller than max_error.")
+
+    valid = np.isfinite(X) & np.isfinite(Y) & np.isfinite(Z) & (Z >= min_error) & (Z <= max_error)
+    X, Y, Z = X[valid], Y[valid], Z[valid]
+
+    if len(X) < 3 or len(np.unique(X)) < 2 or len(np.unique(Y)) < 2:
+        print("Insufficient data for contour plotting after filtering.")
+        return
+
+    # Create interpolation grid
+    x_grid = np.linspace(np.min(X), np.max(X), 200)
+    y_grid = np.linspace(np.min(Y), np.max(Y), 200)
+    Xg, Yg = np.meshgrid(x_grid, y_grid)
+    Zg = griddata((X, Y), Z, (Xg, Yg), method='linear')
+
+    # Contour plot
+    plt.figure(figsize=(8, 6))
+    levels = np.linspace(min_error, max_error, 21)
+    cs = plt.contour(Xg, Yg, Zg, levels=levels, cmap='viridis')
+    plt.clabel(cs, inline=True, fontsize=10, fmt='%g')
+
+    plt.xlabel('Member Slenderness, L/r')
+    plt.ylabel(r'Ratio of Second-Order Drift to First-Order Drift, $\Delta_2/\Delta_1$')
+    plt.title(f'{benchmark_analysis} vs {test_analysis}')
+    plt.xlim(np.min(X), np.max(X))
+    plt.ylim(np.min(Y), np.max(Y))
+    plt.tight_layout()
+
+    # Save figure
+    if save:
+        os.makedirs(save_folder, exist_ok=True)
+        plt.savefig(os.path.join(save_folder, f'{benchmark_analysis}_vs_{test_analysis}_contour_lines.png'), dpi=300, bbox_inches='tight')
+
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
 def get_governing_load_combo_details(json_file_path, analysis_type, L_over_D_ratios, E_over_D_ratios,
                                      frame_names_list=None, storey_heights_list=None, no_of_stories_list=None, bending_axes_list=None, support_list=None):
 
@@ -1856,6 +1948,8 @@ def get_governing_load_combo_details(json_file_path, analysis_type, L_over_D_rat
             json.dump(content, file, indent=4, default=lambda x: int(x) if isinstance(x, np.integer) else x)
 
         print(f"Updated file: {file_path.name}")
+
+
 
 def get_Dmax_EoverD_LoverD(json_file_content, analysis_type, L_over_D_ratios, E_over_D_ratios):
 
@@ -1931,12 +2025,12 @@ def plot_LoverD_EoverD_Dmaxerror_contour_plots(json_file_path,benchmark_analysis
             content = json.load(file)
 
         # Filters to run only selected frames
-        frame_id = content["data"]["Frame_id"]
-        frame_name = content["data"]["column_section_name"]
-        bending_axis = content["data"]["bending_axes"]
-        storey_height = content["data"]["storey_height"][0]
-        no_of_stories = content["data"]["no_of_stories"]
-        support = content["data"]["support"]
+        frame_id = content['data']['Frame_id']
+        frame_name = content['data']['column_section']['common_and_exceptions']['common'][0]  ### !!!! This works only for MFColumn Results
+        bending_axis = content['data']['column_section']['common_and_exceptions']['common'][1]### !!!! This works only for MFColumn Results
+        storey_height = content['data']["storey_height"][0]
+        no_of_stories = len(content['data']["storey_height"])
+        support = content['data']["support"]
 
         matches_filter = ((frame_names_list is None or frame_name in frame_names_list) 
                     and (storey_heights_list is None or storey_height in storey_heights_list)
@@ -2127,34 +2221,82 @@ def plot_LoverD_EoverD_Dmaxerror_contour_plots(json_file_path,benchmark_analysis
 
         plt.close(fig)
 
-def compute_del2_over_del1(json_file_path,theta_list):
+def plot_Dmax_error_vs_Radial_Error(json_file_path,benchmark_analysis,test_analysis,L_over_D_ratios, E_over_D_ratios,
+                                     frame_names_list=None, storey_heights_list=None, no_of_stories_list=None, bending_axes_list=None, support_list=None,save=True,show=False):
 
+    load_combination_angle = lambda governing_load_combo, L_over_D_ratio, E_over_D_ratio: {
+        "1.4D": 90.0,
+        "1.2D+1.6L": 90.0,
+        "1.2D+L+E": np.degrees(np.arctan2(1.2 + L_over_D_ratio, E_over_D_ratio)),
+        "0.9D+E": np.degrees(np.arctan2(0.9, E_over_D_ratio))
+    }[governing_load_combo]
+
+    json_files = [f for f in Path(json_file_path).iterdir() if f.is_file() and f.suffix.lower() == ".json"]
+
+    for file_path in tqdm(json_files, desc="Processing Frames", unit="frame"):
+
+        # Find and load json files
+        if not file_path.is_file() or file_path.suffix.lower() != ".json":
+            continue
+
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = json.load(file)
+
+        benchmark_ALR_H = content[benchmark_analysis]["Original_ALR_H"]
+        benchmark_ALR_V = content[benchmark_analysis]["Original_ALR_V"]
+        benchmark_interaction_diagram = InteractionDiagram2d(benchmark_ALR_H, benchmark_ALR_V)
+        test_ALR_H = content[test_analysis]["Original_ALR_H"]
+        test_ALR_V = content[test_analysis]["Original_ALR_V"]
+        test_interaction_diagram = InteractionDiagram2d(test_ALR_H, test_ALR_V)
+
+        # Filters to run only selected frames
+        frame_id = content['data']['Frame_id']
+        frame_name = content['data']['column_section']['common_and_exceptions']['common'][0]  ### !!!! This works only for MFColumn Results
+        bending_axis = content['data']['column_section']['common_and_exceptions']['common'][1]### !!!! This works only for MFColumn Results
+        storey_height = content['data']["storey_height"][0]
+        no_of_stories = len(content['data']["storey_height"])
+        support = content['data']["support"]
+
+        matches_filter = ((frame_names_list is None or frame_name in frame_names_list) 
+                    and (storey_heights_list is None or storey_height in storey_heights_list)
+                    and (no_of_stories_list is None or no_of_stories in no_of_stories_list) 
+                    and (bending_axes_list is None or bending_axis in bending_axes_list) 
+                    and (support_list is None or support in support_list))
+
+        if not matches_filter:
+            continue
+
+
+        for L_over_D in tqdm(L_over_D_ratios, desc=f"Frame {frame_id}", unit="ratio", leave=False):
+
+            results_benchmark = get_Dmax_EoverD_LoverD(content, benchmark_analysis, L_over_D_ratios=[L_over_D], E_over_D_ratios=E_over_D_ratios)
+            results_test = get_Dmax_EoverD_LoverD(content, test_analysis, L_over_D_ratios=[L_over_D], E_over_D_ratios=E_over_D_ratios)
+            E_over_D = [v['E_over_D_ratio'] for v in results_benchmark.values()]
+            Dmax_benchmark = [v['Dmax'] for v in results_benchmark.values()]
+            Dmax_test = [v['Dmax'] for v in results_test.values()]
+            Governing_combo_test = [v['Governing_Load_Combo'] for v in results_test.values()]
+            angles = [load_combination_angle(combo, L_over_D, E) for combo, E in zip(Governing_combo_test, E_over_D)]
+            radial_error = benchmark_interaction_diagram.compare_two(test_interaction_diagram, angles=angles, degrees=True)
+            Dmax_error = [(benchmark - test) / benchmark for benchmark, test in zip(Dmax_benchmark, Dmax_test)]
+            plt.scatter(radial_error, Dmax_error, s=15)
+
+        plt.xlabel("Radial Error (%)")
+        plt.ylabel("Dmax Error (%)")
+        plt.grid(True)
+        plt.show()
+
+def compute_del2_over_del1(json_file_path,theta_list,analysis_types_list=None):
     from MFColumn2D import MFColumn_2D
-    """
-    Read every JSON file inside a folder and compute del2_over_del1 from the original ALR_H and ALR_V values.
-
-
-    Parameters
-    ----------
-    json_file_path : str or Path
-        Path to the folder containing the JSON files.
-
-    """
-
     Folder = Path(json_file_path)
-
     if not Folder.exists():
         raise FileNotFoundError(f"The specified path does not exist: {Folder}")
-
     if not Folder.is_dir():
         raise NotADirectoryError(f"The specified path is not a directory: {Folder}")
-
     json_files = sorted(
         file_path
         for file_path in Folder.iterdir()
         if file_path.is_file() and file_path.suffix.lower() == ".json"
     )
-
     if not json_files:
         print(f"No JSON files were found in: {Folder}")
         return []
@@ -2162,70 +2304,19 @@ def compute_del2_over_del1(json_file_path,theta_list):
     alr_h_key = "Original_ALR_H"
     alr_v_key = "Original_ALR_V"
 
-
-
-
     for file_number, file_path in enumerate(json_files, start=1):
         try:
             with open(file_path, "r", encoding="utf-8") as file:
                 content = json.load(file)
-
         except json.JSONDecodeError as error:
             print(f"Skipping invalid JSON file {file_path.name}: {error}")
             continue
-
         except OSError as error:
             print(f"Could not read {file_path.name}: {error}")
             continue
 
         data = content.get("data", {})
 
-        frame_id = data.get("Frame_id", file_path.stem)
-        width_of_bay = data.get("width_of_bay", [])
-        storey_height = data.get("storey_height", [])
-        no_of_elements_column = data.get("no_of_elements_column", None)
-        no_of_elements_beam = data.get("no_of_elements_beam", None)
-
-        beam_section = data.get("beam_section", None)
-        column_section = data.get("column_section", None)
-        column_section_name = data.get("column_section_name", "Unknown section")
-        bending_axis = data.get("bending_axes", data.get("bending_axis", "Unknown axis"))
-        no_of_stories = data.get("no_of_stories", None)
-
-        support = data.get("support", None)
-
-        D_floor_intensity = data.get("D_floor_intensity", None)
-        D_roof_intensity = data.get("D_roof_intensity", None)
-        L_floor_intensity = data.get("L_floor_intensity", None)
-        L_roof_intensity = data.get("L_roof_intensity", None)
-        Base_Wind_load = data.get("Base_Wind_load", None)
-        Wall_load = data.get("Wall_load", None)
-
-        load_combination_multipliers = data.get("load_combination_multipliers", None)
-
-        Steel_Grade = data.get("Steel_Grade", None)
-
-        Residual_Stress = data.get("Residual_Stress", None)
-        Elastic_analysis = data.get("Elastic_analysis", None)
-        Second_order_effects = data.get("Second_order_effects", None)
-        stiffness_reduction = data.get("stiffness_reduction", None)
-        strength_reduction = data.get("strength_reduction", None)
-        Notional_load = data.get("Notional_load", None)
-        Geometric_Imperfection = data.get("Geometric_Imperfection", None)
-        geometric_imperfection_ratio = data.get("geometric_imperfection_ratio", None)
-        initial_out_of_straightness_ratio=data.get("initial_out_of_straightness_ratio", None)
-        initial_out_of_straightness_dirn=data.get("initial_out_of_straightness_dirn", None)
-        nip = data.get("nip", None)
-        mat_type = data.get("mat_type", None)
-        wind_load_dirn = data.get("wind_load_dirn", None)
-
-        Leaning_column = data.get("Leaning_column", None)
-        Leaning_column_offset = data.get("Leaning_column_offset", None)
-        Leaning_column_floor_load = data.get("Leaning_column_floor_load", None)
-        Leaning_column_roof_load = data.get("Leaning_column_roof_load", None)
-
-        floor_nodes_free = data.get("floor_nodes_free", None)
-        wind_load_same_for_all_h = data.get("wind_load_same_for_all_h", None)
 
         analyses = [
             key
@@ -2238,8 +2329,11 @@ def compute_del2_over_del1(json_file_path,theta_list):
             continue
 
         for analysis_index, analysis in enumerate(analyses):
-            analysis_data = content[analysis]
+            matches_filter = (analysis_types_list is None or analysis in analysis_types_list)
 
+            if not matches_filter:
+                continue
+            analysis_data = content[analysis]
 
             if alr_h_key not in analysis_data or alr_v_key not in analysis_data:
                 print(
@@ -2289,47 +2383,12 @@ def compute_del2_over_del1(json_file_path,theta_list):
                     ult_lat_load_for_V0=pt[0]
                     no_of_digits = len(str(int(abs(ult_lat_load_for_V0)))) if ult_lat_load_for_V0!=0 else 1
                 lateral_load_scale = ult_lat_load_for_V0*(10**(-no_of_digits - 2)) if pt[0]<10e-6 else pt[0] if pt is not None else None
-                print(Steel_Grade)
-                Material_dict=Material_Info[Steel_Grade]
+                Material_dict=Material_Info[data['Steel_Grade']]
                 Material_details=convert_dict_items_to_class_attributes(Material_dict)
                 Steel=Steel_Material(mat_tag=1,E=Material_details.E,Fy=Material_details.Fy)
-
-                Frame = MFColumn_2D(width_of_bay, storey_height, no_of_elements_column, no_of_elements_beam,
-                                    beam_section=beam_section,
-                                    column_section=column_section,
-                                    support=support,
-                                    D_floor_intensity=D_floor_intensity,
-                                    D_roof_intensity=D_roof_intensity,
-                                    L_floor_intensity=L_floor_intensity,
-                                    L_roof_intensity=L_roof_intensity,
-                                    Base_Wind_load=Base_Wind_load,
-                                    Wall_load=Wall_load,
-                                    load_combination_multipliers=load_combination_multipliers,
-                                    Frame_id=frame_id,
-                                    Material_obj=Steel,
-                                    Steel_Grade=Steel_Grade,
-                                    Residual_Stress=Residual_Stress,
-                                    Elastic_analysis=Elastic_analysis,
-                                    Second_order_effects=Second_order_effects,
-                                    stiffness_reduction=stiffness_reduction,
-                                    strength_reduction=strength_reduction,
-                                    Notional_load=Notional_load,
-                                    Geometric_Imperfection=Geometric_Imperfection,
-                                    geometric_imperfection_ratio=geometric_imperfection_ratio,
-                                    initial_out_of_straightness_ratio=initial_out_of_straightness_ratio,
-                                    initial_out_of_straightness_dirn=initial_out_of_straightness_dirn,
-                                    nip=nip,
-                                    mat_type=mat_type,
-                                    wind_load_dirn=wind_load_dirn,
-                                    Leaning_column=Leaning_column,
-                                    Leaning_column_offset=Leaning_column_offset,
-                                    Leaning_column_floor_load=Leaning_column_floor_load,
-                                    Leaning_column_roof_load=Leaning_column_roof_load,
-                                    floor_nodes_free=floor_nodes_free,
-                                    wind_load_same_for_all_h=wind_load_same_for_all_h)
-
-
-
+                data['Material_obj']= Steel
+                Frame = MFColumn_2D.from_dict(data)
+                print(Frame.P_M_M_interaction_limit)
                 del2_over_del1=Frame.get_del2_over_del1(vertical_load_scale=vertical_load_scale, lateral_load_scale=lateral_load_scale)
                 results['Theta'].append(theta)
                 results['ALR_H'].append(pt[0] if pt is not None else None)
@@ -2343,194 +2402,86 @@ def compute_del2_over_del1(json_file_path,theta_list):
             update_or_create_json(file_path, Results)
 
             
-def plot_error_vs_del2_over_del1(json_file_path, analysis_types,
-                                 cap=3,
-                                frame_names_list=None,
-                                storey_heights_list=None,
-                                no_of_stories_list=None,
-                                bending_axes_list=None,
-                                support_list=None, **kwargs):
-    
-    if len(analysis_types) < 2:
-        print(analysis_types)
-        raise ValueError("At least two analysis types must be provided.")
-
-    analysis1 = analysis_types[0]
-
-    save_folder = os.path.join("Column_Results", "error_vs_del2_over_del1")
-    results_data = []
+def plot_error_vs_del2_over_del1(json_file_path, analysis_types, cap=3,
+                                 frame_names_list=None, storey_heights_list=None,
+                                 no_of_stories_list=None, bending_axes_list=None,
+                                 support_list=None, save=True, show=True):
 
     Folder = Path(json_file_path)
-
-    for file_path in Folder.iterdir():
-
-        if not file_path.is_file() or file_path.suffix.lower() != ".json":
-            continue
-
-        with open(file_path, "r", encoding="utf-8") as file:
-            content = json.load(file)
-
-        #### Read structural parameters from json file ###
-        frame_id = content['data']['Frame_id']
-        frame_name = content['data']['column_section_name']
-        bending_axis = content['data']["bending_axes"]
-        storey_height = content['data']["storey_height"][0]
-        no_of_stories = content['data']["no_of_stories"]
-        support = content['data']["support"]
-
-        #### Filter for the lists if provided ####
-        matches_filter = (
-            (frame_names_list is None or frame_name in frame_names_list)
-            and (storey_heights_list is None or storey_height in storey_heights_list)
-            and (no_of_stories_list is None or no_of_stories in no_of_stories_list)
-            and (bending_axes_list is None or bending_axis in bending_axes_list)
-            and (support_list is None or support in support_list)
-        )
-
-        if not matches_filter:
-            continue
-
-        ##### Get section properties from AISC database ####
-        r = (wide_flange_database[frame_name]['rx'] if bending_axis == 'x' else wide_flange_database[frame_name]['ry']) * inch
-
-        ##### Reference interaction diagram ####
-        analysis1_ALR_H = content[analysis1]['Original_ALR_H']
-        analysis1_ALR_V = content[analysis1]['Original_ALR_V']
-
-        analysis1_interaction_diagram = InteractionDiagram2d(
-            analysis1_ALR_H,
-            analysis1_ALR_V
-        )
-
-        #####################################################################
-        # Compare analysis1 with every other analysis provided
-        #####################################################################
-
-        for analysis2 in analysis_types[1:]:
-
-            analysis2_ALR_H = content[analysis2]['Original_ALR_H']
-            analysis2_ALR_V = content[analysis2]['Original_ALR_V']
-
-            theta_list = content[analysis2]['del2_over_del1_results']['Theta']
-            del2_over_del1 = content[analysis2]['del2_over_del1_results']['del2_over_del1']
-            del2_over_del1_capped=[min(x,cap) for x in del2_over_del1]
-
-            analysis2_interaction_diagram = InteractionDiagram2d(
-                analysis2_ALR_H,
-                analysis2_ALR_V
-            )
-
-            errors = analysis1_interaction_diagram.compare_two(
-                analysis2_interaction_diagram,
-                theta_list,
-                degrees=True
-            )
-            # print(theta_list)
-            # print(del2_over_del1)
-            # print(errors)
-            # input("I am inside plot error vs del2 over del1")
-
-            #################################################################
-            # Store EVERY error with its corresponding del2/del1 value
-            #################################################################
-
-            for theta, error, ratio in zip(theta_list, errors, del2_over_del1_capped):
-
-                results_data.append({
-                    'frame': frame_id,
-                    'section': frame_name,
-                    'axis': bending_axis,
-                    'stories': no_of_stories,
-                    'height': storey_height,
-                    'support': support,
-                    'radius_of_gyration': r,
-                    'comparison': f'{analysis1} vs {analysis2}',
-                    'theta': theta,
-                    'radial_error': error,
-                    'del2_over_del1': ratio
-                })
-
-    #####################################################################
-    # Create DataFrame
-    #####################################################################
-
-    results_df = pd.DataFrame(results_data)
-
-    if results_df.empty:
-        raise ValueError("No data matched the specified filters.")
-
-    #####################################################################
-    # Hover data
-    #####################################################################
-
-    hover_data_config = {
-        'section': True,
-        'axis': True,
-        'stories': True,
-        'height': ':.3f',
-        'support': True,
-        'radius_of_gyration': ':.3f',
-        'comparison': True,
-        'theta': ':.3f',
-        'radial_error': ':.6f',
-        'del2_over_del1': ':.6f'
-    }
-
-    #####################################################################
-    # Create one scatter plot for each comparison and combine them
-    #####################################################################
-
-    fig = None
-
-    colors = px.colors.qualitative.Plotly
-
-    for i, analysis2 in enumerate(analysis_types[1:]):
-
-        comparison_name = f'{analysis1} vs {analysis2}'
-
-        comparison_df = results_df[
-            results_df['comparison'] == comparison_name
-        ]
-
-        temp_fig = my_scatter_plot(
-            comparison_df,
-            x_col='del2_over_del1',
-            y_col='radial_error',
-            hover_data=hover_data_config,
-            xlabel='Δ2 / Δ1',
-            ylabel='Radial Error',
-            title=f'Δ2/Δ1 vs Radial Error ({analysis1} vs Other Analyses)'
-        )
-
-        # Give each comparison its own color and legend name
-        for trace in temp_fig.data:
-            trace.name = comparison_name
-            trace.showlegend = True
-            trace.marker.color = colors[i % len(colors)]
-
-        if fig is None:
-            fig = temp_fig
-        else:
-            for trace in temp_fig.data:
-                fig.add_trace(trace)
-
-    #####################################################################
-    # Save figure
-    #####################################################################
-    fig.add_hline(y=-0.05, line_dash="dot", line_color="black", line_width=1.5, opacity=0.9)
+    save_folder = os.path.join("Column_Results", "error_vs_del2_over_del1")
     os.makedirs(save_folder, exist_ok=True)
 
-    base_filename = f"Error_vs_del2_over_del1_{analysis1}_vs_{'_'.join(analysis_types[1:])}"
+    benchmark_analysis = analysis_types[0]
 
-    html_path = os.path.join(save_folder, f"{base_filename}.html")
-    fig.write_html(html_path)
-    print(f"Interactive plot saved to: {html_path}")
+    for test_analysis in analysis_types[1:]:
 
-    png_path = os.path.join(save_folder, f"{base_filename}.png")
-    fig.write_image(png_path, width=1000, height=600)
-    print(f"Static PNG image saved to: {png_path}")
+        plt.figure(figsize=(8, 6))
 
-    fig.show()
+        for file_path in tqdm(sorted(Folder.glob("*.json")), desc=f"Processing {test_analysis}", unit="frame"):
+
+            with open(file_path, "r", encoding="utf-8") as file:
+                content = json.load(file)
+
+            # Frame details
+            data = content['data']
+            frame_name = data['column_section']['common_and_exceptions']['common'][0]
+            bending_axis = data['column_section']['common_and_exceptions']['common'][1]
+            storey_height = data['storey_height'][0]
+            no_of_stories = len(data['storey_height'])
+            support = data['support']
+
+            # Apply filters
+            matches_filter = (
+                (frame_names_list is None or frame_name in frame_names_list)
+                and (storey_heights_list is None or storey_height in storey_heights_list)
+                and (no_of_stories_list is None or no_of_stories in no_of_stories_list)
+                and (bending_axes_list is None or bending_axis in bending_axes_list)
+                and (support_list is None or support in support_list)
+            )
+
+            if not matches_filter:
+                continue
+
+            # Slenderness ratio
+            r = (wide_flange_database[frame_name]['rx'] if bending_axis == 'x' else wide_flange_database[frame_name]['ry']) * inch
+            slenderness_ratio = storey_height / r
+
+            # Interaction diagrams
+            benchmark = InteractionDiagram2d(content[benchmark_analysis]['Original_ALR_H'], content[benchmark_analysis]['Original_ALR_V'])
+            test = InteractionDiagram2d(content[test_analysis]['Original_ALR_H'], content[test_analysis]['Original_ALR_V'])
+
+            # Calculate errors
+            theta = content[test_analysis]['del2_over_del1_results']['Theta']
+            del2_over_del1 = np.array(content[test_analysis]['del2_over_del1_results']['del2_over_del1'], dtype=float)
+            errors = np.array(benchmark.compare_two(test, theta, degrees=True), dtype=float)
+
+            # Filter invalid data and values exceeding cap
+            valid = np.isfinite(del2_over_del1) & np.isfinite(errors) & (del2_over_del1 <= cap)
+            X, Y = del2_over_del1[valid], errors[valid]
+
+            # Sort data for continuous curves
+            order = np.argsort(X)
+            color = plt.cm.viridis((slenderness_ratio - 10) / (120 - 10))
+            plt.plot(X[order], Y[order], color=color, linewidth=1.8)
+
+        # Plot formatting
+        plt.axhline(0, color='black', linewidth=1)
+        plt.axhline(-0.05, color='red', linestyle='--', linewidth=1)
+        plt.xlabel(r'$\Delta_2/\Delta_1$')
+        plt.ylabel('Radial Error')
+        plt.title(f'{benchmark_analysis} vs {test_analysis}')
+        sm = plt.cm.ScalarMappable(cmap='viridis', norm=plt.Normalize(vmin=10, vmax=120))
+        plt.colorbar(sm, ax=plt.gca(), label=r'Slenderness Ratio, $L_c/r$')
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+
+        if save:
+            plt.savefig(os.path.join(save_folder, f"Error_vs_del2_over_del1_{benchmark_analysis}_vs_{test_analysis}.png"), dpi=300, bbox_inches='tight')
+
+        if show:
+            plt.show()
+        else:
+            plt.close()
 
 
 def get_storey_height_list_for_a_section(
@@ -2948,10 +2899,10 @@ def check_load_ratio_problem(
 
 if __name__ == "__main__":
     print("running")
-    json_file_path="Column_Results/json_files_copy_copy"
+    json_file_path="Column_Results/json_files"
     L_over_D_ratios=np.arange(0,6,0.1)
     # L_over_D_ratios=[1]
-    E_over_D_ratios=np.arange(0,2.6,0.1)
+    E_over_D_ratios=np.arange(0,2,0.1)
     # E_over_D_ratios=[2]
     analysis_types=['GMNIA','GNA','GNA_Notional_Loads']
 
@@ -2971,3 +2922,4 @@ if __name__ == "__main__":
     #plot_governing_D_max_vs_E_over_D_for_all_analyses(json_file_path=json_file_path,save=True,show=False,analysis_types=analysis_types,L_over_D_ratios=L_over_D_ratios,E_over_D_ratios=E_over_D_ratios)
 
     plot_LoverD_EoverD_Dmaxerror_contour_plots(json_file_path,'GMNIA','GNA',L_over_D_ratios,E_over_D_ratios)
+    # plot_Dmax_error_vs_Radial_Error(json_file_path,'GMNIA','GNA',L_over_D_ratios,E_over_D_ratios)

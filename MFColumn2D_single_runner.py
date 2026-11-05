@@ -112,6 +112,7 @@ Frame=MFColumn_2D(Frame_details.bay_width, Frame_details.story_height, Frame_det
                     strength_reduction=Analysis_details.strength_reduction,
                     Notional_load=Analysis_details.Notional_load,
                     Geometric_Imperfection=Analysis_details.Geometric_Imperfection,
+                    P_M_M_interaction_limit=Analysis_details.P_M_M_interaction_limit,
                     geometric_imperfection_ratio=Frame_details.geometric_imperfection_ratio,
                     initial_out_of_straightness_ratio=Frame_details.initial_out_of_straightness_ratio,
                     nip=5,
