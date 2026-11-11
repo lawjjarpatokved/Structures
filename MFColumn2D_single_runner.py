@@ -15,10 +15,11 @@ column_section_name='W8X31'
 slenderness_ratios=50
 bending_axes='x'
 story_heights=get_storey_height_list_for_a_section(column_section_name,bending_axes,slenderness_ratios)
-no_of_stories=2
+no_of_stories=1
 support='f'
 Analysis_type='GMNIA'
 Material='50_ksi'  # Options: '36_ksi', '50_ksi'
+Leaning_column_load_ratio=0.0001
 
 '''
 This function writes a new entry in the Frame_info dictionary in column_config.py if the entry does not already exist.
@@ -32,9 +33,9 @@ frame_name=check_and_create_new_entries_in_column_config_file(column_section_nam
                                                               no_of_stories=no_of_stories,
                                                               bending_axes=bending_axes,
                                                               Material_type=Material,
-                                                              Leaning_column=False,
+                                                              Leaning_column=True,
                                                               Floor_to_Roof_load_ratio=1,
-                                                              Leaning_Column_load_ratio=0,
+                                                              Leaning_Column_load_ratio=Leaning_column_load_ratio,
                                                               support=support,)
 
 
@@ -68,7 +69,7 @@ This chunk reads the details of the material form Materials_config.py.
 '''
 Material_dict=Material_Info[str(Material)]
 Material_details=convert_dict_items_to_class_attributes(Material_dict)
-Steel=Steel_Material(mat_tag=1,E=Material_details.E,Fy=Material_details.Fy)
+Steel=Steel_Material(mat_tag=2,E=Material_details.E,Fy=Material_details.Fy)
 
 
 
@@ -144,8 +145,10 @@ if Frame.initial_out_of_straightness_dirn is None:
 Frame.generate_Nodes_and_Element_Connectivity()
 Frame.create_distorted_nodes_and_element_connectivity()
 Frame.build_ops_model()
-# Frame.plot_model()
-
+Frame.plot_model()
+opsv.plot_model()
+opsv.plot_load()
+plt.show()
 
 
 vertical_load_scale=0.2
@@ -196,13 +199,13 @@ save_analysis_history_figures(
     control_dir=control_dir,
 )
 
-if proportional_or_not=='proportional_limit_point':
+# if proportional_or_not=='proportional_limit_point':
 
-    del2_over_del1=Frame.get_del2_over_del1(vertical_load_scale=results.maximum_load_ratio_at_limit_point*vertical_load_scale,
-                                            lateral_load_scale=results.maximum_load_ratio_at_limit_point*lateral_load_scale+0.5)
+#     del2_over_del1=Frame.get_del2_over_del1(vertical_load_scale=results.maximum_load_ratio_at_limit_point*vertical_load_scale,
+#                                             lateral_load_scale=results.maximum_load_ratio_at_limit_point*lateral_load_scale+0.5)
 
 
-elif proportional_or_not=='non_proportional_limit_point':
-    del2_over_del1=Frame.get_del2_over_del1(vertical_load_scale=vertical_load_scale,
-                                            lateral_load_scale=results.maximum_load_ratio_at_limit_point*lateral_load_scale+5)
+# elif proportional_or_not=='non_proportional_limit_point':
+#     del2_over_del1=Frame.get_del2_over_del1(vertical_load_scale=vertical_load_scale,
+#                                             lateral_load_scale=results.maximum_load_ratio_at_limit_point*lateral_load_scale+5)
       

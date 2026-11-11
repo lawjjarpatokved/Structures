@@ -2,6 +2,7 @@ from MFColumn2D import MFColumn_2D # @todo avoid using * in imports
 from Analysis_config import Analysis_Info
 from Materials_config import Material_Info
 from helpers import Steel_Material,save_analysis_history_figures
+import os
 
 
 Frame_id= "Trial_MFColumn_2D"
@@ -26,7 +27,7 @@ Analysis_dict=Analysis_Info[str(Analysis_type)]
 This chunk reads the details of the material form Materials_config.py.
 '''
 Material_dict=Material_Info[str(Material)]
-Steel=Steel_Material(mat_tag=1,E=Material_dict['E'],Fy=Material_dict['Fy'])
+Steel=Steel_Material(mat_tag=2,E=Material_dict['E'],Fy=Material_dict['Fy'])
 
 
 details_dict = {
@@ -69,10 +70,10 @@ details_dict = {
     "mat_type": "Steel01",
     "wind_load_dirn": wind_load_dirn,
     "initial_out_of_straightness_dirn": initial_out_of_straightness_dirn,
-    "Leaning_column": False,
+    "Leaning_column": True,
     "Leaning_column_offset": 2,
-    "Leaning_column_floor_load": 0,
-    "Leaning_column_roof_load": 0,
+    "Leaning_column_floor_load": 0.1,
+    "Leaning_column_roof_load": 0.1,
     "floor_nodes_free": False,
     "wind_load_same_for_all_h": False,
     "column_only_model": True  # @todo - needed for MFColumn2D?
@@ -117,12 +118,12 @@ save_analysis_history_figures(
     control_dir=control_dir,
 )
 
-if proportional_or_not=='proportional_limit_point':
-    del2_over_del1=Frame.get_del2_over_del1(vertical_load_scale=results.maximum_load_ratio_at_limit_point*vertical_load_scale,
-                                            lateral_load_scale=results.maximum_load_ratio_at_limit_point*lateral_load_scale+0.5)
+# if proportional_or_not=='proportional_limit_point':
+#     del2_over_del1=Frame.get_del2_over_del1(vertical_load_scale=results.maximum_load_ratio_at_limit_point*vertical_load_scale,
+#                                             lateral_load_scale=results.maximum_load_ratio_at_limit_point*lateral_load_scale+0.5)
 
 
-elif proportional_or_not=='non_proportional_limit_point':
-    del2_over_del1=Frame.get_del2_over_del1(vertical_load_scale=vertical_load_scale,
-                                            lateral_load_scale=results.maximum_load_ratio_at_limit_point*lateral_load_scale+5)
+# elif proportional_or_not=='non_proportional_limit_point':
+#     del2_over_del1=Frame.get_del2_over_del1(vertical_load_scale=vertical_load_scale,
+#                                             lateral_load_scale=results.maximum_load_ratio_at_limit_point*lateral_load_scale+5)
       

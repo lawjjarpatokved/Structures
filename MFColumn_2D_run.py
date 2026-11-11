@@ -38,7 +38,7 @@ def MF_2D_runner(Frame_number,Analysis_type,tolerance,iterations,control_dir='L'
     # Material_dict=Material_Info[str(Material_type)]
     Material_dict=Material_Info[str(Frame_details.Material_type)]
     Material_details=convert_dict_items_to_class_attributes(Material_dict)
-    Steel=Steel_Material(mat_tag=1,E=Material_details.E,Fy=Material_details.Fy)
+    Steel=Steel_Material(mat_tag=2,E=Material_details.E,Fy=Material_details.Fy)
 
     wind_data=load_wind_dirn_data(json_wind_dirn_path=json_wind_dirn_path)
     wind_data=ensure_frame_entry_exists(frame_key=frame_key,data=wind_data,json_wind_dirn_path=json_wind_dirn_path)

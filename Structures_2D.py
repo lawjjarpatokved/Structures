@@ -674,6 +674,8 @@ class Structures_2D:
 
         ## Define leaning column elements (corrotational truss/truss with large AE/L) if required ##
         if self.Leaning_column:
+            ops.uniaxialMaterial('Elastic', 1, self.Material_obj.E*100)
+
             for leaning_col_ij in self.leaning_column_connectivity:
                 eleTag = leaning_col_ij[0]
                 node_i = leaning_col_ij[1]
