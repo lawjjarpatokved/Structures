@@ -4,11 +4,10 @@ import pandas as pd
 import openseespy.opensees as ops
 import os
 from libdenavit.OpenSees.plotting import plot_deformed_2d,plot_undeformed_2d,get_node_coords_and_disp
-from libdenavit.OpenSees.get_fiber_data import *
+from libdenavit.OpenSees.get_fiber_data import get_fiber_data
 from Plots import line_plot
 from helpers import WF_Database
-from math import pi
-from libdenavit.section.wide_flange import *
+from libdenavit.section.wide_flange import I_shape, WideFlangeMember_AISC2022
 from libdenavit.OpenSees import AnalysisResults
 from libdenavit import find_limit_point_in_list, interpolate_list
 import copy
@@ -17,6 +16,85 @@ import matplotlib
 matplotlib.use("TkAgg")
 import numpy as np
 import matplotlib.pyplot as plt
+
+def nth_digit(num, n, m=None):
+    m=1 if m is None else m
+    """
+    Returns m digits starting from the nth digit (1-based index) of the number.
+    For example, digits_from_n(123456, 2, 3) returns 234.
+    """
+    num_str = str(abs(num))  # Convert to string and ignore sign
+    if n <= 0 or n > len(num_str):
+        raise ValueError(f"n = {n} is out of bounds for number {num}")
+    if n + m - 1 > len(num_str):
+        raise ValueError(f"Requested {m} digits from position {n}, but number only has {len(num_str)} digits.")
+    
+    return int(num_str[n - 1:n - 1 + m])
+
+@staticmethod
+def find_bay_and_storey_for_beams(beam_connectivity):
+    """
+    Given beam connectivity as [tag, first_node, second_node],
+    returns (bay, storey) based on encoded node number format.
+    Assumes node number format encodes bay and storey as digits,
+    e.g., node 203 means bay=2, storey=3.
+    """
+    first_node = beam_connectivity[0]
+    bay = nth_digit(first_node, 1)
+    storey = nth_digit(first_node, 2,2)
+    # print(first_node,storey)
+    return bay, storey
+    
+@staticmethod
+def find_axis_and_storey_for_columns(column_connectivity):
+    """
+    Given beam connectivity as [tag, first_node, second_node],
+    returns (bay, storey) based on encoded node number format.
+    Assumes node number format encodes bay and storey as digits,
+    e.g., node 203 means bay=2, storey=3.
+    """
+    first_node = column_connectivity[0]
+    axis = nth_digit(first_node, 1)
+    storey = nth_digit(first_node, 2,2) + 1  
+    ''' 1 is added because my assumption is that column in storey
+        1 means the column that support the 1st storey slab
+    '''
+    return axis, storey
+
+# @todo - Looks like this method has no use for now
+@staticmethod
+def generate_clean_csv_file_from_messy_out_files(path):
+    # Read the file with all columns as string to avoid parsing errors
+    df_raw = pd.read_csv(path, sep=r'\s+', header=None, dtype=str, engine='python')
+
+    # Drop any empty rows
+    df_raw.dropna(how='all', inplace=True)
+
+    # Convert to numeric with errors coerced to NaN
+    df = df_raw.apply(pd.to_numeric, errors='coerce')
+
+    # Drop rows with any NaN (non-numeric values)
+    df.dropna(inplace=True)
+
+    if df.empty:
+        print(f" No valid numeric data found in: {path}")
+        return
+
+    # Select the last row and convert to inches
+    df_clean = (df.iloc[-1] / 0.0254).to_frame()
+
+    # Reset index and label the column
+    df_clean.reset_index(drop=True, inplace=True)
+    df_clean.columns = ['Value_in_inches']
+
+    # Save as clean CSV
+    folder = os.path.dirname(path)
+    base_name = os.path.splitext(os.path.basename(path))[0]
+    output_path = os.path.join(folder, base_name + '_clean.csv')
+    df_clean.to_csv(output_path, index=False)
+
+    print(f" Saved clean displacement to: {output_path}")
+
 
 class Structures_2D:
 
@@ -124,84 +202,6 @@ class Structures_2D:
             raise ValueError(f"The number of arguments given for supports {self.support} should be equal to the number of columns, {(self.no_of_bays)+1}. ")
   
   
-    # @todo - better to move some of these staticmethods outside of the class
-    @staticmethod
-    def nth_digit(num, n, m=None):
-        m=1 if m is None else m
-        """
-        Returns m digits starting from the nth digit (1-based index) of the number.
-        For example, digits_from_n(123456, 2, 3) returns 234.
-        """
-        num_str = str(abs(num))  # Convert to string and ignore sign
-        if n <= 0 or n > len(num_str):
-            raise ValueError(f"n = {n} is out of bounds for number {num}")
-        if n + m - 1 > len(num_str):
-            raise ValueError(f"Requested {m} digits from position {n}, but number only has {len(num_str)} digits.")
-        
-        return int(num_str[n - 1:n - 1 + m])
-
-    @staticmethod
-    def find_bay_and_storey_for_beams(beam_connectivity):
-        """
-        Given beam connectivity as [tag, first_node, second_node],
-        returns (bay, storey) based on encoded node number format.
-        Assumes node number format encodes bay and storey as digits,
-        e.g., node 203 means bay=2, storey=3.
-        """
-        first_node = beam_connectivity[0]
-        bay = Structures_2D.nth_digit(first_node, 1)
-        storey = Structures_2D.nth_digit(first_node, 2,2)
-        # print(first_node,storey)
-        return bay, storey
-        
-    @staticmethod
-    def find_axis_and_storey_for_columns(column_connectivity):
-        """
-        Given beam connectivity as [tag, first_node, second_node],
-        returns (bay, storey) based on encoded node number format.
-        Assumes node number format encodes bay and storey as digits,
-        e.g., node 203 means bay=2, storey=3.
-        """
-        first_node = column_connectivity[0]
-        axis = Structures_2D.nth_digit(first_node, 1)
-        storey = Structures_2D.nth_digit(first_node, 2,2) + 1  
-        ''' 1 is added because my assumption is that column in storey
-          1 means the column that support the 1st storey slab
-        '''
-        return axis, storey
-    
-    @staticmethod
-    def generate_clean_csv_file_from_messy_out_files(path):
-        # Read the file with all columns as string to avoid parsing errors
-        df_raw = pd.read_csv(path, sep=r'\s+', header=None, dtype=str, engine='python')
-
-        # Drop any empty rows
-        df_raw.dropna(how='all', inplace=True)
-
-        # Convert to numeric with errors coerced to NaN
-        df = df_raw.apply(pd.to_numeric, errors='coerce')
-
-        # Drop rows with any NaN (non-numeric values)
-        df.dropna(inplace=True)
-
-        if df.empty:
-            print(f" No valid numeric data found in: {path}")
-            return
-
-        # Select the last row and convert to inches
-        df_clean = (df.iloc[-1] / 0.0254).to_frame()
-
-        # Reset index and label the column
-        df_clean.reset_index(drop=True, inplace=True)
-        df_clean.columns = ['Value_in_inches']
-
-        # Save as clean CSV
-        folder = os.path.dirname(path)
-        base_name = os.path.splitext(os.path.basename(path))[0]
-        output_path = os.path.join(folder, base_name + '_clean.csv')
-        df_clean.to_csv(output_path, index=False)
-
-        print(f" Saved clean displacement to: {output_path}")
 
 
     def generate_Nodes_and_Element_Connectivity(self):
@@ -322,7 +322,7 @@ class Structures_2D:
 
 ###################### The code below is written so as to change the order of elements for direct comparison with Ziemian results
         self.sorted_column_connectivity= sorted(
-                        self.column_connectivity,key=lambda col: tuple(reversed(Structures_2D.find_axis_and_storey_for_columns(col[1:])))
+                        self.column_connectivity,key=lambda col: tuple(reversed(find_axis_and_storey_for_columns(col[1:])))
                         )
         
         self.column_member_list = []
@@ -335,7 +335,7 @@ class Structures_2D:
                 self.column_member_list.append([member_tag] + member_element_tags)
 
 
-        self.sorted_beam_connectivity=sorted(self.beam_connectivity,key=lambda b: Structures_2D.find_bay_and_storey_for_beams(b[1:])[1])
+        self.sorted_beam_connectivity=sorted(self.beam_connectivity,key=lambda b: find_bay_and_storey_for_beams(b[1:])[1])
 
         self.beam_member_list = []
         group_size = self.no_of_elements_beam  
@@ -357,8 +357,8 @@ class Structures_2D:
             node[0]
             for node in self.beam_nodes
             if len(str(node[0])) == 5
-            and Structures_2D.nth_digit(node[0], 1) == i
-            and Structures_2D.nth_digit(node[0], 2,2) != self.no_of_stories
+            and nth_digit(node[0], 1) == i
+            and nth_digit(node[0], 2,2) != self.no_of_stories
         ]
     
     def bay_i_internal_roof_nodes(self, i):
@@ -368,8 +368,8 @@ class Structures_2D:
             node[0]
             for node in self.beam_nodes
             if len(str(node[0])) == 5
-            and Structures_2D.nth_digit(node[0], 1) == i
-            and Structures_2D.nth_digit(node[0], 2,2) == self.no_of_stories
+            and nth_digit(node[0], 1) == i
+            and nth_digit(node[0], 2,2) == self.no_of_stories
         ]
 
     def axis_i_roof_nodes(self, i):
@@ -379,8 +379,8 @@ class Structures_2D:
             node[0]
             for node in self.beam_nodes
             if len(str(node[0])) == 3
-            and Structures_2D.nth_digit(node[0], 1) == i
-            and Structures_2D.nth_digit(node[0], 2,2) == self.no_of_stories
+            and nth_digit(node[0], 1) == i
+            and nth_digit(node[0], 2,2) == self.no_of_stories
         ]
     
     def axis_i_floor_nodes(self, i):
@@ -390,8 +390,8 @@ class Structures_2D:
             node[0]
             for node in self.beam_nodes
             if len(str(node[0])) == 3
-            and Structures_2D.nth_digit(node[0], 1) == i
-            and Structures_2D.nth_digit(node[0], 2,2) != self.no_of_stories
+            and nth_digit(node[0], 1) == i
+            and nth_digit(node[0], 2,2) != self.no_of_stories
         ]
 
     def bay_i_floor_load(self, i):
@@ -598,7 +598,7 @@ class Structures_2D:
         # ----- Columns -----
         for i, column_ij_node in enumerate(self.column_connectivity):
             
-            axis, storey = Structures_2D.find_axis_and_storey_for_columns(column_ij_node[1:])
+            axis, storey = find_axis_and_storey_for_columns(column_ij_node[1:])
 
             if self.column_case == 'common_and_exceptions':
                 key = f'({axis},{storey})'
@@ -638,7 +638,7 @@ class Structures_2D:
 
         # ----- Beams -----
         for i, beam_ij_node in enumerate(self.beam_connectivity):
-            bay, storey = Structures_2D.find_bay_and_storey_for_beams(beam_ij_node[1:])
+            bay, storey = find_bay_and_storey_for_beams(beam_ij_node[1:])
 
             if self.beam_case == 'common_and_exceptions':
                 key = f'({bay},{storey})'
@@ -674,7 +674,7 @@ class Structures_2D:
 
         ## Define leaning column elements (corrotational truss/truss with large AE/L) if required ##
         if self.Leaning_column:
-            ops.uniaxialMaterial('Elastic', 1, self.Material_obj.E*100)
+            ops.uniaxialMaterial('Elastic', 1, self.Material_obj.E)
 
             for leaning_col_ij in self.leaning_column_connectivity:
                 eleTag = leaning_col_ij[0]
@@ -683,21 +683,21 @@ class Structures_2D:
                 if self.Second_order_effects:
                     ops.element('corotTruss', eleTag, node_i, node_j, 100 ,1,'-rho',1)
                 else:
-                    ops.element('truss', eleTag, node_i, node_j, 100 ,1, '-rho',1)
+                    ops.element('truss', eleTag, node_i, node_j, 100, 1, '-rho', 1)
 
             ## Define geometric constraint between leaning column nodes and main frame nodes at each floor level ## 
             for constraint in self.leaning_column_and_frame_beam_connectivity:
                 eleTag = constraint[0]
                 main_frame_node_tag = constraint[1]
                 leaning_column_node_tag = constraint[2]
-                ops.equalDOF(main_frame_node_tag,leaning_column_node_tag,1)  # Constraining UX and UY of leaning column node to main frame node
+                ops.equalDOF(main_frame_node_tag,leaning_column_node_tag,1)  # Constraining UX of leaning column node to main frame node
 
 
 
 
         self.roof_beams=[]
         for beams in self.beam_connectivity:
-            if Structures_2D.nth_digit(beams[1],2,2)==self.no_of_stories:
+            if nth_digit(beams[1],2,2)==self.no_of_stories:
                 self.roof_beams.append(beams)
 
     def rebuild_with_overrides(self, message=False, **overrides):
@@ -1680,11 +1680,11 @@ class Structures_2D:
             # Create output folder
             os.makedirs(os.path.join("Column_Results/Analysis_History", self.Frame_id), exist_ok=True)
 
-            ops.constraints('Plain')
-            # ops.constraints('Transformation')
+            # ops.constraints('Plain')
+            ops.constraints('Transformation')
             ops.numberer('RCM')
             ops.system('UmfPack')
-            ops.test('NormUnbalance', tol, iter, analysis_msg)
+            ops.test('NormDispIncr',tol, iter, analysis_msg)
             ops.algorithm('RaphsonNewton')  
             ops.analysis('Static')
             dU = target_disp / steps
@@ -1856,10 +1856,10 @@ class Structures_2D:
             os.makedirs(os.path.join("Column_Results/Analysis_History", self.Frame_id), exist_ok=True)
 
             # ops.constraints('Plain')
-            ops.constraints('Plain')
+            ops.constraints('Transformation')
             ops.numberer('RCM')
             ops.system('UmfPack')
-            ops.test('NormUnbalance', 1e-8, iter,analysis_msg)
+            ops.test('NormDispIncr',tol, iter, analysis_msg)
             ops.algorithm('Newton')
             ops.integrator('LoadControl',1/num_steps_LCA)  ## 1/num_steps_LCA because we want the entire vertical load to be applied before starting displacement controlled analysis.
             ops.analysis('Static')
