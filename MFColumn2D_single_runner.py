@@ -1,12 +1,13 @@
-from MFColumn2D import *
-from Plots import line_plot
+from MFColumn2D import MFColumn_2D
 from Columns_config import Frame_Info
 from Analysis_config import Analysis_Info
 from Materials_config import Material_Info
-from libdenavit.OpenSees.get_fiber_data import *
+import os
 import opsvis as opsv 
-from helpers import m, Steel_Material,convert_dict_items_to_class_attributes,check_and_create_new_entries_in_column_config_file,save_analysis_history_figures
-from libdenavit.OpenSees import plotting
+from helpers import get_storey_height_list_for_a_section, Steel_Material,convert_dict_items_to_class_attributes,check_and_create_new_entries_in_column_config_file,save_analysis_history_figures
+from helpers import load_wind_dirn_data,ensure_frame_entry_exists,save_wind_dirn_data
+import matplotlib.pyplot as plt
+
 
 json_wind_dirn_path="wind_load_dirn_data.json"
 
@@ -91,17 +92,14 @@ print(initial_out_of_straightness_dirn)
 '''
 Making a MFColumn_2D object from the Frame_details, Analysis_details, Material_details read from the corresponding files.
 '''
-Frame=MFColumn_2D(Frame_details.bay_width, Frame_details.story_height, Frame_details.column_no_of_ele, Frame_details.beam_no_of_ele,  
-                    beam_section=Frame_details.beam_section,
+Frame=MFColumn_2D(Frame_details.story_height, Frame_details.column_no_of_ele,
                     column_section=Frame_details.column_section,
                     support=Frame_details.support,
                     D_floor_intensity=Frame_details.D_floor_intensity,
                     D_roof_intensity=Frame_details.D_roof_intensity,
                     L_floor_intensity=Frame_details.L_floor_intensity,
                     L_roof_intensity=Frame_details.L_roof_intensity,
-                #   Wind_load_floor=Frame_details.Wind_load_floor,
                     Base_Wind_load=Frame_details.Base_Wind_load,
-                    Wall_load=Frame_details.Wall_load,
                     load_combination_multipliers=Frame_details.load_comb_multipliers,
                     Frame_id=Frame_details.Frame_id,
                     Material_obj=Steel,
@@ -156,7 +154,7 @@ lateral_load_scale=1
 tolerance=1e-6
 iterations=10
 control_dir='L'
-proportional_or_not='non_proportional_limit_point' 
+proportional_or_not='proportional_limit_point' 
 '''
 This is to compare the results with a vertical pushover vs a lateral pushover
 '''
